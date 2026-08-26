@@ -1,10 +1,33 @@
 "use client";
 
-import { useMemo } from "react";
+import { Children, isValidElement, useMemo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { FunctionGraph } from "@/components/ui/function-graph";
+
+function nodeText(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(nodeText).join("");
+  return "";
+}
+
+function MarkdownPre({ children }: { children?: ReactNode }) {
+  const child = Children.toArray(children)[0];
+  if (isValidElement<{ className?: string; children?: ReactNode }>(child)) {
+    const language = child.props.className ?? "";
+    if (/\blanguage-(?:learncraft-)?graph\b/.test(language)) {
+      return <FunctionGraph source={nodeText(child.props.children).trim()} />;
+    }
+  }
+
+  return (
+    <pre className="scrollbar-subtle my-5 overflow-x-auto rounded-xl border border-line bg-[#172033] p-4 text-[0.84rem] leading-6 text-[#eef1f8] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [tab-size:2] [&>code]:block [&>code]:min-w-max [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit">
+      {children}
+    </pre>
+  );
+}
 
 const markdownComponents: Components = {
   h1: ({ children }) => (
@@ -61,11 +84,7 @@ const markdownComponents: Components = {
       {children}
     </code>
   ),
-  pre: ({ children }) => (
-    <pre className="scrollbar-subtle my-5 overflow-x-auto rounded-xl border border-line bg-[#172033] p-4 text-[0.84rem] leading-6 text-[#eef1f8] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [tab-size:2] [&>code]:block [&>code]:min-w-max [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit">
-      {children}
-    </pre>
-  ),
+  pre: MarkdownPre,
   table: ({ children }) => (
     <div
       className="scrollbar-subtle my-5 max-w-full overflow-x-auto rounded-xl border border-line"

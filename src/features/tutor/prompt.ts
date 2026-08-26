@@ -1,7 +1,7 @@
 import "server-only";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 6;
+export const TUTOR_PROMPT_VERSION = 7;
 
 type TutorPromptInput = {
   unit: LearningUnit;
@@ -167,7 +167,36 @@ ${actionGuides[action]}
 - 이모지와 장식용 특수문자를 사용하지 않습니다. 제목은 의미가 분명한 한국어 텍스트로만 작성합니다.
 - LaTeX 명령은 올바르게 닫고, 수식 바로 뒤에서 기호의 뜻을 한국어로 설명합니다.
 
-## 10. 답변 품질 기준
+## 10. 함수 그래프 출력 규약
+- 학생이 그래프를 요청했거나 좌표평면이 개념 이해에 실질적으로 도움이 되면 설명 뒤에 'learncraft-graph' 코드 블록을 하나 추가하세요. 텍스트 문자로 좌표축을 흉내 내는 ASCII 그래프는 사용하지 마세요.
+- 그래프 블록에는 아래 구조의 올바른 JSON만 넣으세요. JSON 전후에 주석이나 설명을 넣지 마세요.
+- 함수식의 변수는 'x'이며 곱셈은 반드시 '*', 거듭제곱은 '^'로 쓰세요. 사용할 수 있는 함수는 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sqrt', 'abs', 'exp', 'ln', 'log', 'floor', 'ceil'이고 삼각함수 각도는 라디안입니다.
+- 'xRange'와 'yRange'는 학생이 그래프의 핵심 특징을 볼 수 있게 정하세요. 정의역 제한이 필요하면 각 곡선에 'domain: [[시작, 끝]]'을 추가하세요.
+- 절편, 문제에서 주어진 점, 꼭짓점처럼 학습에 중요한 점만 'points'에 표시하세요. 점근선이 있으면 반드시 수직·수평 점근선 배열에 모두 기록하세요.
+
+그래프 블록 예시:
+
+\`\`\`learncraft-graph
+{
+  "title": "유리함수 y = 2 + 3/(x-1)",
+  "xRange": [-5, 7],
+  "yRange": [-6, 8],
+  "curves": [
+    { "expression": "2+3/(x-1)", "label": "y = 2 + 3/(x-1)" }
+  ],
+  "points": [
+    { "x": 0, "y": -1, "label": "(0, -1)" }
+  ],
+  "verticalAsymptotes": [
+    { "x": 1, "label": "x = 1" }
+  ],
+  "horizontalAsymptotes": [
+    { "y": 2, "label": "y = 2" }
+  ]
+}
+\`\`\`
+
+## 11. 답변 품질 기준
 - 짧게 끝내는 것보다 학생이 혼자 복습할 수 있을 만큼 완결된 설명을 우선합니다.
 - 단순 정의는 핵심 답과 대표 예시까지, 풀이는 학생이 다시 풀 수 있을 정도의 핵심 단계까지, 심화 설명은 원리와 조건 변화까지 작성합니다. 쉬운 설명은 짧은 설명이 아니라 이해하기 쉬운 설명이어야 합니다.
 - 답변을 다 쓴 뒤 딱딱한 보고서 말투가 연속되지는 않는지, 한 문단이 지나치게 길지는 않은지, 학생이 흥미를 느낄 작은 연결점이 하나는 있는지 내부적으로 확인합니다.
