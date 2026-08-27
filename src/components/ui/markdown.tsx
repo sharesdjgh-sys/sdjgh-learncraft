@@ -213,8 +213,11 @@ function findExactBacktickRun(value: string, from: number, length: number) {
 }
 
 function normalizePlainMath(value: string) {
-  const emphasisNormalized = normalizeKoreanEmphasisBoundaries(value);
-  const shortDisplayMathNormalized = normalizeShortDisplayMath(emphasisNormalized);
+  const escapedStrongNormalized = normalizeEscapedStrongMarkers(value);
+  const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
+  const adjacentMathNormalized = normalizeAdjacentDollarMath(emphasisNormalized);
+  const unclosedLineMathNormalized = normalizeUnclosedLineMath(adjacentMathNormalized);
+  const shortDisplayMathNormalized = normalizeShortDisplayMath(unclosedLineMathNormalized);
   const displayMathNormalized = shortDisplayMathNormalized.replace(
     /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]/g,
     (match, expression: string) => {
@@ -223,11 +226,74 @@ function normalizePlainMath(value: string) {
     },
   );
 
-  return displayMathNormalized.replace(
+  const dollarDisplayMathNormalized = normalizeDollarDisplayMath(displayMathNormalized);
+
+  return dollarDisplayMathNormalized.replace(
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
     (match, expression: string) => {
       const trimmedExpression = expression.trim();
       return trimmedExpression ? `$${trimmedExpression}$` : match;
+    },
+  );
+}
+
+/** Models occasionally escape both Markdown strong markers, making ** visible. */
+function normalizeEscapedStrongMarkers(value: string) {
+  return value.replace(
+    /\\\*\\\*([^*\r\n]+?)\\\*\\\*/g,
+    (_, content: string) => `**${content}**`,
+  );
+}
+
+/**
+ * Repair a standalone equation when a model emits only the opening dollar,
+ * for example "$D=36-4(k+2)". Restrict this to lines containing clear math
+ * operators so ordinary currency text is left unchanged.
+ */
+function normalizeUnclosedLineMath(value: string) {
+  return value.replace(
+    /^([\t ]*)\$([^$\r\n]+?)[\t ]*$/gm,
+    (match, indentation: string, expression: string) => {
+      const trimmedExpression = expression.trim();
+      const looksLikeEquation = /(?:=|[_^]|[+\-*/×÷<>≤≥]|\\(?:frac|dfrac|sqrt|sum|lim|begin)\b)/.test(
+        trimmedExpression,
+      );
+
+      if (!looksLikeEquation) return match;
+      return `${indentation}$$\n${trimmedExpression}\n${indentation}$$`;
+    },
+  );
+}
+
+/**
+ * Streaming models sometimes join neighboring math blocks without whitespace,
+ * producing runs such as $$$$ or an inline close immediately followed by a
+ * display open ($$$). Restore explicit block boundaries before remark-math
+ * parses the Markdown.
+ */
+function normalizeAdjacentDollarMath(value: string) {
+  return value
+    .replace(
+      /(?<!\\)\$\$([^$\r\n]+?)\${3}([^$\r\n]+?)\$(?!\$)/g,
+      (_, displayExpression: string, inlineExpression: string) => (
+        `$$${displayExpression.trim()}$$\n\n$${inlineExpression.trim()}$`
+      ),
+    )
+    .replace(
+      /(?<!\\)\$([^$\r\n]+?)\${3}(?!\$)/g,
+      (_, inlineExpression: string) => `$${inlineExpression.trim()}$\n\n$$`,
+    )
+    .replace(/(?<!\\)\${4}(?!\$)/g, () => "$$\n\n$$")
+    .replace(/(?<!\\)\$\$[\t ]+\$\$(?!\$)/g, () => "$$\n\n$$");
+}
+
+/** Keep complete dollar-delimited display equations on their own lines. */
+function normalizeDollarDisplayMath(value: string) {
+  return value.replace(
+    /(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$/g,
+    (match, expression: string) => {
+      const trimmedExpression = expression.trim();
+      return trimmedExpression ? `\n\n$$\n${trimmedExpression}\n$$\n\n` : match;
     },
   );
 }

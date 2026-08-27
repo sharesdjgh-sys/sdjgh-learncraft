@@ -2,6 +2,7 @@
 
 import { useId, useMemo } from "react";
 import { ChartSpline, TriangleAlert } from "lucide-react";
+import katex from "katex";
 
 type Range = [number, number];
 type Curve = {
@@ -285,6 +286,44 @@ function tickLabel(value: number) {
   return Number(value.toFixed(4)).toString();
 }
 
+function graphLabelTex(value: string) {
+  return value
+    .replaceAll("−", "-")
+    .replaceAll("×", String.raw`\mathbin{\times}`)
+    .replaceAll("÷", String.raw`\mathbin{\div}`)
+    .replaceAll("*", String.raw`\mathbin{\cdot}`);
+}
+
+function GraphMathLabel({ value }: { value: string }) {
+  const html = useMemo(() => katex.renderToString(graphLabelTex(value), {
+    displayMode: false,
+    output: "html",
+    strict: "ignore",
+    throwOnError: false,
+  }), [value]);
+
+  return (
+    <span
+      className="graph-math-label"
+      aria-label={value}
+      // KaTeX escapes untrusted text and HTML extensions remain disabled.
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+function GraphTitle({ value }: { value: string }) {
+  const equation = value.match(/^(.*?)([xy]\s*=\s*.+)$/i);
+  if (!equation) return value;
+
+  return (
+    <>
+      {equation[1]}
+      <GraphMathLabel value={equation[2]} />
+    </>
+  );
+}
+
 function curvePath(
   curve: Curve,
   spec: GraphSpec,
@@ -362,7 +401,7 @@ export function FunctionGraph({ source }: { source: string }) {
   return (
     <figure className="my-5 overflow-hidden rounded-2xl border border-line bg-white shadow-[0_10px_35px_rgba(42,54,91,.07)]">
       <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-[#fafbfe] px-4 py-3 sm:px-5">
-        <span className="flex items-center gap-2 text-sm font-extrabold text-ink"><ChartSpline size={18} className="text-brand" />{spec.title}</span>
+        <span className="flex items-center gap-2 text-sm font-extrabold text-ink"><ChartSpline size={18} className="text-brand" /><GraphTitle value={spec.title} /></span>
         <span className="text-[.67rem] font-semibold text-ink-soft">x: {tickLabel(spec.xRange[0])}~{tickLabel(spec.xRange[1])} · y: {tickLabel(spec.yRange[0])}~{tickLabel(spec.yRange[1])}</span>
       </figcaption>
 
@@ -402,7 +441,7 @@ export function FunctionGraph({ source }: { source: string }) {
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line px-4 py-3 sm:px-5">
-        {spec.curves.map((curve) => <span key={curve.label} className="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span className="h-0.5 w-5 rounded-full" style={{ backgroundColor: curve.color }} />{curve.label}</span>)}
+        {spec.curves.map((curve) => <span key={curve.label} className="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span className="h-0.5 w-5 rounded-full" style={{ backgroundColor: curve.color }} /><GraphMathLabel value={curve.label} /></span>)}
         {(spec.verticalAsymptotes.length > 0 || spec.horizontalAsymptotes.length > 0) && <span className="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span className="w-5 border-t-2 border-dashed border-accent" />점근선</span>}
       </div>
     </figure>

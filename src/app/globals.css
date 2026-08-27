@@ -169,9 +169,10 @@ select:focus-visible {
   list-style: disc;
 }
 
-/* AI 답변의 KaTeX 수식은 본문 크기와 행간에 맞춰 별도로 조정한다. */
+/* AI 답변의 KaTeX 수식은 본문 크기·행간·강조 두께를 주변 문장에 맞춘다. */
 .learncraft-markdown .katex {
   font-size: 0.98em;
+  font-weight: inherit;
   line-height: 1.35;
 }
 
@@ -202,9 +203,28 @@ select:focus-visible {
   line-height: 2.1;
 }
 
-/* KaTeX 기본 비율보다 지수와 첨자를 한 단계 차분하게 표시한다. */
+/* KaTeX 기본 비율보다 지수와 첨자를 작게 표시해 본문 기호와 위계를 분명히 한다. */
 .learncraft-markdown .katex .msupsub .katex-sizing {
-  font-size: 0.66em;
+  font-size: 0.52em;
+}
+
+/* 그래프 제목과 범례의 함수식도 본문 수식과 같은 비율로 표시한다. */
+.graph-math-label .katex {
+  font-size: 1em;
+  line-height: 1;
+}
+
+.graph-math-label .katex .msupsub .katex-sizing {
+  font-size: 0.52em;
+}
+
+/* 분수선과 분자·분모 사이의 시각적 여백을 각각 확보한다. */
+.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:first-child {
+  transform: translateY(0.07em);
+}
+
+.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:last-child {
+  transform: translateY(-0.07em);
 }
 
 .text-balance {
