@@ -431,7 +431,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                     rows={1}
                     maxLength={1200}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
-                    className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-[.93rem] leading-6 text-ink outline-none placeholder:text-[#99a1b1]"
+                    className="chat-composer-input max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-[.93rem] leading-6 text-ink outline-none placeholder:text-[#99a1b1]"
                   />
                   <Button type="submit" size="icon" disabled={!input.trim() || loading} aria-label="질문 보내기" className="rounded-[.85rem]"><Send size={18} /></Button>
                 </div>

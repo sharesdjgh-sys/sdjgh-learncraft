@@ -93,6 +93,10 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+.chat-composer-input:focus-visible {
+  outline: none;
+}
+
 ::selection {
   background: #cdd6ff;
   color: #1d347f;
