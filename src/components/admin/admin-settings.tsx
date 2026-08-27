@@ -33,14 +33,14 @@ export function AdminSettings() {
       </header>
 
       <div className="mt-9 grid gap-10 lg:grid-cols-[1.25fr_.75fr]">
-        <section className="rounded-[22px] bg-white p-6 shadow-[var(--lift-2)] sm:p-8">
+        <section className="rounded-[16px] border border-line bg-surface p-6 shadow-[var(--lift-2)] sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-5 border-b border-line pb-6">
             <div><Gauge size={21} className="text-brand" /><h2 className="mt-4 text-xl font-extrabold">학생별 일일 AI 사용 한도</h2><p className="mt-2 max-w-lg text-[.9rem] leading-7 text-ink-3">새 질문과 더 쉽게, 원리까지 깊게, 전체 풀이, 확인 문제를 각각 1회로 계산합니다.</p></div>
             <span className="rounded-full bg-surface-3 px-3 py-1.5 text-[.8rem] font-bold text-ink-3">현재 {savedLimit}회</span>
           </div>
-          <div className="mt-8 rounded-[18px] bg-surface-2 p-5 sm:p-6">
+          <div className="mt-8 rounded-[13px] border border-line bg-surface-2 p-5 sm:p-6">
             <div className="flex items-end justify-between gap-4"><label htmlFor="daily-limit" className="text-[.9rem] font-bold">하루 최대 횟수</label><div className="figure flex items-baseline gap-1"><span className="text-4xl font-semibold text-brand">{limit}</span><span className="text-sm text-ink-4">회</span></div></div>
-            <input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-7 w-full accent-[#7b5cf0]" />
+            <input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-7 w-full accent-[#765f82]" />
             <div className="figure mt-2 flex justify-between text-[.76rem] text-ink-5"><span>5회</span><span>100회</span></div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4"><p className="flex items-center gap-1.5 text-[.82rem] text-ink-3"><TriangleAlert size={15} className="text-warn" /> 변경 즉시 모든 학생에게 적용됩니다.</p><Button onClick={save} disabled={saving || limit === savedLimit}>{saving ? <LoaderCircle className="animate-spin" size={17} /> : saved ? <Check size={17} /> : null}{saved ? "저장됨" : "변경 저장"}</Button></div>
@@ -52,7 +52,7 @@ export function AdminSettings() {
             <InfoRow icon={Bot} label="AI 모델" value="Gemini 3.6 Flash" note="환경 변수 연동" />
             <InfoRow icon={CircleDollarSign} label="비용 표시" value="USD 예상 비용" note="실제 청구액과 차이가 날 수 있음" />
           </dl>
-          <div className="mt-6 rounded-[18px] bg-brand-page p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-[.92rem] font-extrabold">학생 대화 비공개</h3><p className="mt-2 text-[.84rem] leading-6 text-ink-3">관리자 설정으로도 학생 질문 원문이나 오답 노트 내용을 열람할 수 없습니다.</p></div>
+          <div className="mt-6 rounded-[13px] border border-line bg-brand-page p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-[.92rem] font-extrabold">학생 대화 비공개</h3><p className="mt-2 text-[.84rem] leading-6 text-ink-3">관리자 설정으로도 학생 질문 원문이나 오답 노트 내용을 열람할 수 없습니다.</p></div>
         </aside>
       </div>
     </div>

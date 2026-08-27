@@ -69,6 +69,7 @@ export type TutorMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  imageNames?: string[];
   action?: TutorAction;
   completed?: boolean;
 };

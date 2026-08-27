@@ -23,7 +23,7 @@ export default async function ProfilePage() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[1.02fr_.98fr] lg:gap-12">
         <section>
           <div className="flex items-center gap-4 border-b border-line pb-6">
-            <span className="font-learning grid size-15 place-items-center rounded-full bg-brand text-xl font-bold text-white shadow-[0_8px_20px_rgba(82,57,159,.2)]">{user.name.slice(0, 1)}</span>
+            <span className="font-learning grid size-15 place-items-center rounded-[16px] border border-line bg-brand-soft text-xl font-bold text-brand-dark shadow-[var(--lift-1)]">{user.name.slice(0, 1)}</span>
             <div><h2 className="font-learning text-xl font-bold">{user.name}</h2><p className="mt-1 text-[.86rem] text-ink-4">LearnCraft 학생 계정</p></div>
           </div>
           <dl className="divide-y divide-line">
@@ -36,11 +36,11 @@ export default async function ProfilePage() {
           </dl>
         </section>
 
-        <section className="rounded-[22px] bg-brand-page p-6 sm:p-8">
+        <section className="rounded-[16px] border border-line bg-brand-page p-6 sm:p-8">
           <LockKeyhole size={22} className="text-brand" strokeWidth={1.8} />
           <h2 className="font-learning mt-5 text-xl font-bold">내 대화는 나에게만</h2>
           <p className="font-learning mt-3 text-[1rem] leading-8 text-ink-2">일반 질문과 AI 답변은 서버에 저장하지 않습니다. 직접 고른 답변만 오답 노트에 남고, 관리자와 교사는 그 내용을 볼 수 없어요.</p>
-          <div className="mt-7 border-t border-[rgba(126,101,181,.18)] pt-5">
+          <div className="mt-7 border-t border-line pt-5">
             <p className="text-[.82rem] font-bold text-brand">운영을 위해 저장되는 최소 정보</p>
             <ul className="mt-3 grid gap-2.5 text-[.88rem] text-ink-3">
               <li>단원별 AI 사용 횟수</li>

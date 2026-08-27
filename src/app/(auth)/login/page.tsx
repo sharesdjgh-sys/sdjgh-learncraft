@@ -19,13 +19,13 @@ export default async function LoginPage() {
 
   return (
     <main className="app-canvas relative min-h-dvh overflow-hidden px-5 py-6 sm:px-8 lg:grid lg:place-items-center lg:px-12">
-      <div className="pointer-events-none absolute -left-24 -top-24 size-80 rounded-full bg-[#c9b9ff]/35 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-28 -right-20 size-96 rounded-full bg-[#ffc5de]/30 blur-3xl" />
+      <div className="pointer-events-none absolute inset-y-0 left-[8%] hidden w-px bg-line lg:block" />
+      <div className="pointer-events-none absolute right-[7%] top-[12%] hidden h-[68%] w-px bg-line lg:block" />
 
       <div className="relative mx-auto grid w-full max-w-[1180px] items-center gap-10 py-6 lg:grid-cols-[1.08fr_.92fr] lg:gap-20">
         <section className="max-w-[40rem]">
           <Logo />
-          <p className="mt-16 flex items-center gap-2 text-[.82rem] font-bold text-brand sm:mt-20"><BookOpenCheck size={16} /> 교육과정 기반 AI 튜터</p>
+          <p className="mt-16 flex items-center gap-2 text-[.82rem] font-bold uppercase tracking-[.12em] text-brand sm:mt-20"><BookOpenCheck size={16} /> 교육과정 기반 AI 튜터</p>
           <h1 className="font-learning mt-5 text-balance text-[2.55rem] font-bold leading-[1.35] tracking-[-0.055em] text-ink sm:text-[3.7rem]">
             정답보다 먼저,<br /><span className="mark">생각하는 힘</span>을 만듭니다.
           </h1>
@@ -45,8 +45,9 @@ export default async function LoginPage() {
         </section>
 
         <section className="elevated-card relative mx-auto w-full max-w-[29rem] p-6 sm:p-9">
-          <span className="absolute -right-3 -top-3 size-8 rounded-full bg-[#ff8fb8] shadow-[0_0_0_7px_rgba(255,143,184,.15)]" aria-hidden="true" />
-          <p className="text-[.8rem] font-bold text-brand">LEARNCRAFT SCHOOL</p>
+          <span className="figure absolute right-5 top-5 text-[.72rem] tracking-[.16em] text-ink-5" aria-hidden="true">01 / ACCESS</span>
+          <span className="absolute -left-px top-16 h-20 w-[3px] bg-brand" aria-hidden="true" />
+          <p className="text-[.76rem] font-bold tracking-[.14em] text-brand">LEARNCRAFT SCHOOL</p>
           <h2 className="font-learning mt-3 text-2xl font-bold tracking-[-0.035em]">학습 공간에 들어가기</h2>
           <p className="mt-2 text-[.9rem] leading-6 text-ink-3">지금은 학생과 관리자 화면을 바로 체험할 수 있어요.</p>
           <div className="mt-8"><LoginChoices enabled={isDevLoginAvailable()} /></div>

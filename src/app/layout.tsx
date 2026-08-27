@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Noto_Serif_KR, Source_Serif_4 } from "next/font/google";
 import "katex/dist/katex.min.css";
@@ -16,6 +16,11 @@ const mathSerif = Source_Serif_4({
   subsets: ["latin"],
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#f3f1ec",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const incomingHeaders = await headers();
@@ -48,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko" className={`${learningSerif.variable} ${mathSerif.variable}`}>
+    <html lang="ko" data-scroll-behavior="smooth" className={`${learningSerif.variable} ${mathSerif.variable}`}>
       <body>{children}</body>
     </html>
   );

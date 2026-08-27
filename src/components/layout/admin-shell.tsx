@@ -30,13 +30,19 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
           <nav className="flex items-center gap-1" aria-label="관리자 메뉴">
             {links.map(({ href, label, icon: Icon }) => {
               const active = pathname.startsWith(href);
-              return <Link key={href} href={href} className={cn("flex items-center gap-2 rounded-full px-3 py-2 text-[.82rem] font-semibold transition sm:px-4 sm:text-sm", active ? "bg-brand text-white shadow-[0_4px_12px_rgba(107,80,197,.2)]" : "text-ink-3 hover:bg-surface-3 hover:text-ink")}><Icon size={16} strokeWidth={1.9} className="hidden sm:block" />{label}</Link>;
+              return <Link key={href} href={href} className={cn("flex items-center gap-2 border-b-2 px-3 py-2.5 text-[.82rem] font-semibold transition sm:text-sm", active ? "border-brand text-ink" : "border-transparent text-ink-4 hover:border-[var(--line-2)] hover:text-ink")}><Icon size={16} className="hidden sm:block" />{label}</Link>;
             })}
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-full bg-surface-3 px-3 py-2 text-[.8rem] font-semibold text-ink-3 md:flex"><ShieldCheck size={14} className="text-brand" />{user.name}</div>
-          <button onClick={logout} className="grid size-10 place-items-center rounded-full text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃"><LogOut size={17} /></button>
+          <div className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-3 shadow-[var(--lift-1)]" aria-label={`로그인 사용자 ${user.name}`}>
+            <span className="grid size-7 place-items-center rounded-[8px] bg-brand-soft text-brand-dark"><ShieldCheck size={14} /></span>
+            <span className="min-w-0 leading-tight">
+              <span className="block max-w-28 truncate text-[.78rem] font-bold text-ink">{user.name}</span>
+              <span className="hidden max-w-36 truncate text-[.68rem] text-ink-5 lg:block">{user.schoolName}</span>
+            </span>
+          </div>
+          <button onClick={logout} className="grid size-10 place-items-center rounded-[11px] text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃"><LogOut size={17} /></button>
         </div>
       </header>
       <main>{children}</main>

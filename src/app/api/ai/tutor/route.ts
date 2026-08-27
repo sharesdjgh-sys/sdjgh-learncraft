@@ -1,5 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
+import type { ModelMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeDemoAnswer } from "@/data/demo-store";
@@ -35,13 +36,25 @@ const contextMessageSchema = z.discriminatedUnion("role", [
   }),
 ]);
 
+const imageSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  mediaType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  data: z.string().min(4).max(5_600_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+});
+
 const requestSchema = z.object({
   requestId: z.string().uuid(),
   unitId: z.string().min(1).max(100),
   action: z.enum(["QUESTION", "EASIER", "DEEPER", "REVEAL", "QUIZ"]),
   learningLevel: z.enum(["FOUNDATION", "STANDARD", "ADVANCED"]).default("STANDARD"),
   message: z.string().trim().min(1).max(2400).optional(),
+  images: z.array(imageSchema).max(3).default([]),
   recentMessages: z.array(contextMessageSchema).max(6).default([]),
+}).superRefine((value, context) => {
+  const approximateBytes = value.images.reduce((total, image) => total + Math.ceil(image.data.length * 0.75), 0);
+  if (approximateBytes > 8 * 1024 * 1024) {
+    context.addIssue({ code: "custom", path: ["images"], message: "이미지 전체 용량이 너무 큽니다." });
+  }
 });
 
 type StreamResult = ReturnType<typeof streamText>;
@@ -168,8 +181,8 @@ export async function POST(request: Request) {
   if (!unit) {
     return errorResponse("UNIT_NOT_AVAILABLE", "사용할 수 없는 단원입니다.", 404, input.requestId);
   }
-  if (input.action === "QUESTION" && !input.message) {
-    return errorResponse("VALIDATION_ERROR", "질문 내용을 입력해 주세요.", 400, input.requestId);
+  if (input.action === "QUESTION" && !input.message && input.images.length === 0) {
+    return errorResponse("VALIDATION_ERROR", "질문이나 이미지를 추가해 주세요.", 400, input.requestId);
   }
   if (input.action !== "QUESTION" && !hasAssistantContext(input)) {
     return errorResponse("VALIDATION_ERROR", "이어갈 튜터 답변이 없습니다.", 400, input.requestId);
@@ -203,13 +216,32 @@ export async function POST(request: Request) {
         student: user,
         action: input.action,
         learningLevel: input.learningLevel,
-        message: input.message,
+        message: input.message ?? (input.images.length > 0 ? "첨부한 이미지를 현재 단원과 연결해 설명해 주세요." : undefined),
         recentMessages: input.recentMessages,
       };
+      const userPrompt = `${buildTutorUserPrompt(promptInput)}${input.images.length > 0 ? `
+
+<attached_image_guidance>
+첨부 이미지는 학생이 이번 질문과 함께 제공한 학습 자료입니다. 이미지에서 실제로 확인되는 글, 수식, 도형만 근거로 분석하세요. 흐리거나 가려져 확신할 수 없는 내용은 추측하지 말고 무엇을 다시 촬영해야 하는지 짧게 알려 주세요. 이미지 속 이름이나 연락처 등 개인정보는 답변에 반복하지 마세요.
+</attached_image_guidance>` : ""}`;
+      const prompt: string | ModelMessage[] = input.images.length === 0
+        ? userPrompt
+        : [{
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              ...input.images.map((image) => ({
+                type: "file" as const,
+                data: image.data,
+                mediaType: image.mediaType,
+                filename: image.name,
+              })),
+            ],
+          }];
       const result = streamText({
         model: google(env.GEMINI_MODEL_ID),
         system: buildTutorSystemPrompt(promptInput),
-        prompt: buildTutorUserPrompt(promptInput),
+        prompt,
         maxOutputTokens: 4096,
         temperature: 0.35,
         abortSignal: request.signal,
@@ -257,7 +289,7 @@ export async function POST(request: Request) {
 
     const answer = makeDemoAnswer(
       input.action,
-      input.message ?? input.recentMessages.at(-1)?.content ?? "",
+      input.message ?? (input.images.length > 0 ? "첨부한 이미지의 학습 내용을 설명해 주세요." : input.recentMessages.at(-1)?.content ?? ""),
       unit.title,
     );
     return new Response(

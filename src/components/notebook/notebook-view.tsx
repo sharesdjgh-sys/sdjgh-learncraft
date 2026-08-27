@@ -45,14 +45,14 @@ export function NotebookView() {
       </header>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <label className="composer flex min-h-12 items-center gap-2.5 rounded-[16px] border border-line bg-white px-4 shadow-[var(--lift-1)]">
+        <label className="composer flex min-h-12 items-center gap-2.5 rounded-[12px] border border-line bg-surface px-4 shadow-[var(--lift-1)]">
           <Search size={17} className="text-brand" />
           <span className="sr-only">저장한 내용 검색</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목이나 답변 내용 검색" className="w-full border-0 bg-transparent text-[.9rem] outline-none placeholder:text-ink-5" />
         </label>
-        <div className="flex gap-1 overflow-x-auto rounded-full bg-[#ede7f8] p-1">
+        <div className="flex gap-1 overflow-x-auto rounded-[12px] border border-line bg-surface-3 p-1">
           {filters.map((item) => (
-            <button key={item} onClick={() => setSubject(item)} className={cn("min-h-10 shrink-0 rounded-full px-4 text-[.82rem] font-semibold transition", subject === item ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>
+            <button key={item} onClick={() => setSubject(item)} className={cn("min-h-10 shrink-0 rounded-[9px] px-4 text-[.82rem] font-semibold transition-all duration-300", subject === item ? "bg-surface text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:bg-surface/50 hover:text-ink")}>
               {item === "ALL" ? "전체" : item}
             </button>
           ))}
@@ -77,7 +77,7 @@ export function NotebookView() {
               </div>
               <div className="min-w-0">
                 <h2 className="font-learning text-lg font-bold text-ink">{item.title}</h2>
-                <div className="mt-3 max-h-52 overflow-hidden rounded-[16px] bg-surface-2 p-4"><Markdown>{item.answerMarkdown}</Markdown></div>
+                <div className="mt-3 max-h-52 overflow-hidden rounded-[12px] border border-line bg-surface-2 p-4"><Markdown>{item.answerMarkdown}</Markdown></div>
               </div>
               <Button variant="ghost" size="icon" onClick={() => remove(item.id)} aria-label="북마크 삭제" className="justify-self-end text-ink-4 hover:text-danger"><Trash2 size={17} /></Button>
             </article>

@@ -29,7 +29,7 @@ type JsonRecord = Record<string, unknown>;
 const WIDTH = 720;
 const HEIGHT = 420;
 const PLOT = { left: 58, right: 22, top: 22, bottom: 48 };
-const CURVE_COLORS = ["#7b5cf0", "#d45f91", "#2f927c", "#9a6dd7"];
+const CURVE_COLORS = ["#765f82", "#9a6d64", "#56786f", "#8a7a61"];
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -106,7 +106,7 @@ function parseGraphSpec(source: string): GraphSpec {
       x,
       y,
       label: text(item.label, 48) || undefined,
-      color: safeColor(item.color, "#2c2747"),
+      color: safeColor(item.color, "#51435a"),
     }];
   });
 
@@ -399,8 +399,8 @@ export function FunctionGraph({ source }: { source: string }) {
   const yTicks = niceTicks(spec.yRange, 7);
 
   return (
-    <figure className="my-5 overflow-hidden rounded-2xl border border-line bg-white shadow-[0_10px_35px_rgba(42,54,91,.07)]">
-      <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-[#fafbfe] px-4 py-3 sm:px-5">
+    <figure className="my-5 overflow-hidden rounded-[13px] border border-line bg-surface shadow-[var(--lift-2)]">
+      <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-2 px-4 py-3 sm:px-5">
         <span className="flex items-center gap-2 text-sm font-extrabold text-ink"><ChartSpline size={18} className="text-brand" /><GraphTitle value={spec.title} /></span>
         <span className="text-[.8rem] font-semibold text-ink-4">x: {tickLabel(spec.xRange[0])}~{tickLabel(spec.xRange[1])} · y: {tickLabel(spec.yRange[0])}~{tickLabel(spec.yRange[1])}</span>
       </figcaption>
