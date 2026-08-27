@@ -7,14 +7,12 @@ import {
   BookmarkCheck,
   BookCopy,
   BookOpenCheck,
-  BrainCircuit,
   Check,
   CheckCircle2,
   ChevronDown,
   CircleHelp,
   ExternalLink,
   Eye,
-  Gauge,
   Layers3,
   LibraryBig,
   Lightbulb,
@@ -23,12 +21,12 @@ import {
   RotateCcw,
   Send,
   Sparkles,
-  Target,
   TriangleAlert,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { subjects } from "@/data/curriculum";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
@@ -39,6 +37,8 @@ const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: stri
   { action: "REVEAL", label: "전체 풀이 보기", shortLabel: "풀이 보기", description: "중간 단계를 생략하지 않고 풀어요", icon: Eye },
   { action: "QUIZ", label: "확인 문제 풀기", shortLabel: "확인 문제", description: "방금 배운 내용을 바로 확인해요", icon: CircleHelp },
 ];
+
+const followUpOrder: TutorAction[] = ["QUIZ", "EASIER", "DEEPER", "REVEAL"];
 
 const levelConfig: Array<{ level: LearningLevel; label: string; description: string }> = [
   { level: "FOUNDATION", label: "기초", description: "용어부터 차근차근" },
@@ -314,8 +314,23 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   }
 
   return (
-    <div className="app-enter h-dvh min-h-[40rem] xl:grid xl:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[16.5rem_minmax(0,1fr)_19rem]">
-      <aside className="scrollbar-subtle hidden overflow-y-auto border-r border-line bg-white/72 px-4 py-6 backdrop-blur-sm xl:block">
+    <div className="app-enter flex h-dvh min-h-[40rem] flex-col">
+      <StudentTopNavigation actions={(
+        <>
+          <div className="flex items-center gap-2 rounded-full bg-surface-3 px-3 py-2" title="오늘 남은 AI 학습 횟수">
+            <span className="hidden text-[.8rem] font-semibold text-ink-3 sm:inline">오늘 남은 질문</span>
+            <span className="figure text-sm font-semibold text-ink">{remaining}<span className="text-[.78rem] text-ink-5">/20</span></span>
+          </div>
+          <button onClick={() => setConceptOpen(true)} className="flex min-h-10 items-center gap-2 rounded-full bg-brand-soft px-3 text-[.8rem] font-semibold text-brand-dark transition hover:bg-[var(--mark)] min-[1340px]:hidden" aria-label="단원 핵심 노트 보기">
+            <Layers3 size={16} /><span className="hidden sm:inline">핵심 노트</span>
+          </button>
+          <button onClick={() => resetConversation()} disabled={loading || messages.length === 0} className="hidden min-h-10 items-center gap-2 rounded-full border border-line bg-white px-3 text-[.8rem] font-semibold text-ink-3 transition hover:border-[var(--line-2)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex" aria-label="새 대화 시작">
+            <Plus size={16} />새 대화
+          </button>
+        </>
+      )} />
+      <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[286px_minmax(0,1fr)] min-[1340px]:grid-cols-[298px_minmax(0,1fr)_328px]">
+      <aside className="scrollbar-subtle hidden overflow-y-auto border-r border-line bg-white/42 px-4 py-5 min-[1024px]:block">
         <CurriculumPicker
           grade={grade}
           subject={subject}
@@ -327,78 +342,62 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         />
       </aside>
 
-      <section className="flex h-full min-h-0 min-w-0 flex-col bg-white/24 pb-[calc(5.45rem+env(safe-area-inset-bottom))] lg:pb-0">
-        <header className="z-20 flex min-h-[4.7rem] shrink-0 items-center justify-between border-b border-line bg-white/88 px-4 backdrop-blur-xl sm:px-6">
-          <div className="min-w-0">
-            <button onClick={() => setDrawerOpen(true)} className="mb-1 flex cursor-pointer items-center gap-1.5 text-[.7rem] font-semibold text-brand xl:pointer-events-none" aria-label="학습 단원 선택 열기">
-              <span className="sm:hidden">{schoolName} · {grade}학년</span>
-              <span className="hidden sm:inline">{grade}학년 · {selectedUnit.courseTitle} · {selectedUnit.chapterTitle}</span>
-              <ChevronDown size={14} className="xl:hidden" />
-            </button>
-            <h1 className="truncate text-[1.05rem] font-bold tracking-[-0.025em] text-ink sm:text-lg">{selectedUnit.title}</h1>
-          </div>
-          <div className="ml-3 flex shrink-0 items-center gap-2">
-            <label className="hidden items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold text-ink-soft sm:flex">
-              <Target size={15} className="text-brand" />
-              <span className="sr-only">설명 난이도</span>
-              <select value={learningLevel} onChange={(event) => setLearningLevel(event.target.value as LearningLevel)} className="cursor-pointer bg-transparent font-semibold text-ink outline-none">
-                {levelConfig.map((item) => <option key={item.level} value={item.level}>{item.label}</option>)}
-              </select>
-            </label>
-            <div className="flex items-center gap-1.5 rounded-xl bg-brand-soft px-3 py-2 text-xs font-bold text-brand-dark" title="오늘 남은 AI 학습 횟수">
-              <Gauge size={15} /> <span className="tabular-nums">{remaining}회</span>
-            </div>
-            <button onClick={() => resetConversation()} disabled={loading || messages.length === 0} className="hidden size-9 cursor-pointer place-items-center rounded-xl text-ink-soft transition hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 md:grid" aria-label="새 대화 시작" title="새 대화">
-              <Plus size={18} />
-            </button>
-            <button onClick={() => setConceptOpen(true)} className="grid size-9 cursor-pointer place-items-center rounded-xl text-ink-soft transition hover:bg-surface-muted hover:text-ink 2xl:hidden" aria-label="단원 핵심 개념 보기">
-              <Layers3 size={18} />
-            </button>
-          </div>
-        </header>
+      <section className="mx-0 flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:my-3 min-[1024px]:mr-1 min-[1024px]:rounded-[22px] min-[1024px]:pb-0 min-[1024px]:shadow-[var(--lift-3)]">
+        <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
+          <button onClick={() => setDrawerOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-white px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label="학습 단원 선택 열기">
+            <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
+            <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{selectedUnit.title}</span>
+            <ChevronDown size={14} className="ml-auto shrink-0 text-ink-5" />
+          </button>
+          <span className="hidden text-[.78rem] text-ink-4 sm:inline">{schoolName} · {grade}학년</span>
+        </div>
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto" aria-live="polite">
-          <div className="mx-auto flex min-h-full w-full max-w-[55rem] flex-col px-4 py-6 sm:px-7 sm:py-8">
+          <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
             {messages.length === 0 ? (
               <Welcome unit={selectedUnit} studentName={studentName} learningLevel={learningLevel} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} />
             ) : (
-              <div className="flex-1 space-y-7 pb-4">
+              <div className="flex-1 space-y-10 pb-5">
                 {messages.map((message, index) => (
                   <article id={`tutor-message-${message.id}`} key={message.id} className={cn("flex scroll-mt-4", message.role === "user" ? "justify-end" : "justify-start")}>
                     {message.role === "user" ? (
-                      <div className="max-w-[88%] rounded-[1.25rem_1.25rem_.35rem_1.25rem] bg-ink px-4 py-3 text-[.93rem] leading-6 text-white shadow-[0_8px_22px_rgba(23,32,51,.12)] sm:max-w-[74%]">
+                      <div className="font-learning max-w-[88%] rounded-[22px_22px_8px_22px] bg-[linear-gradient(180deg,#8168d8,#6c50c5)] px-4 py-3 text-[1.01rem] leading-7 text-white shadow-[0_8px_20px_rgba(82,57,159,.18)] sm:max-w-[78%]">
                         {message.content}
                       </div>
                     ) : (
                       <div className="w-full">
-                        <div className="mb-2.5 flex items-center gap-2">
-                          <span className="grid size-7 place-items-center rounded-lg bg-brand text-white"><Sparkles size={14} /></span>
-                          <span className="text-xs font-bold text-ink">LearnCraft 튜터</span>
-                          {!message.completed && message.content && <span className="text-[.68rem] font-medium text-ink-soft">답변 작성 중</span>}
+                        <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
+                          <span className="size-2.5 rounded-full bg-[#ff8fb8]" />
+                          <span className="text-[.86rem] font-bold text-ink">LearnCraft 튜터</span>
+                          <span className="text-[.82rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · {selectedUnit.publisherName} 기준</span>
+                          {!message.completed && message.content && <span className="text-[.82rem] font-medium text-ink-4">답변 작성 중</span>}
                         </div>
-                        <div className="rounded-[.35rem_1.25rem_1.25rem_1.25rem] border border-line bg-white px-4 py-5 shadow-[0_10px_36px_rgba(42,54,91,.055)] sm:px-6 sm:py-6">
+                        <div>
                           {message.content ? <Markdown>{message.content}</Markdown> : <Thinking />}
                           {message.completed && (
-                            <div className="mt-5 flex items-center justify-between border-t border-line pt-3.5">
-                              <span className="flex items-center gap-1.5 text-[.68rem] font-medium text-ink-soft"><Check size={13} className="text-brand" /> 답변 완료</span>
-                              <button onClick={() => void bookmarkMessage(message)} className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-ink-soft transition hover:bg-brand-soft hover:text-brand-dark" aria-label="답변을 오답 노트에 저장">
+                            <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
+                              <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
+                              <button onClick={() => void bookmarkMessage(message)} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border border-line px-3.5 text-[.82rem] font-semibold text-ink-3 transition hover:border-[var(--line-2)] hover:text-ink" aria-label="답변을 오답 노트에 저장">
                                 {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
-                                <span className="hidden sm:inline">{savedIds.has(message.id) ? "저장됨" : "저장"}</span>
+                                <span>{savedIds.has(message.id) ? "저장됨" : "오답 노트에 저장"}</span>
                               </button>
                             </div>
                           )}
                         </div>
                         {message.completed && index === messages.length - 1 && (
-                          <div className="mt-3.5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                            {actionConfig.map(({ action, shortLabel, icon: Icon }) => (
-                              <button key={action} onClick={() => void ask(action)} disabled={loading || remaining <= 0} className="flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-[#b9c2db] hover:text-ink hover:shadow-sm active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40">
-                                <Icon size={15} className="text-brand" />{shortLabel}
+                          <div className="mt-6">
+                            <p className="mb-3 text-[.86rem] font-bold text-ink">이어서 학습하기</p>
+                            <div className="flex flex-wrap gap-2">
+                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon }, actionIndex) => (
+                              <button key={action} onClick={() => void ask(action)} disabled={loading || remaining <= 0} className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-4 text-[.88rem] font-semibold transition-all duration-300 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", actionIndex === 0 ? "bg-[linear-gradient(180deg,#8168d8,#6c50c5)] text-white shadow-[var(--lift-brand)] hover:-translate-y-0.5" : "border border-line bg-white text-ink-2 hover:border-[var(--line-2)] hover:text-ink") }>
+                                <Icon size={15} />{label}{actionIndex === 0 && <span className="text-[.78rem] text-white/65">권장</span>}
                               </button>
                             ))}
+                            </div>
                           </div>
                         )}
                         {!message.completed && message.content && retryRequest && index === messages.length - 1 && (
-                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-xs font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft">
+                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-[.82rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft">
                             <RotateCcw size={15} className="text-brand" /> 답변 다시 받기
                           </button>
                         )}
@@ -412,12 +411,12 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-line bg-white/92 px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
-          <div className="mx-auto max-w-[55rem]">
+        <div className="shrink-0 bg-white px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
+          <div className="mx-auto max-w-[45rem]">
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
             ) : (
-              <form onSubmit={(event) => { event.preventDefault(); void ask(); }} className="rounded-[1.15rem] border border-[#cfd5e2] bg-white p-2 shadow-[0_12px_38px_rgba(42,54,91,.11)] transition focus-within:border-brand/55 focus-within:shadow-[0_14px_44px_rgba(56,88,201,.13)]">
+              <form onSubmit={(event) => { event.preventDefault(); void ask(); }} className="composer rounded-[20px] border-2 border-[rgba(126,101,181,.2)] bg-white p-1.5 shadow-[var(--lift-2)] transition">
                 <div className="flex items-end gap-2">
                   <textarea
                     ref={textAreaRef}
@@ -431,21 +430,21 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                     rows={1}
                     maxLength={1200}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
-                    className="chat-composer-input max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-[.93rem] leading-6 text-ink outline-none placeholder:text-[#99a1b1]"
+                    className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-[1rem] leading-7 text-ink outline-none placeholder:text-ink-5"
                   />
-                  <Button type="submit" size="icon" disabled={!input.trim() || loading} aria-label="질문 보내기" className="rounded-[.85rem]"><Send size={18} /></Button>
+                  <Button type="submit" size="icon" disabled={!input.trim() || loading} aria-label="질문 보내기" className="shrink-0 rounded-full"><Send size={18} /></Button>
                 </div>
-                <div className="flex items-center justify-between px-3 pb-0.5 pt-1 text-[.65rem] text-[#929bad]">
-                  <span>Enter 전송 · Shift+Enter 줄바꿈</span><span className="tabular-nums">{input.length}/1200</span>
+                <div className="flex items-center justify-between px-2.5 pb-1 pt-1 text-[.78rem] text-ink-5">
+                  <span className="hidden sm:inline">Enter 전송 · Shift+Enter 줄바꿈</span><span className="figure ml-auto">{input.length} / 1200</span>
                 </div>
               </form>
             )}
-            <p className="mt-2 text-center text-[.64rem] text-[#929bad]">AI 답변은 틀릴 수 있어요. 중요한 내용은 교과서와 선생님께 다시 확인하세요.</p>
+            <p className="mt-2 text-center text-[.78rem] text-ink-5">AI 답변은 교과서와 선생님께 다시 확인하세요.</p>
           </div>
         </div>
       </section>
 
-      <aside className="scrollbar-subtle hidden overflow-y-auto border-l border-line bg-white/68 px-5 py-6 backdrop-blur-sm 2xl:block"><ConceptPanel unit={selectedUnit} /></aside>
+      <aside className="scrollbar-subtle hidden overflow-y-auto border-l border-line bg-white/38 px-5 py-5 min-[1340px]:block"><ConceptPanel unit={selectedUnit} /></aside>
 
       {drawerOpen && (
         <Sheet title="학습 단원 선택" onClose={() => setDrawerOpen(false)}>
@@ -458,7 +457,8 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         </Sheet>
       )}
 
-      {notice && <div className="fixed bottom-24 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-xl lg:bottom-6"><Check size={16} />{notice}</div>}
+      {notice && <div className="fixed bottom-24 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-ink px-4 py-3 text-sm font-semibold text-white shadow-xl min-[1024px]:bottom-6"><Check size={16} />{notice}</div>}
+      </div>
     </div>
   );
 }
@@ -518,18 +518,18 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-1 text-sm font-bold text-ink"><LibraryBig size={18} className="text-brand" /> 교육과정 탐색</div>
-      <p className="mt-1.5 px-1 text-[.72rem] leading-5 text-ink-soft">과목부터 세부 학습 주제까지 학교 진도에 맞춰 선택하세요.</p>
-      <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-surface-muted p-1">
-        {([1, 2] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-lg text-xs font-semibold transition active:scale-[.97]", grade === item ? "bg-white text-brand-dark shadow-sm" : "text-ink-soft hover:text-ink")}>{item}학년</button>)}
+      <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
+      <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학교 진도에 맞는 학습 주제를 고르세요.</p>
+      <div className="mt-4 grid grid-cols-2 gap-1 rounded-full bg-[#ede7f8] p-1">
+        {([1, 2] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-full text-[.82rem] font-semibold transition active:scale-[.97]", grade === item ? "bg-white text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        {subjects.map((item) => <button key={item.code} onClick={() => onSubject(item.code)} className={cn("min-h-10 cursor-pointer rounded-xl border text-xs font-semibold transition active:scale-[.97]", subject === item.code ? "border-brand/25 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-soft hover:border-[#c3cad8] hover:text-ink")}>{item.title}</button>)}
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {subjects.map((item) => <button key={item.code} onClick={() => onSubject(item.code)} className={cn("min-h-10 cursor-pointer rounded-full text-[.82rem] font-semibold transition active:scale-[.97]", subject === item.code ? "bg-[linear-gradient(180deg,#8168d8,#6c50c5)] text-white shadow-[0_4px_12px_rgba(107,80,197,.2)]" : "bg-white text-ink-3 hover:bg-surface-3 hover:text-ink")}>{item.title}</button>)}
       </div>
 
       {courseOptions.length > 0 ? (
         <div className="mt-6">
-          <label className="block px-1 text-[.67rem] font-bold tracking-[.08em] text-[#929bad] uppercase" htmlFor={`course-${grade}-${subject}`}>수강 과목</label>
+          <label className="block px-1 text-[.78rem] font-bold text-ink-4" htmlFor={`course-${grade}-${subject}`}>수강 과목</label>
           <div className="relative mt-2.5">
             <BookCopy size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand" />
             <select
@@ -539,7 +539,7 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
                 const firstUnit = units.find((unit) => unit.courseCode === event.target.value);
                 if (firstUnit) onUnit(firstUnit.id);
               }}
-              className="min-h-11 w-full cursor-pointer appearance-none rounded-xl border border-line bg-white py-2 pl-9 pr-9 text-sm font-bold text-ink outline-none"
+              className="min-h-12 w-full cursor-pointer appearance-none rounded-[14px] border-0 bg-white py-2 pl-9 pr-9 text-[.92rem] font-bold text-ink shadow-[var(--lift-1)] outline-none"
             >
               {courseOptions.map((course) => (
                 <option key={course.courseCode} value={course.courseCode}>
@@ -551,12 +551,12 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
           </div>
 
           {selectedCourse && (
-            <div className={cn("mt-2.5 rounded-xl border px-3 py-2.5", selectedCourse.schoolAdopted ? "border-[#d8e4dc] bg-[#f4f8f5]" : "border-[#eadfd6] bg-accent-soft") }>
-              <p className={cn("flex items-center gap-1.5 text-[.68rem] font-bold", selectedCourse.schoolAdopted ? "text-[#3d7055]" : "text-[#98572e]") }>
+            <div className={cn("mt-2.5 rounded-[14px] px-3 py-2.5", selectedCourse.schoolAdopted ? "bg-[var(--ok-page)]" : "bg-[var(--warn-page)]") }>
+              <p className={cn("flex items-center gap-1.5 text-[.78rem] font-bold", selectedCourse.schoolAdopted ? "text-ok" : "text-warn") }>
                 {selectedCourse.schoolAdopted ? <CheckCircle2 size={13} /> : <TriangleAlert size={13} />}
                 {selectedCourse.schoolAdopted ? "서대전여고 채택 교과서" : "학교 채택본과 목차 기준이 다른 참고 과정"}
               </p>
-              <p className="mt-1 text-[.64rem] leading-4 text-ink-soft">
+              <p className="mt-1 text-[.76rem] leading-5 text-ink-3">
                 {selectedCourse.publisherName} · {selectedCourse.curriculum}
                 {!selectedCourse.schoolAdopted && selectedCourse.schoolPublisherName ? ` · 학교 채택본 ${selectedCourse.schoolPublisherName}` : ""}
               </p>
@@ -567,14 +567,14 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
             {chapterGroups.map((chapter) => (
               <section key={`${selectedCourseCode}-${chapter.order}`}>
                 <div className="flex items-center gap-2 px-1">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-ink text-[.62rem] font-bold text-white">{chapter.order}</span>
-                  <h3 className="text-xs font-extrabold text-ink">{chapter.title}</h3>
+                  <span className="figure shrink-0 text-[.82rem] font-semibold text-brand">{chapter.order}</span>
+                  <h3 className="font-learning text-[.88rem] font-bold text-ink">{chapter.title}</h3>
                 </div>
-                <div className="mt-2.5 grid gap-3 border-l border-[#d9deea] pl-2.5">
+                <div className="mt-2 grid gap-3 border-l border-line pl-2.5">
                   {chapter.sections.map((section) => (
                     <div key={`${chapter.order}-${section.order}`}>
                       {(section.units.length > 1 || section.title !== section.units[0]?.title) && (
-                        <p className="mb-1.5 px-1 text-[.66rem] font-bold text-[#7d8799]">{section.order}. {section.title}</p>
+                        <p className="mb-1.5 px-1 text-[.76rem] font-semibold text-ink-5">{section.order}. {section.title}</p>
                       )}
                       <div className="grid gap-1">
                         {section.units.map((unit) => (
@@ -582,14 +582,14 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
                             key={unit.id}
                             onClick={() => onUnit(unit.id)}
                             className={cn(
-                              "group flex min-h-[2.9rem] cursor-pointer items-center gap-2.5 rounded-xl px-2.5 text-left transition-all duration-200 active:scale-[.985]",
+                              "group flex min-h-[2.9rem] cursor-pointer items-start gap-2.5 rounded-[14px] px-2.5 py-2 text-left transition-all duration-200 active:scale-[.985]",
                               selectedUnitId === unit.id
-                                ? "bg-ink text-white shadow-[0_8px_20px_rgba(23,32,51,.13)]"
-                                : "text-ink-soft hover:bg-white hover:text-ink hover:shadow-sm",
+                                ? "bg-brand-soft text-[#4a3e7a]"
+                                : "text-ink-3 hover:bg-white hover:text-ink",
                             )}
                           >
-                            <span className={cn("grid size-6 shrink-0 place-items-center rounded-md text-[.58rem] font-bold", selectedUnitId === unit.id ? "bg-white/12 text-white" : "bg-brand-soft text-brand")}>{chapter.order}.{section.order}</span>
-                            <span className="min-w-0 truncate text-[.76rem] font-semibold">{unit.title}</span>
+                            <span className={cn("figure shrink-0 pt-0.5 text-[.76rem]", selectedUnitId === unit.id ? "text-brand" : "text-ink-5")}>{chapter.order}.{section.order}</span>
+                            <span className={cn("min-w-0 text-[.83rem] leading-5", selectedUnitId === unit.id ? "font-learning font-bold" : "font-medium")}>{unit.title}</span>
                           </button>
                         ))}
                       </div>
@@ -602,8 +602,8 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
         </div>
       ) : (
         <div className="mt-6 rounded-2xl border border-dashed border-line bg-white/60 px-4 py-7 text-center">
-          <p className="text-xs font-bold text-ink">이 학년에 공개된 과목이 없어요.</p>
-          <p className="mt-1 text-[.68rem] leading-5 text-ink-soft">다른 학년이나 과목을 선택해 주세요.</p>
+          <p className="text-[.82rem] font-bold text-ink">이 학년에 공개된 과목이 없어요.</p>
+          <p className="mt-1 text-[.8rem] leading-5 text-ink-3">다른 학년이나 과목을 선택해 주세요.</p>
         </div>
       )}
     </div>
@@ -612,35 +612,40 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
 
 function Welcome({ unit, studentName, learningLevel, onLevel, onQuestion }: { unit: LearningUnit; studentName: string; learningLevel: LearningLevel; onLevel: (level: LearningLevel) => void; onQuestion: (question: string) => void }) {
   return (
-    <div className="flex flex-1 flex-col justify-center py-3 sm:py-8">
+    <div className="flex flex-1 flex-col py-2 sm:py-4">
       <div className="max-w-[44rem]">
-        <div className="flex items-center gap-2 text-xs font-bold text-brand"><span className="grid size-8 place-items-center rounded-xl bg-brand-soft"><BrainCircuit size={17} /></span>{unit.curriculum} · {unit.courseTitle} · {unit.chapterTitle}</div>
-        <h2 className="mt-5 max-w-2xl text-balance text-[2rem] font-bold leading-[1.22] tracking-[-0.05em] text-ink sm:text-[2.65rem]">{studentName}님, <span className="text-brand">{unit.title}</span>에서 막힌 부분을 같이 풀어봐요.</h2>
-        <p className="mt-4 max-w-[39rem] text-[.9rem] leading-7 text-ink-soft sm:text-[.98rem]">{unit.summary} 답만 알려 주는 대신, 지금 이해한 지점부터 설명하고 비슷한 문제를 혼자 풀 수 있게 도와드릴게요.</p>
+        <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.courseTitle} · {unit.chapterTitle} · {unit.sectionTitle}</p>
+        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.4] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark">{unit.title}</span>,<br className="hidden sm:block" /> 핵심부터 연결해 봐요.</h2>
+        <p className="font-learning mt-4 max-w-[40rem] text-[1rem] leading-8 text-ink-2 sm:text-[1.08rem] sm:leading-9">{studentName}님이 지금 이해한 지점부터 시작할게요. {unit.summary}</p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-[.68rem] font-semibold">
-          <span className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-ink-soft">{unit.publisherName} 기준</span>
-          <span className={cn("rounded-lg px-2.5 py-1.5", unit.schoolAdopted ? "bg-[#edf6f0] text-[#3d7055]" : "bg-accent-soft text-[#98572e]")}>{unit.schoolAdopted ? "학교 채택 과정" : `학교 채택본 ${unit.schoolPublisherName ?? "별도 확인"}`}</span>
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-[.8rem] font-semibold">
+          <span className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-2">{unit.publisherName} · {unit.curriculum}</span>
+          <span className={cn("rounded-full px-3 py-1.5", unit.schoolAdopted ? "bg-[var(--ok-page)] text-ok" : "bg-[var(--warn-page)] text-warn")}>{unit.schoolAdopted ? "학교 채택 과정" : `학교 채택본 ${unit.schoolPublisherName ?? "별도 확인"}`}</span>
+          {unit.prerequisites.slice(0, 2).map((item) => <span key={item} className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-3">선수 · {item}</span>)}
         </div>
 
-        <div className="mt-7">
-          <div className="mb-2.5 flex items-center justify-between"><p className="text-xs font-bold text-ink">오늘의 설명 난이도</p><p className="text-[.68rem] text-ink-soft">대화 중에도 바꿀 수 있어요</p></div>
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-line bg-white p-1.5 shadow-[0_8px_26px_rgba(42,54,91,.045)]">
+        <div className="mt-8">
+          <div className="mb-2.5 flex items-center justify-between"><p className="text-[.86rem] font-bold text-ink">설명 깊이</p><p className="text-[.8rem] text-ink-4">대화 중에도 바꿀 수 있어요</p></div>
+          <div className="grid grid-cols-3 gap-2">
             {levelConfig.map((item) => (
-              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[3.75rem] cursor-pointer rounded-xl px-2 text-left transition-all duration-300 active:scale-[.98] sm:px-3", learningLevel === item.level ? "bg-brand text-white shadow-[0_8px_20px_rgba(56,88,201,.2)]" : "hover:bg-surface-muted")}>
-                <span className="block text-xs font-bold">{item.label}</span><span className={cn("mt-1 block truncate text-[.63rem]", learningLevel === item.level ? "text-white/65" : "text-ink-soft")}>{item.description}</span>
+              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[4rem] cursor-pointer rounded-[14px] px-3 text-left transition-all duration-300 active:scale-[.98]", learningLevel === item.level ? "bg-ink text-white shadow-[var(--lift-2)]" : "bg-surface-2 text-ink-2 hover:bg-surface-3")}>
+                <span className="font-learning block text-[.95rem] font-bold">{item.label}</span><span className={cn("mt-1 block truncate text-[.78rem]", learningLevel === item.level ? "text-white/60" : "text-ink-4")}>{item.description}</span>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="mt-8 grid gap-2.5 sm:grid-cols-3">
+        <div className="mt-8">
+          <p className="mb-2.5 text-[.86rem] font-bold text-ink">이렇게 물어볼 수 있어요</p>
+          <div className="grid gap-1.5">
           {unit.recommendedQuestions.map((question, index) => (
-            <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group min-h-[6.8rem] cursor-pointer rounded-2xl border border-line bg-white p-4 text-left transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#bdc5d8] hover:shadow-[0_15px_34px_rgba(42,54,91,.08)] active:scale-[.985]">
-              <span className="mb-3 flex items-center justify-between"><CircleHelp size={17} className="text-brand" /><span className="text-[.62rem] font-semibold text-[#a0a7b5]">추천 질문 {index + 1}</span></span>
-              <span className="text-[.83rem] font-semibold leading-5.5 text-ink">{question}</span>
+            <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group grid min-h-[4.25rem] cursor-pointer grid-cols-[2rem_1fr_1.25rem] items-center gap-3 rounded-[18px] bg-surface-2 px-4 py-3 text-left transition-all duration-300 ease-out hover:bg-surface-3 active:scale-[.985]">
+              <span className="figure text-[1.02rem] text-brand">0{index + 1}</span>
+              <span className="font-learning text-[.96rem] font-semibold leading-6 text-ink">{question}</span>
+              <span className="text-lg text-ink-5 transition-transform group-hover:translate-x-0.5">→</span>
             </button>
           ))}
+          </div>
         </div>
       </div>
     </div>
@@ -650,38 +655,38 @@ function Welcome({ unit, studentName, learningLevel, onLevel, onQuestion }: { un
 function ConceptPanel({ unit }: { unit: LearningUnit }) {
   return (
     <div>
-      <div className="flex items-center gap-2 text-sm font-bold"><BookOpenCheck size={18} className="text-brand" /> 단원 핵심 노트</div>
-      <p className="mt-3 text-[.68rem] font-semibold leading-5 text-brand">{unit.courseTitle} · {unit.chapterTitle} · {unit.sectionTitle}</p>
-      <p className="mt-4 text-sm leading-6 text-ink-soft">{unit.summary}</p>
+      <div className="flex items-center gap-2 text-[.88rem] font-bold"><BookOpenCheck size={17} className="text-brand" /> 단원 핵심 노트</div>
+      <p className="mt-3 text-[.8rem] font-semibold leading-5 text-brand">{unit.courseTitle} · {unit.chapterTitle} · {unit.sectionTitle}</p>
+      <p className="font-learning mt-4 text-[.96rem] leading-7 text-ink-2">{unit.summary}</p>
       <div className="mt-6">
-        <p className="text-[.67rem] font-bold tracking-[.08em] text-[#929bad] uppercase">꼭 알아야 할 개념</p>
+        <p className="text-[.8rem] font-bold text-ink-4">꼭 알아야 할 개념</p>
         <ul className="mt-3 grid gap-2.5">
-          {unit.keyPoints.map((point, index) => <li key={point} className="flex items-start gap-2.5 text-[.8rem] leading-5 text-ink"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-lg bg-brand-soft text-[.6rem] font-bold text-brand">{index + 1}</span>{point}</li>)}
+          {unit.keyPoints.map((point, index) => <li key={point} className="grid grid-cols-[1.25rem_1fr] gap-2.5 rounded-[12px] bg-surface-2 px-2.5 py-2 text-[.9rem] leading-6 text-ink-2"><span className="figure text-[.78rem] text-ink-5">{index + 1}</span>{point}</li>)}
         </ul>
       </div>
       {unit.prerequisites.length > 0 && (
         <div className="mt-6">
-          <p className="text-[.67rem] font-bold tracking-[.08em] text-[#929bad] uppercase">먼저 확인할 선수 개념</p>
+          <p className="text-[.8rem] font-bold text-ink-4">먼저 확인할 선수 개념</p>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {unit.prerequisites.map((item) => <span key={item} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-[.68rem] font-semibold text-ink-soft">{item}</span>)}
+            {unit.prerequisites.map((item) => <span key={item} className="rounded-[12px] bg-surface-3 px-2.5 py-1.5 text-[.8rem] font-semibold text-ink-3">{item}</span>)}
           </div>
         </div>
       )}
-      {unit.formulas.length > 0 && <div className="mt-6 space-y-2.5">{unit.formulas.map((formula) => <div key={formula.name} className="rounded-2xl border border-line bg-white p-4 shadow-sm"><p className="text-xs font-bold text-brand">{formula.name}</p><div className="mt-2 overflow-x-auto text-[.78rem]"><Markdown>{`$$${formula.expression}$$`}</Markdown></div><p className="mt-2 text-[.72rem] leading-5 text-ink-soft">{formula.explanation}</p></div>)}</div>}
-      {unit.examples[0] && <div className="mt-6 rounded-2xl border border-[#eadfd6] bg-accent-soft p-4"><p className="flex items-center gap-1.5 text-xs font-bold text-[#98572e]"><Lightbulb size={15} />{unit.examples[0].title}</p><p className="mt-2 text-[.76rem] leading-5 text-[#775b48]">{unit.examples[0].body}</p></div>}
+      {unit.formulas.length > 0 && <div className="mt-6 space-y-2.5">{unit.formulas.map((formula) => <div key={formula.name} className="rounded-[14px] bg-surface-2 p-4"><p className="text-[.8rem] font-bold text-brand">{formula.name}</p><div className="mt-2 overflow-x-auto text-[.82rem]"><Markdown>{`$$${formula.expression}$$`}</Markdown></div><p className="mt-2 text-[.82rem] leading-5 text-ink-3">{formula.explanation}</p></div>)}</div>}
+      {unit.examples[0] && <div className="mt-6 rounded-[14px] bg-[var(--ok-page)] p-4"><p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ok"><Lightbulb size={15} />{unit.examples[0].title}</p><p className="mt-2 text-[.84rem] leading-6 text-[#376f63]">{unit.examples[0].body}</p></div>}
       {unit.commonMistakes.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-[#efd8d9] bg-[#fff7f7] p-4">
-          <p className="flex items-center gap-1.5 text-xs font-bold text-danger"><TriangleAlert size={15} /> 자주 틀리는 지점</p>
-          <ul className="mt-2.5 grid gap-2 text-[.72rem] leading-5 text-[#745052]">
+        <div className="mt-6 rounded-[14px] bg-[var(--warn-page)] p-4">
+          <p className="flex items-center gap-1.5 text-[.82rem] font-bold text-warn"><TriangleAlert size={15} /> 자주 틀리는 지점</p>
+          <ul className="mt-2.5 grid gap-2 text-[.82rem] leading-5 text-warn">
             {unit.commonMistakes.map((mistake) => <li key={mistake} className="flex gap-2"><span className="mt-2 size-1 shrink-0 rounded-full bg-danger/65" />{mistake}</li>)}
           </ul>
         </div>
       )}
       <div className="mt-6 border-t border-line pt-4">
-        <div className="flex items-center justify-between text-xs text-ink-soft"><span>교육과정</span><span className="font-semibold text-ink">{unit.curriculum}</span></div>
-        <div className="mt-2.5 flex items-center justify-between text-xs text-ink-soft"><span>기준 교과서</span><span className="font-semibold text-ink">{unit.publisherName}</span></div>
-        <div className="mt-2.5 flex items-center justify-between text-xs text-ink-soft"><span>콘텐츠 상태</span><span className="inline-flex items-center gap-1.5 font-semibold text-brand"><span className="size-1.5 rounded-full bg-brand" /> 공식 목차 반영</span></div>
-        {unit.sourceUrl && <a href={unit.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-line bg-white text-[.7rem] font-semibold text-ink-soft transition hover:border-brand/30 hover:text-brand"><ExternalLink size={13} /> 비상교육 목차 자료 보기</a>}
+        <div className="flex items-center justify-between text-[.8rem] text-ink-4"><span>교육과정</span><span className="font-semibold text-ink">{unit.curriculum}</span></div>
+        <div className="mt-2.5 flex items-center justify-between text-[.8rem] text-ink-4"><span>기준 교과서</span><span className="font-semibold text-ink">{unit.publisherName}</span></div>
+        <div className="mt-2.5 flex items-center justify-between text-[.8rem] text-ink-4"><span>콘텐츠 상태</span><span className="inline-flex items-center gap-1.5 font-semibold text-brand"><span className="size-1.5 rounded-full bg-brand" /> 공식 목차 반영</span></div>
+        {unit.sourceUrl && <a href={unit.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-line bg-white text-[.8rem] font-semibold text-ink-3 transition hover:border-[var(--line-2)] hover:text-brand"><ExternalLink size={13} /> 비상교육 목차 자료 보기</a>}
       </div>
     </div>
   );
@@ -690,8 +695,8 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
 function Sheet({ title, onClose, side = "bottom", children }: { title: string; onClose: () => void; side?: "bottom" | "right"; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={title}>
-      <button className="absolute inset-0 cursor-default bg-[#172033]/36 backdrop-blur-[2px]" onClick={onClose} aria-label={`${title} 닫기`} />
-      <div className={cn("scrollbar-subtle absolute overflow-y-auto bg-white shadow-2xl", side === "right" ? "inset-y-0 right-0 w-[min(26rem,92vw)] px-5 py-5" : "inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[1.8rem] px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-5 sm:left-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-[25rem] sm:rounded-none")}>
+      <button className="absolute inset-0 cursor-default bg-[#2c2747]/42 backdrop-blur-[2px]" onClick={onClose} aria-label={`${title} 닫기`} />
+      <div className={cn("scrollbar-subtle absolute overflow-y-auto bg-[#fbf9fe] shadow-[0_0_60px_rgba(83,61,130,.28)]", side === "right" ? "inset-y-0 right-0 w-[min(26rem,92vw)] px-5 py-5" : "inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[1.8rem] px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-5 sm:left-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-[25rem] sm:rounded-none")}>
         <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold tracking-[-0.02em]">{title}</h2><Button variant="ghost" size="icon" onClick={onClose} aria-label={`${title} 닫기`}><X size={20} /></Button></div>
         {children}
       </div>
@@ -700,5 +705,5 @@ function Sheet({ title, onClose, side = "bottom", children }: { title: string; o
 }
 
 function Thinking() {
-  return <div className="flex min-h-20 flex-col justify-center gap-3" aria-label="AI 튜터가 답변을 준비하고 있습니다"><div className="flex items-center gap-1.5">{[0, 1, 2].map((item) => <span key={item} className="thinking-dot size-2 rounded-full bg-brand" style={{ animationDelay: `${item * 150}ms` }} />)}<span className="ml-2 text-xs font-semibold text-ink-soft">질문과 단원 내용을 연결하고 있어요</span></div><div className="skeleton-shimmer h-2.5 w-[72%] rounded-full" /><div className="skeleton-shimmer h-2.5 w-[48%] rounded-full" /></div>;
+  return <div className="flex min-h-20 flex-col justify-center gap-3" aria-label="AI 튜터가 답변을 준비하고 있습니다"><div className="flex items-center gap-1.5">{[0, 1, 2].map((item) => <span key={item} className="thinking-dot size-2 rounded-full bg-brand" style={{ animationDelay: `${item * 150}ms` }} />)}<span className="ml-2 text-[.82rem] font-semibold text-ink-4">질문과 단원 내용을 연결하고 있어요</span></div><div className="skeleton-shimmer h-2.5 w-[72%] rounded-full" /><div className="skeleton-shimmer h-2.5 w-[48%] rounded-full" /></div>;
 }

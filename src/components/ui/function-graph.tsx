@@ -29,7 +29,7 @@ type JsonRecord = Record<string, unknown>;
 const WIDTH = 720;
 const HEIGHT = 420;
 const PLOT = { left: 58, right: 22, top: 22, bottom: 48 };
-const CURVE_COLORS = ["#3858c9", "#c9783e", "#14836f", "#9b4fb8"];
+const CURVE_COLORS = ["#7b5cf0", "#d45f91", "#2f927c", "#9a6dd7"];
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -106,7 +106,7 @@ function parseGraphSpec(source: string): GraphSpec {
       x,
       y,
       label: text(item.label, 48) || undefined,
-      color: safeColor(item.color, "#172033"),
+      color: safeColor(item.color, "#2c2747"),
     }];
   });
 
@@ -383,7 +383,7 @@ export function FunctionGraph({ source }: { source: string }) {
     return (
       <aside className="my-5 flex items-start gap-3 rounded-2xl border border-[#ead5c5] bg-accent-soft px-4 py-3.5 text-sm text-[#7e4928]">
         <TriangleAlert className="mt-0.5 shrink-0" size={18} />
-        <div><p className="font-bold">그래프를 그리지 못했어요.</p><p className="mt-1 text-xs leading-5">{parsed.error}</p></div>
+        <div><p className="font-bold">그래프를 그리지 못했어요.</p><p className="mt-1 text-[.82rem] leading-5">{parsed.error}</p></div>
       </aside>
     );
   }
@@ -402,7 +402,7 @@ export function FunctionGraph({ source }: { source: string }) {
     <figure className="my-5 overflow-hidden rounded-2xl border border-line bg-white shadow-[0_10px_35px_rgba(42,54,91,.07)]">
       <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-[#fafbfe] px-4 py-3 sm:px-5">
         <span className="flex items-center gap-2 text-sm font-extrabold text-ink"><ChartSpline size={18} className="text-brand" /><GraphTitle value={spec.title} /></span>
-        <span className="text-[.67rem] font-semibold text-ink-soft">x: {tickLabel(spec.xRange[0])}~{tickLabel(spec.xRange[1])} · y: {tickLabel(spec.yRange[0])}~{tickLabel(spec.yRange[1])}</span>
+        <span className="text-[.8rem] font-semibold text-ink-4">x: {tickLabel(spec.xRange[0])}~{tickLabel(spec.xRange[1])} · y: {tickLabel(spec.yRange[0])}~{tickLabel(spec.yRange[1])}</span>
       </figcaption>
 
       <div className="overflow-x-auto p-2 sm:p-4">
@@ -441,8 +441,8 @@ export function FunctionGraph({ source }: { source: string }) {
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line px-4 py-3 sm:px-5">
-        {spec.curves.map((curve) => <span key={curve.label} className="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span className="h-0.5 w-5 rounded-full" style={{ backgroundColor: curve.color }} /><GraphMathLabel value={curve.label} /></span>)}
-        {(spec.verticalAsymptotes.length > 0 || spec.horizontalAsymptotes.length > 0) && <span className="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span className="w-5 border-t-2 border-dashed border-accent" />점근선</span>}
+        {spec.curves.map((curve) => <span key={curve.label} className="flex items-center gap-2 text-[.82rem] font-semibold text-ink-4"><span className="h-0.5 w-5 rounded-full" style={{ backgroundColor: curve.color }} /><GraphMathLabel value={curve.label} /></span>)}
+        {(spec.verticalAsymptotes.length > 0 || spec.horizontalAsymptotes.length > 0) && <span className="flex items-center gap-2 text-[.82rem] font-semibold text-ink-4"><span className="w-5 border-t-2 border-dashed border-accent" />점근선</span>}
       </div>
     </figure>
   );

@@ -1,267 +1,203 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f6f7fa;
+  --canvas: #f7f3fc;
   --surface: #ffffff;
-  --surface-muted: #eef1f6;
-  --ink: #172033;
-  --ink-soft: #667085;
-  --line: #e1e5ed;
-  --brand: #3858c9;
-  --brand-dark: #2743a5;
-  --brand-soft: #e9edff;
-  --accent: #c9783e;
-  --accent-soft: #fff2e8;
-  --danger: #b3424a;
-  --shadow: 0 20px 60px rgba(42, 54, 91, 0.1);
+  --surface-2: #faf8fe;
+  --surface-3: #f2ecfc;
+  --surface-veil: rgba(255, 255, 255, 0.82);
+  --ink: #2c2747;
+  --ink-2: #574875;
+  --ink-3: #6b5f8a;
+  --ink-4: #8b80a8;
+  --ink-5: #a79cc2;
+  --line: rgba(126, 101, 181, 0.14);
+  --line-2: rgba(126, 101, 181, 0.25);
+  --brand: #7b5cf0;
+  --brand-dark: #6549bf;
+  --brand-soft: #efe9fe;
+  --brand-page: #f3effe;
+  --mark: #e4d9ff;
+  --ok: #1f8a73;
+  --ok-page: #e6f6f1;
+  --warn: #c2416b;
+  --warn-page: #fff0f4;
+  --danger: #d93668;
+  --danger-page: #fff0f4;
+  --lift-1: 0 1px 2px rgba(83, 61, 130, 0.07);
+  --lift-2: 0 5px 20px rgba(83, 61, 130, 0.08);
+  --lift-3: 0 16px 48px rgba(83, 61, 130, 0.1);
+  --lift-brand: 0 4px 0 #5b41a8, 0 9px 22px rgba(82, 57, 159, 0.2);
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
-  --color-surface-muted: var(--surface-muted);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-muted: var(--surface-3);
   --color-ink: var(--ink);
-  --color-ink-soft: var(--ink-soft);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-ink-5: var(--ink-5);
+  --color-ink-soft: var(--ink-3);
   --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-brand-soft: var(--brand-soft);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-brand-page: var(--brand-page);
+  --color-accent: var(--warn);
+  --color-accent-soft: var(--warn-page);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: var(--font-learning-serif), "Noto Serif KR", serif;
+  --font-math: var(--font-math-serif), Georgia, serif;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html {
-  color-scheme: light;
-  background: var(--canvas);
-  scroll-behavior: smooth;
-}
+html { color-scheme: light; background: var(--canvas); scroll-behavior: smooth; }
 
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 8% 0%, rgba(56, 88, 201, 0.055), transparent 29rem),
-    radial-gradient(circle at 95% 10%, rgba(23, 32, 51, 0.025), transparent 24rem),
-    var(--canvas);
+    radial-gradient(circle at 4% 4%, rgba(201, 185, 255, 0.5), transparent 23rem),
+    radial-gradient(circle at 96% 92%, rgba(255, 197, 222, 0.32), transparent 24rem),
+    linear-gradient(155deg, #f7f3fd 0%, #f6f1fb 42%, #faf1f6 74%, #f5effc 100%);
   color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv05", "tnum";
   -webkit-font-smoothing: antialiased;
   word-break: keep-all;
+  text-wrap: pretty;
 }
 
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
-  opacity: 0.32;
-  background-image: radial-gradient(rgba(46, 57, 88, 0.14) 0.55px, transparent 0.55px);
-  background-size: 7px 7px;
-  mask-image: linear-gradient(to bottom, black, transparent 72%);
-}
+button, input, textarea, select { font: inherit; color: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:active, a:active { transition-duration: 80ms; }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button:active,
-a:active {
-  transition-duration: 80ms;
-}
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 3px solid rgba(56, 88, 201, 0.24);
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
+  border-radius: 14px;
 }
 
-.chat-composer-input:focus-visible {
-  outline: none;
+.composer:focus-within {
+  border-color: rgba(123, 92, 240, 0.46);
+  box-shadow: 0 0 0 4px rgba(123, 92, 240, 0.12), var(--lift-2);
 }
 
-::selection {
-  background: #cdd6ff;
-  color: #1d347f;
+.composer textarea:focus-visible { outline: none; }
+::selection { background: var(--mark); color: var(--ink); }
+
+.app-canvas {
+  background:
+    radial-gradient(circle at 2% 0%, rgba(201, 185, 255, 0.42), transparent 21rem),
+    radial-gradient(circle at 100% 100%, rgba(255, 197, 222, 0.25), transparent 24rem),
+    linear-gradient(155deg, #f7f3fd 0%, #f6f1fb 42%, #faf1f6 74%, #f5effc 100%);
 }
+
+.veil { background: var(--surface-veil); backdrop-filter: blur(14px); }
 
 .surface-card {
   border: 1px solid var(--line);
-  border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 1px 1px rgba(42, 54, 91, 0.04);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--lift-1);
 }
 
 .elevated-card {
-  border: 1px solid rgba(225, 229, 237, 0.9);
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--lift-3);
 }
 
-.fine-grid {
-  background-image:
-    linear-gradient(rgba(56, 88, 201, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 88, 201, 0.035) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
+.read-card { border-radius: 22px; background: #fff; box-shadow: var(--lift-3); overflow: hidden; }
+.mark { background: linear-gradient(transparent 59%, var(--mark) 59%); }
+.figure { font-family: var(--font-math); font-variant-numeric: lining-nums tabular-nums; }
+.font-learning { font-family: var(--font-serif); }
 
-.scrollbar-subtle {
-  scrollbar-width: thin;
-  scrollbar-color: #c7cdda transparent;
-}
-
-.scrollbar-subtle::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
+.scrollbar-subtle { scrollbar-width: thin; scrollbar-color: #d9cfee transparent; }
+.scrollbar-subtle::-webkit-scrollbar { width: 10px; height: 10px; }
 .scrollbar-subtle::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
   border-radius: 999px;
-  background: #c7cdda;
+  background: #d9cfee;
+  background-clip: content-box;
 }
 
 .markdown-body {
-  color: #303b52;
-  font-size: 0.965rem;
-  line-height: 1.78;
+  color: #3a3159;
+  font-family: var(--font-serif);
+  font-size: 1.075rem;
+  line-height: 2;
   word-break: keep-all;
 }
 
-.markdown-body > * + * {
-  margin-top: 0.85rem;
-}
-
-.markdown-body strong {
-  color: #1d2e63;
-  font-weight: 720;
-}
-
-.markdown-body h3 {
-  color: var(--ink);
+.markdown-body > * + * { margin-top: 1.3rem; }
+.markdown-body strong { color: var(--ink); font-weight: 700; }
+.markdown-body h3 { color: var(--ink); font-size: 1.16rem; font-weight: 700; letter-spacing: -0.02em; }
+.markdown-body ol, .markdown-body ul { padding-left: 1.4rem; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body ul { list-style: disc; }
+.markdown-body li + li { margin-top: 0.4rem; }
+.markdown-body a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.markdown-body blockquote {
+  border-radius: 18px;
+  background: var(--brand-page);
+  padding: 1rem 1.125rem;
+  color: #4a3e7a;
   font-size: 1.02rem;
-  font-weight: 750;
+  line-height: 1.9;
 }
+.markdown-body code { border-radius: 6px; background: var(--surface-2); padding: 0.05em 0.3em; font-family: var(--font-math); }
+.markdown-body pre { overflow-x: auto; border-radius: 14px; background: var(--surface-2); padding: 1rem 1.125rem; font-size: 0.9rem; line-height: 1.7; }
+.markdown-body table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 0.94rem; }
+.markdown-body thead th { border-bottom: 1.5px solid rgba(126, 101, 181, 0.4); padding: 0.6rem 0.75rem; text-align: left; color: var(--ink-4); font-size: 0.813rem; }
+.markdown-body tbody td { border-bottom: 1px solid var(--line); padding: 0.8rem 0.75rem; color: var(--ink-2); vertical-align: top; }
+.markdown-body tbody td:last-child { color: var(--ink); font-weight: 600; }
 
-.markdown-body ol,
-.markdown-body ul {
-  padding-left: 1.35rem;
-}
-
-.markdown-body ol {
-  list-style: decimal;
-}
-
-.markdown-body ul {
-  list-style: disc;
-}
-
-/* AI 답변의 KaTeX 수식은 본문 크기·행간·강조 두께를 주변 문장에 맞춘다. */
-.learncraft-markdown .katex {
-  font-size: 0.98em;
-  font-weight: inherit;
-  line-height: 1.35;
-}
-
-/* 숨겨진 접근성 트리가 화면용 수식과 함께 복사되어 0 0처럼 보이지 않게 한다. */
-.learncraft-markdown .katex-mathml {
-  user-select: none;
-}
-
+.learncraft-markdown .katex { font-size: 1em; font-weight: inherit; line-height: 1.35; }
+.learncraft-markdown .katex-mathml { user-select: none; }
 .learncraft-markdown .katex-display {
-  max-width: 100%;
-  margin: 1rem 0;
-  padding: 0.45rem 0.15rem 0.6rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #c7cdda transparent;
+  max-width: 100%; margin: 1.35rem 0; padding: 1.2rem 1rem;
+  overflow-x: auto; overflow-y: hidden;
+  border-radius: 18px; background: var(--surface-2);
+  scrollbar-width: thin; scrollbar-color: #d9cfee transparent;
 }
-
-.learncraft-markdown .katex-display > .katex {
-  min-width: max-content;
-  font-size: 1em;
-}
-
-/* 인라인 분수가 있는 행은 위아래 줄과 닿지 않도록 충분한 높이를 확보한다. */
+.learncraft-markdown .katex-display > .katex { min-width: max-content; font-size: 1.28em; }
 .learncraft-markdown p:has(.katex .mfrac),
 .learncraft-markdown li:has(.katex .mfrac),
-.learncraft-markdown td:has(.katex .mfrac) {
-  line-height: 2.1;
-}
+.learncraft-markdown td:has(.katex .mfrac) { line-height: 2.15; }
+.learncraft-markdown .katex .msupsub .katex-sizing { font-size: 0.52em; }
+.graph-math-label .katex { font-size: 1em; line-height: 1; }
+.graph-math-label .katex .msupsub .katex-sizing { font-size: 0.52em; }
+.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:first-child { transform: translateY(0.07em); }
+.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:last-child { transform: translateY(-0.07em); }
 
-/* KaTeX 기본 비율보다 지수와 첨자를 작게 표시해 본문 기호와 위계를 분명히 한다. */
-.learncraft-markdown .katex .msupsub .katex-sizing {
-  font-size: 0.52em;
-}
+.text-balance { text-wrap: balance; }
 
-/* 그래프 제목과 범례의 함수식도 본문 수식과 같은 비율로 표시한다. */
-.graph-math-label .katex {
-  font-size: 1em;
-  line-height: 1;
-}
+@keyframes pulse-soft { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-.graph-math-label .katex .msupsub .katex-sizing {
-  font-size: 0.52em;
-}
-
-/* 분수선과 분자·분모 사이의 시각적 여백을 각각 확보한다. */
-.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:first-child {
-  transform: translateY(0.07em);
-}
-
-.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:last-child {
-  transform: translateY(-0.07em);
-}
-
-.text-balance {
-  text-wrap: balance;
-}
-
-@keyframes pulse-soft {
-  0%, 100% { opacity: 0.38; transform: scale(0.86); }
-  50% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes rise-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-
-.app-enter {
-  animation: rise-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
+.app-enter { animation: fade-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.thinking-dot { animation: pulse-soft 1.15s ease-in-out infinite; }
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #edf0f5 20%, #f7f8fb 42%, #edf0f5 64%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f1ebfb 20%, #fbf9fe 45%, #f1ebfb 70%);
   background-size: 220% 100%;
-  animation: shimmer 1.6s linear infinite;
+  animation: shimmer 1.5s linear infinite;
 }
 
-.thinking-dot {
-  animation: pulse-soft 1.25s ease-in-out infinite;
+@media (max-width: 639px) {
+  .markdown-body { font-size: 1.015rem; line-height: 1.94; }
+  .markdown-body table { min-width: 34rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

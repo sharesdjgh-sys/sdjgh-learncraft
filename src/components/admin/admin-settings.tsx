@@ -25,24 +25,40 @@ export function AdminSettings() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-7 sm:px-7 lg:px-10 lg:py-9">
-      <p className="flex items-center gap-2 text-xs font-extrabold tracking-[.12em] text-brand uppercase"><School size={15} /> School controls</p>
-      <h1 className="mt-2 text-3xl font-extrabold tracking-[-0.045em]">운영 설정</h1>
-      <p className="mt-2 text-sm text-ink-soft">학생이 공정하게 이용할 수 있도록 사용 한도와 AI 운영 정보를 관리합니다.</p>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 lg:px-10 lg:py-12">
+      <header className="border-b border-line pb-8">
+        <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><School size={15} /> 학교 운영 기준</p>
+        <h1 className="mt-3 text-[2.1rem] font-extrabold tracking-[-0.045em]">운영 설정</h1>
+        <p className="mt-3 text-[.92rem] leading-7 text-ink-3">모든 학생이 공정하게 이용하도록 사용 한도와 AI 운영 정보를 관리합니다.</p>
+      </header>
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
-        <section className="surface-card p-6 sm:p-7">
-          <div className="flex items-start justify-between gap-5"><div><span className="grid size-11 place-items-center rounded-xl bg-brand-soft text-brand"><Gauge size={21} /></span><h2 className="mt-4 text-lg font-extrabold">학생별 일일 AI 사용 한도</h2><p className="mt-2 max-w-lg text-sm leading-6 text-ink-soft">새 질문과 더 쉽게, 더 자세히, 답 보기, 관련 퀴즈를 각각 1회로 계산합니다.</p></div><span className="rounded-full bg-surface-muted px-3 py-1.5 text-xs font-bold text-ink-soft">현재 {savedLimit}회</span></div>
-          <div className="mt-7 rounded-2xl bg-[#f8faf9] p-5"><div className="flex items-end justify-between"><label htmlFor="daily-limit" className="text-sm font-bold">하루 최대 횟수</label><div className="flex items-baseline gap-1"><span className="text-3xl font-extrabold text-brand">{limit}</span><span className="text-sm text-ink-soft">회</span></div></div><input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-5 w-full accent-[#0c6e5d]" /><div className="mt-2 flex justify-between text-[.68rem] text-[#8a9b96]"><span>5회</span><span>100회</span></div></div>
-          <div className="mt-5 flex items-center justify-between gap-4"><p className="flex items-center gap-1.5 text-xs text-ink-soft"><TriangleAlert size={15} className="text-accent" /> 변경 즉시 모든 학생에게 적용됩니다.</p><Button onClick={save} disabled={saving || limit === savedLimit}>{saving ? <LoaderCircle className="animate-spin" size={17} /> : saved ? <Check size={17} /> : null}{saved ? "저장됨" : "변경 저장"}</Button></div>
+      <div className="mt-9 grid gap-10 lg:grid-cols-[1.25fr_.75fr]">
+        <section className="rounded-[22px] bg-white p-6 shadow-[var(--lift-2)] sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-5 border-b border-line pb-6">
+            <div><Gauge size={21} className="text-brand" /><h2 className="mt-4 text-xl font-extrabold">학생별 일일 AI 사용 한도</h2><p className="mt-2 max-w-lg text-[.9rem] leading-7 text-ink-3">새 질문과 더 쉽게, 원리까지 깊게, 전체 풀이, 확인 문제를 각각 1회로 계산합니다.</p></div>
+            <span className="rounded-full bg-surface-3 px-3 py-1.5 text-[.8rem] font-bold text-ink-3">현재 {savedLimit}회</span>
+          </div>
+          <div className="mt-8 rounded-[18px] bg-surface-2 p-5 sm:p-6">
+            <div className="flex items-end justify-between gap-4"><label htmlFor="daily-limit" className="text-[.9rem] font-bold">하루 최대 횟수</label><div className="figure flex items-baseline gap-1"><span className="text-4xl font-semibold text-brand">{limit}</span><span className="text-sm text-ink-4">회</span></div></div>
+            <input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-7 w-full accent-[#7b5cf0]" />
+            <div className="figure mt-2 flex justify-between text-[.76rem] text-ink-5"><span>5회</span><span>100회</span></div>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4"><p className="flex items-center gap-1.5 text-[.82rem] text-ink-3"><TriangleAlert size={15} className="text-warn" /> 변경 즉시 모든 학생에게 적용됩니다.</p><Button onClick={save} disabled={saving || limit === savedLimit}>{saving ? <LoaderCircle className="animate-spin" size={17} /> : saved ? <Check size={17} /> : null}{saved ? "저장됨" : "변경 저장"}</Button></div>
         </section>
 
-        <div className="grid gap-5">
-          <section className="surface-card p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-brand-soft text-brand"><Bot size={19} /></span><div><p className="text-xs font-semibold text-ink-soft">AI 모델</p><p className="mt-0.5 text-sm font-extrabold">Gemini 3.6 Flash</p></div></div><div className="mt-4 flex items-center justify-between border-t border-line pt-4 text-xs"><span className="text-ink-soft">연결 상태</span><span className="flex items-center gap-1.5 font-bold text-brand"><span className="size-1.5 rounded-full bg-brand" /> 환경 변수 연동</span></div></section>
-          <section className="surface-card p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-accent"><CircleDollarSign size={19} /></span><div><p className="text-xs font-semibold text-ink-soft">비용 표시</p><p className="mt-0.5 text-sm font-extrabold">USD 예상 비용</p></div></div><p className="mt-4 border-t border-line pt-4 text-xs leading-5 text-ink-soft">실제 Google 청구액과 차이가 날 수 있으며 가격 변경 시 단가 설정을 갱신해야 합니다.</p></section>
-          <section className="rounded-2xl border border-[#d2e4de] bg-brand-soft/60 p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-sm font-extrabold">학생 대화 비공개</h3><p className="mt-1.5 text-xs leading-5 text-ink-soft">관리자 설정으로도 학생 질문 원문이나 오답 노트 내용을 열람할 수 없습니다.</p></section>
-        </div>
+        <aside>
+          <h2 className="text-[.84rem] font-bold text-ink-4">현재 운영 정보</h2>
+          <dl className="mt-3 divide-y divide-line border-y border-line">
+            <InfoRow icon={Bot} label="AI 모델" value="Gemini 3.6 Flash" note="환경 변수 연동" />
+            <InfoRow icon={CircleDollarSign} label="비용 표시" value="USD 예상 비용" note="실제 청구액과 차이가 날 수 있음" />
+          </dl>
+          <div className="mt-6 rounded-[18px] bg-brand-page p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-[.92rem] font-extrabold">학생 대화 비공개</h3><p className="mt-2 text-[.84rem] leading-6 text-ink-3">관리자 설정으로도 학생 질문 원문이나 오답 노트 내용을 열람할 수 없습니다.</p></div>
+        </aside>
       </div>
     </div>
   );
+}
+
+function InfoRow({ icon: Icon, label, value, note }: { icon: typeof Bot; label: string; value: string; note: string }) {
+  return <div className="grid grid-cols-[2rem_1fr] gap-3 py-5"><Icon size={18} className="mt-0.5 text-brand" strokeWidth={1.8} /><div><dt className="text-[.78rem] font-semibold text-ink-4">{label}</dt><dd className="mt-1 text-[.9rem] font-bold text-ink">{value}</dd><p className="mt-1 text-[.78rem] leading-5 text-ink-5">{note}</p></div></div>;
 }

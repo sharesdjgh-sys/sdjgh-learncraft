@@ -23,7 +23,7 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
   }
 
   return (
-    <pre className="scrollbar-subtle my-5 overflow-x-auto rounded-xl border border-line bg-[#172033] p-4 text-[0.84rem] leading-6 text-[#eef1f8] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [tab-size:2] [&>code]:block [&>code]:min-w-max [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit">
+    <pre className="scrollbar-subtle my-5 overflow-x-auto rounded-xl border border-[#44396d] bg-[#2c2747] p-4 text-[0.84rem] leading-6 text-[#f7f3fc] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] [tab-size:2] [&>code]:block [&>code]:min-w-max [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit">
       {children}
     </pre>
   );

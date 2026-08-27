@@ -23,6 +23,9 @@ next-env.d.ts
 # Deployment metadata
 /.vercel/
 
+# Local project references
+/ref/
+
 # Logs and diagnostics
 *.log
 npm-debug.log*

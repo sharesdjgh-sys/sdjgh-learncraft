@@ -10,11 +10,11 @@ export function Button({ className, variant = "primary", size = "md", ...props }
   return (
     <button
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-45",
-        variant === "primary" && "bg-brand text-white shadow-[0_8px_22px_rgba(12,110,93,.19)] hover:bg-brand-dark",
-        variant === "secondary" && "border border-line bg-white text-ink hover:border-[#b9ccc5] hover:bg-surface-muted",
-        variant === "ghost" && "text-ink-soft hover:bg-surface-muted hover:text-ink",
-        variant === "danger" && "bg-[#fff0ef] text-[#a6383b] hover:bg-[#ffe4e2]",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-[14px] font-semibold transition-all duration-300 ease-out active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-45",
+        variant === "primary" && "bg-[linear-gradient(180deg,#8168d8,#6c50c5)] text-white shadow-[var(--lift-brand)] hover:-translate-y-0.5 hover:saturate-[1.08]",
+        variant === "secondary" && "border border-line bg-white text-ink-2 shadow-[var(--lift-1)] hover:border-[var(--line-2)] hover:bg-surface-2 hover:text-ink",
+        variant === "ghost" && "text-ink-3 hover:bg-surface-3 hover:text-ink",
+        variant === "danger" && "bg-[var(--danger-page)] text-danger hover:bg-[#ffe3ec]",
         size === "sm" && "min-h-9 px-3 text-sm",
         size === "md" && "min-h-11 px-4 text-sm",
         size === "lg" && "min-h-12 px-5 text-[0.95rem]",
