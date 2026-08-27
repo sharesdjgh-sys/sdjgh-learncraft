@@ -46,9 +46,15 @@ const levelConfig: Array<{ level: LearningLevel; label: string; description: str
   { level: "ADVANCED", label: "심화", description: "원리와 개념 연결" },
 ];
 
+type SupportedGrade = 1 | 2;
+
+function supportedGrade(grade: number): SupportedGrade {
+  return grade === 2 ? 2 : 1;
+}
+
 type SavedLearningSession = {
   unitId: string;
-  grade?: 1 | 2 | 3;
+  grade?: SupportedGrade;
   learningLevel: LearningLevel;
   messages: TutorMessage[];
 };
@@ -61,14 +67,15 @@ function isSavedSession(value: unknown): value is SavedLearningSession {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedLearningSession>;
   return typeof candidate.unitId === "string"
-    && (candidate.grade === undefined || candidate.grade === 1 || candidate.grade === 2 || candidate.grade === 3)
+    && (candidate.grade === undefined || candidate.grade === 1 || candidate.grade === 2)
     && isLearningLevel(candidate.learningLevel)
     && Array.isArray(candidate.messages);
 }
 
 export function LearningWorkspace({ units, initialGrade, studentName, schoolName }: { units: LearningUnit[]; initialGrade: number; studentName: string; schoolName: string }) {
-  const initialUnitId = units.find((unit) => unit.recommendedGrades.includes(initialGrade as 1 | 2 | 3) && unit.subjectCode === "MATH")?.id ?? units[0]?.id ?? "";
-  const [grade, setGrade] = useState<1 | 2 | 3>(initialGrade as 1 | 2 | 3);
+  const normalizedInitialGrade = supportedGrade(initialGrade);
+  const initialUnitId = units.find((unit) => unit.recommendedGrades.includes(normalizedInitialGrade) && unit.subjectCode === "MATH")?.id ?? units[0]?.id ?? "";
+  const [grade, setGrade] = useState<SupportedGrade>(normalizedInitialGrade);
   const [subject, setSubject] = useState<SubjectCode>("MATH");
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
@@ -86,6 +93,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const streamingAnswerRef = useRef(false);
 
   const filteredUnits = useMemo(
     () => units.filter((unit) => unit.recommendedGrades.includes(grade) && unit.subjectCode === subject),
@@ -121,7 +129,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
     const restoreTimer = window.setTimeout(() => {
       if (savedSession && savedUnit) {
         setSelectedUnitId(savedUnit.id);
-        setGrade(savedSession.grade ?? savedUnit.grade);
+        setGrade(savedSession.grade ?? supportedGrade(savedUnit.grade));
         setSubject(savedUnit.subjectCode);
         setLearningLevel(savedSession.learningLevel);
         setMessages(savedSession.messages.filter((message) => Boolean(message?.id && message?.content)).slice(-20));
@@ -152,7 +160,26 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   function trackScrollPosition() {
     const container = messageScrollRef.current;
     if (!container) return;
+    if (streamingAnswerRef.current) {
+      autoScrollRef.current = false;
+      return;
+    }
     autoScrollRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < 140;
+  }
+
+  function scrollToMessageStart(messageId: string) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const container = messageScrollRef.current;
+        const messageElement = document.getElementById(`tutor-message-${messageId}`);
+        if (!container || !messageElement) return;
+        const top = container.scrollTop
+          + messageElement.getBoundingClientRect().top
+          - container.getBoundingClientRect().top
+          - 16;
+        container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      });
+    });
   }
 
   function resetConversation(showNotice = true) {
@@ -175,7 +202,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
     setDrawerOpen(false);
   }
 
-  function changeGrade(nextGrade: 1 | 2 | 3) {
+  function changeGrade(nextGrade: SupportedGrade) {
     setGrade(nextGrade);
     const nextUnit = units.find((unit) => unit.recommendedGrades.includes(nextGrade) && unit.subjectCode === subject);
     if (nextUnit) selectUnit(nextUnit.id);
@@ -207,8 +234,10 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
       .slice(-6)
       .map(({ role, content }) => ({ role, content: content.slice(0, 3000) }));
 
+    streamingAnswerRef.current = true;
+    autoScrollRef.current = false;
     setMessages((current) => [...current, userMessage, assistantMessage]);
-    autoScrollRef.current = true;
+    scrollToMessageStart(answerId);
     setInput("");
     if (textAreaRef.current) textAreaRef.current.style.height = "auto";
     setLoading(true);
@@ -259,6 +288,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         : item));
       setRetryRequest({ action, preset });
     } finally {
+      streamingAnswerRef.current = false;
       setLoading(false);
     }
   }
@@ -334,7 +364,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
             ) : (
               <div className="flex-1 space-y-7 pb-4">
                 {messages.map((message, index) => (
-                  <article key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+                  <article id={`tutor-message-${message.id}`} key={message.id} className={cn("flex scroll-mt-4", message.role === "user" ? "justify-end" : "justify-start")}>
                     {message.role === "user" ? (
                       <div className="max-w-[88%] rounded-[1.25rem_1.25rem_.35rem_1.25rem] bg-ink px-4 py-3 text-[.93rem] leading-6 text-white shadow-[0_8px_22px_rgba(23,32,51,.12)] sm:max-w-[74%]">
                         {message.content}
@@ -434,11 +464,11 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 }
 
 function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSubject, onUnit }: {
-  grade: 1 | 2 | 3;
+  grade: SupportedGrade;
   subject: SubjectCode;
   units: LearningUnit[];
   selectedUnitId: string;
-  onGrade: (grade: 1 | 2 | 3) => void;
+  onGrade: (grade: SupportedGrade) => void;
   onSubject: (subject: SubjectCode) => void;
   onUnit: (id: string) => void;
 }) {
@@ -490,8 +520,8 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
     <div>
       <div className="flex items-center gap-2 px-1 text-sm font-bold text-ink"><LibraryBig size={18} className="text-brand" /> 교육과정 탐색</div>
       <p className="mt-1.5 px-1 text-[.72rem] leading-5 text-ink-soft">과목부터 세부 학습 주제까지 학교 진도에 맞춰 선택하세요.</p>
-      <div className="mt-5 grid grid-cols-3 gap-1 rounded-xl bg-surface-muted p-1">
-        {([1, 2, 3] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-lg text-xs font-semibold transition active:scale-[.97]", grade === item ? "bg-white text-brand-dark shadow-sm" : "text-ink-soft hover:text-ink")}>{item}학년</button>)}
+      <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-surface-muted p-1">
+        {([1, 2] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-lg text-xs font-semibold transition active:scale-[.97]", grade === item ? "bg-white text-brand-dark shadow-sm" : "text-ink-soft hover:text-ink")}>{item}학년</button>)}
       </div>
       <div className="mt-3 grid grid-cols-3 gap-1.5">
         {subjects.map((item) => <button key={item.code} onClick={() => onSubject(item.code)} className={cn("min-h-10 cursor-pointer rounded-xl border text-xs font-semibold transition active:scale-[.97]", subject === item.code ? "border-brand/25 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-soft hover:border-[#c3cad8] hover:text-ink")}>{item.title}</button>)}
@@ -524,10 +554,10 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
             <div className={cn("mt-2.5 rounded-xl border px-3 py-2.5", selectedCourse.schoolAdopted ? "border-[#d8e4dc] bg-[#f4f8f5]" : "border-[#eadfd6] bg-accent-soft") }>
               <p className={cn("flex items-center gap-1.5 text-[.68rem] font-bold", selectedCourse.schoolAdopted ? "text-[#3d7055]" : "text-[#98572e]") }>
                 {selectedCourse.schoolAdopted ? <CheckCircle2 size={13} /> : <TriangleAlert size={13} />}
-                {selectedCourse.schoolAdopted ? "서대전여고 채택 교과서" : "비상교육 기준 참고 과정"}
+                {selectedCourse.schoolAdopted ? "서대전여고 채택 교과서" : "학교 채택본과 목차 기준이 다른 참고 과정"}
               </p>
               <p className="mt-1 text-[.64rem] leading-4 text-ink-soft">
-                비상교육 · {selectedCourse.curriculum}
+                {selectedCourse.publisherName} · {selectedCourse.curriculum}
                 {!selectedCourse.schoolAdopted && selectedCourse.schoolPublisherName ? ` · 학교 채택본 ${selectedCourse.schoolPublisherName}` : ""}
               </p>
             </div>

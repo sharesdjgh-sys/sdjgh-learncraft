@@ -89,25 +89,18 @@ if ([inputPrice, outputPrice, cachedInputPrice].every(Number.isFinite)) {
   }).onConflictDoNothing();
 }
 
+const courseKeys = Array.from(new Set(learningUnits.map((unit) => (
+  `${unit.curriculum}:${unit.subjectCode}:${unit.courseCode}`
+))));
 const courseIds = new Map<string, string>();
-for (const unit of learningUnits) {
-  const courseKey = `${unit.curriculum}:${unit.subjectCode}:${unit.courseCode}`;
-  if (!courseIds.has(courseKey)) {
-    courseIds.set(
-      courseKey,
-      `30000000-0000-4000-8000-${String(courseIds.size + 1).padStart(12, "0")}`,
-    );
-  }
-}
 
-for (const [courseKey, courseId] of courseIds) {
+for (const courseKey of courseKeys) {
   const courseUnit = learningUnits.find((unit) => (
     `${unit.curriculum}:${unit.subjectCode}:${unit.courseCode}` === courseKey
   ));
   if (!courseUnit) continue;
   const versionId = courseUnit.curriculum.startsWith("2015") ? VERSION_2015_ID : VERSION_2022_ID;
-  await db.insert(courses).values({
-    id: courseId,
+  const [savedCourse] = await db.insert(courses).values({
     curriculumVersionId: versionId,
     subjectId: subjectIds[courseUnit.subjectCode],
     grade: courseUnit.grade,
@@ -115,16 +108,16 @@ for (const [courseKey, courseId] of courseIds) {
     title: courseUnit.courseTitle,
     displayOrder: courseUnit.courseOrder,
   }).onConflictDoUpdate({
-    target: courses.id,
+    target: [courses.curriculumVersionId, courses.code],
     set: {
-      curriculumVersionId: versionId,
       subjectId: subjectIds[courseUnit.subjectCode],
       grade: courseUnit.grade,
-      code: `COURSE-${courseUnit.courseCode}`,
       title: courseUnit.courseTitle,
       displayOrder: courseUnit.courseOrder,
     },
-  });
+  }).returning({ id: courses.id });
+  if (!savedCourse) throw new Error(`${courseUnit.courseTitle} 과정을 저장하지 못했습니다.`);
+  courseIds.set(courseKey, savedCourse.id);
 }
 
 for (const [index, unit] of learningUnits.entries()) {
@@ -141,7 +134,7 @@ for (const [index, unit] of learningUnits.entries()) {
     scopeExcluded: unit.scopeExcluded,
     prerequisites: unit.prerequisites,
     tutorPrompt: unit.tutorInstructions,
-    promptVersion: 3,
+    promptVersion: 4,
     status: "DEVELOPER_REVIEWED",
     reviewerName: "LearnCraft 교육과정 정리",
     reviewedAt: new Date(),
@@ -156,15 +149,19 @@ for (const [index, unit] of learningUnits.entries()) {
       scopeExcluded: unit.scopeExcluded,
       prerequisites: unit.prerequisites,
       tutorPrompt: unit.tutorInstructions,
-      promptVersion: 3,
+      promptVersion: 4,
       status: "DEVELOPER_REVIEWED",
       reviewerName: "LearnCraft 교육과정 정리",
       reviewedAt: new Date(),
       updatedAt: new Date(),
     },
   });
+  const contentId = unit.id.replace(
+    /^(10000000|20000000)/,
+    unit.subjectCode === "MATH" ? "41000000" : "42000000",
+  );
   await db.insert(unitContents).values({
-    id: `40000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    id: contentId,
     unitId: unit.id,
     version: 1,
     summaryMarkdown: unit.summary,
@@ -175,7 +172,7 @@ for (const [index, unit] of learningUnits.entries()) {
     reviewerName: "LearnCraft 교육과정 정리",
     reviewedAt: new Date(),
   }).onConflictDoUpdate({
-    target: unitContents.id,
+    target: [unitContents.unitId, unitContents.version],
     set: {
       unitId: unit.id,
       summaryMarkdown: unit.summary,

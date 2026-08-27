@@ -3,7 +3,7 @@ export type SubjectCode = "KOREAN" | "ENGLISH" | "MATH";
 export type TutorAction = "QUESTION" | "EASIER" | "DEEPER" | "REVEAL" | "QUIZ";
 export type LearningLevel = "FOUNDATION" | "STANDARD" | "ADVANCED";
 export type CourseCategory = "COMMON" | "GENERAL" | "CAREER" | "LEGACY";
-export type PublisherCode = "VISANG" | "DONGA" | "GENERIC";
+export type PublisherCode = "VISANG" | "DONGA" | "MIRAE" | "JIHAKSA" | "CHANGBI" | "HAENAM" | "GENERIC";
 
 export type SessionUser = {
   id: string;
