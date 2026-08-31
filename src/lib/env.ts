@@ -7,7 +7,9 @@ const envSchema = z.object({
   AUTH_ADMIN_ID: z.string().min(1).optional(),
   AUTH_ADMIN_PASSWORD: z.string().min(4).optional(),
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL_ID: z.string().default("gemini-3.6-flash"),
+  GEMINI_MODEL_ID: z.string().optional(),
+  GEMINI_PRIMARY_MODEL_ID: z.string().optional(),
+  GEMINI_FALLBACK_MODEL_ID: z.string().default("gemini-3.6-flash"),
   APP_TIMEZONE: z.string().default("Asia/Seoul"),
 });
 
@@ -19,6 +21,8 @@ const parsed = envSchema.safeParse({
   AUTH_ADMIN_PASSWORD: process.env.AUTH_ADMIN_PASSWORD,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL_ID: process.env.GEMINI_MODEL_ID,
+  GEMINI_PRIMARY_MODEL_ID: process.env.GEMINI_PRIMARY_MODEL_ID,
+  GEMINI_FALLBACK_MODEL_ID: process.env.GEMINI_FALLBACK_MODEL_ID,
   APP_TIMEZONE: process.env.APP_TIMEZONE,
 });
 
@@ -26,7 +30,13 @@ if (!parsed.success) {
   throw new Error(`환경 변수 설정 오류: ${parsed.error.message}`);
 }
 
-export const env = parsed.data;
+export const env = {
+  ...parsed.data,
+  GEMINI_PRIMARY_MODEL_ID:
+    parsed.data.GEMINI_PRIMARY_MODEL_ID
+    ?? parsed.data.GEMINI_MODEL_ID
+    ?? "gemini-3.7-flash",
+};
 
 export const isDatabaseConfigured = Boolean(env.DATABASE_URL);
 export const isGeminiConfigured = Boolean(env.GEMINI_API_KEY);

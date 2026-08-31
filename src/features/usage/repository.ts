@@ -36,7 +36,7 @@ export async function getStudentUsage(user: SessionUser) {
   return { count, completed: row?.completedCount ?? 0, limit, remaining: Math.max(0, limit - count) };
 }
 
-export async function reserveAiUsage(input: { user: SessionUser; requestId: string; unitId: string; action: TutorAction }) {
+export async function reserveAiUsage(input: { user: SessionUser; requestId: string; unitId: string; action: TutorAction; modelId: string }) {
   if (!db) {
     const key = demoEventKey(input.user, input.requestId);
     if (demoUsageEvents.has(key)) {
@@ -74,7 +74,7 @@ export async function reserveAiUsage(input: { user: SessionUser; requestId: stri
       studentId: input.user.id,
       unitId: input.unitId,
       action: input.action,
-      modelId: env.GEMINI_MODEL_ID,
+      modelId: input.modelId,
       promptVersion: TUTOR_PROMPT_VERSION,
       contentVersion: 1,
     });
@@ -113,6 +113,7 @@ export async function completeAiUsage(user: SessionUser, requestId: string) {
 export async function completeAiUsageWithTokens(
   user: SessionUser,
   requestId: string,
+  modelId: string,
   usage: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number },
   latencyMs: number,
   finishReason?: FinishReason,
@@ -126,10 +127,11 @@ export async function completeAiUsageWithTokens(
   const inputTokens = usage.inputTokens ?? 0;
   const outputTokens = usage.outputTokens ?? 0;
   const cachedInputTokens = usage.cachedInputTokens ?? 0;
-  const priceResult = await db.execute(sql`SELECT input_usd_per_million::float, output_usd_per_million::float, cached_input_usd_per_million::float FROM pricing_configs WHERE model_id = ${env.GEMINI_MODEL_ID} AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now()) ORDER BY effective_from DESC LIMIT 1`);
+  const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
+  const priceResult = await db.execute(sql`SELECT input_usd_per_million::float, output_usd_per_million::float, cached_input_usd_per_million::float FROM pricing_configs WHERE model_id = ${modelId} AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now()) ORDER BY effective_from DESC LIMIT 1`);
   const price = ((priceResult as unknown as { rows?: Array<{ input_usd_per_million: number; output_usd_per_million: number; cached_input_usd_per_million: number }> }).rows ?? [])[0];
   const estimatedCost = price
-    ? ((inputTokens * price.input_usd_per_million) + (outputTokens * price.output_usd_per_million) + (cachedInputTokens * price.cached_input_usd_per_million)) / 1_000_000
+    ? ((uncachedInputTokens * price.input_usd_per_million) + (outputTokens * price.output_usd_per_million) + (cachedInputTokens * price.cached_input_usd_per_million)) / 1_000_000
     : 0;
   const completionCode = finishReasonCode(finishReason);
   await db.execute(sql`
@@ -159,6 +161,21 @@ export async function completeAiUsageWithTokens(
     WHERE daily_usage.student_id = transitioned.student_id
       AND daily_usage.usage_date = (transitioned.created_at AT TIME ZONE ${env.APP_TIMEZONE})::date
   `);
+}
+
+export async function switchAiUsageModel(
+  user: SessionUser,
+  requestId: string,
+  modelId: string,
+) {
+  if (!db) return;
+  await db.update(usageEvents)
+    .set({ modelId })
+    .where(and(
+      eq(usageEvents.studentId, user.id),
+      eq(usageEvents.requestId, requestId),
+      eq(usageEvents.status, "RESERVED"),
+    ));
 }
 
 export async function refundAiUsage(

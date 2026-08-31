@@ -14,6 +14,7 @@ import {
   completeAiUsageWithTokens,
   refundAiUsage,
   reserveAiUsage,
+  switchAiUsageModel,
 } from "@/features/usage/repository";
 import { requireStudent } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
@@ -80,18 +81,38 @@ function streamError() {
 }
 
 function tutorTextStream(
-  result: StreamResult,
+  primaryResult: StreamResult,
+  createFallbackResult: (() => StreamResult) | null,
+  onFallback: () => Promise<void>,
+  isAborted: () => boolean,
   onStreamFailure: (code: string, cancelled?: boolean) => Promise<void>,
 ) {
   const encoder = new TextEncoder();
-  const iterator = result.stream[Symbol.asyncIterator]();
+  let iterator = primaryResult.stream[Symbol.asyncIterator]();
   let ended = false;
+  let emittedText = false;
+  let usingFallback = false;
+
+  async function switchToFallback() {
+    if (usingFallback || emittedText || !createFallbackResult || isAborted()) return false;
+    usingFallback = true;
+    await iterator.return?.();
+    await onFallback();
+    iterator = createFallbackResult().stream[Symbol.asyncIterator]();
+    return true;
+  }
 
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         while (!ended) {
-          const next = await iterator.next();
+          let next: Awaited<ReturnType<typeof iterator.next>>;
+          try {
+            next = await iterator.next();
+          } catch {
+            if (await switchToFallback()) continue;
+            throw streamError();
+          }
           if (next.done) {
             ended = true;
             controller.close();
@@ -100,19 +121,30 @@ function tutorTextStream(
 
           const part = next.value;
           if (part.type === "text-delta") {
+            emittedText = true;
             controller.enqueue(encoder.encode(part.text));
             return;
           }
 
-          if (part.type === "finish" && part.finishReason === "length") {
-            controller.enqueue(encoder.encode(
-              "\n\n---\n\n> **답변 길이 안내**: 설명이 최대 출력 길이에 도달했습니다. "
-              + "이어지는 설명이 필요하면 ‘계속 설명해 줘’라고 질문해 주세요.",
-            ));
-            return;
+          if (part.type === "finish") {
+            if (part.finishReason === "error") {
+              if (await switchToFallback()) continue;
+              ended = true;
+              await onStreamFailure("AI_PROVIDER_STREAM_ERROR");
+              controller.error(streamError());
+              return;
+            }
+            if (part.finishReason === "length") {
+              controller.enqueue(encoder.encode(
+                "\n\n---\n\n> **답변 길이 안내**: 설명이 최대 출력 길이에 도달했습니다. "
+                + "이어지는 설명이 필요하면 ‘계속 설명해 줘’라고 질문해 주세요.",
+              ));
+              return;
+            }
           }
 
           if (part.type === "error") {
+            if (await switchToFallback()) continue;
             ended = true;
             await onStreamFailure("AI_PROVIDER_STREAM_ERROR");
             controller.error(streamError());
@@ -128,8 +160,16 @@ function tutorTextStream(
         }
       } catch {
         ended = true;
-        await onStreamFailure("AI_PROVIDER_STREAM_ERROR").catch(() => undefined);
-        controller.error(streamError());
+        const cancelled = isAborted();
+        await onStreamFailure(
+          cancelled ? "CLIENT_ABORTED" : "AI_PROVIDER_STREAM_ERROR",
+          cancelled,
+        ).catch(() => undefined);
+        controller.error(
+          cancelled
+            ? new DOMException("AI 튜터 요청이 중단되었습니다.", "AbortError")
+            : streamError(),
+        );
       }
     },
     async cancel() {
@@ -193,6 +233,7 @@ export async function POST(request: Request) {
     requestId: input.requestId,
     unitId: input.unitId,
     action: input.action,
+    modelId: env.GEMINI_PRIMARY_MODEL_ID,
   });
   if (!reservation.ok) {
     if (reservation.duplicate) {
@@ -210,7 +251,6 @@ export async function POST(request: Request) {
 
   try {
     if (isGeminiConfigured) {
-      const startedAt = Date.now();
       const promptInput = {
         unit,
         student: user,
@@ -238,49 +278,52 @@ export async function POST(request: Request) {
               })),
             ],
           }];
-      const result = streamText({
-        model: google(env.GEMINI_MODEL_ID),
-        system: buildTutorSystemPrompt(promptInput),
-        prompt,
-        maxOutputTokens: 4096,
-        temperature: 0.35,
-        abortSignal: request.signal,
-        providerOptions: {
-          google: {
-            thinkingConfig: {
-              thinkingLevel: thinkingLevel(input),
-              includeThoughts: false,
+      const createResult = (modelId: string) => {
+        const startedAt = Date.now();
+        return streamText({
+          model: google(modelId),
+          system: buildTutorSystemPrompt(promptInput),
+          prompt,
+          maxOutputTokens: 4096,
+          abortSignal: request.signal,
+          providerOptions: {
+            google: {
+              thinkingConfig: {
+                thinkingLevel: thinkingLevel(input),
+                includeThoughts: false,
+              },
             },
           },
-        },
-        onError: async () => {
-          await refundAiUsage(user, input.requestId, "AI_PROVIDER_STREAM_ERROR");
-        },
-        onAbort: async () => {
-          await refundAiUsage(user, input.requestId, "CLIENT_ABORTED", true);
-        },
-        onEnd: async ({ usage, finishReason }) => {
-          if (finishReason === "error") {
-            await refundAiUsage(user, input.requestId, "AI_PROVIDER_STREAM_ERROR");
-            return;
-          }
-          await completeAiUsageWithTokens(
-            user,
-            input.requestId,
-            {
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
-            },
-            Date.now() - startedAt,
-            finishReason,
-          );
-        },
-      });
+          onEnd: async ({ usage, finishReason }) => {
+            if (finishReason === "error") return;
+            await completeAiUsageWithTokens(
+              user,
+              input.requestId,
+              modelId,
+              {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+              },
+              Date.now() - startedAt,
+              finishReason,
+            );
+          },
+        });
+      };
+
+      const fallbackEnabled = (
+        env.GEMINI_FALLBACK_MODEL_ID
+        && env.GEMINI_FALLBACK_MODEL_ID !== env.GEMINI_PRIMARY_MODEL_ID
+      );
+      const result = createResult(env.GEMINI_PRIMARY_MODEL_ID);
 
       return new Response(
         tutorTextStream(
           result,
+          fallbackEnabled ? () => createResult(env.GEMINI_FALLBACK_MODEL_ID) : null,
+          () => switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID),
+          () => request.signal.aborted,
           (code, cancelled) => refundAiUsage(user, input.requestId, code, cancelled),
         ),
         { headers },

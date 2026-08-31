@@ -96,19 +96,66 @@ await db.insert(subjects).values(subjectSource.map((subject, index) => ({
   displayOrder: index + 1,
 }))).onConflictDoNothing();
 
-const inputPrice = Number(process.env.GEMINI_INPUT_USD_PER_MILLION);
-const outputPrice = Number(process.env.GEMINI_OUTPUT_USD_PER_MILLION);
-const cachedInputPrice = Number(process.env.GEMINI_CACHED_INPUT_USD_PER_MILLION);
-if ([inputPrice, outputPrice, cachedInputPrice].every(Number.isFinite)) {
-  await db.insert(pricingConfigs).values({
-    id: "ffffffff-ffff-4fff-8fff-000000000001",
-    provider: "google",
-    modelId: process.env.GEMINI_MODEL_ID ?? "gemini-3.6-flash",
-    effectiveFrom: new Date("2026-08-26T00:00:00Z"),
-    inputUsdPerMillion: String(inputPrice),
-    outputUsdPerMillion: String(outputPrice),
-    cachedInputUsdPerMillion: String(cachedInputPrice),
-  }).onConflictDoNothing();
+const promotionalPrices = {
+  input: Number(process.env.GEMINI_INPUT_USD_PER_MILLION || "0.75"),
+  output: Number(process.env.GEMINI_OUTPUT_USD_PER_MILLION || "3.75"),
+  cachedInput: Number(process.env.GEMINI_CACHED_INPUT_USD_PER_MILLION || "0.075"),
+};
+const standardPrices = { input: 1.5, output: 7.5, cachedInput: 0.15 };
+
+if (Object.values(promotionalPrices).every(Number.isFinite)) {
+  const pricedModels = [
+    {
+      promotionalId: "ffffffff-ffff-4fff-8fff-000000000001",
+      standardId: "ffffffff-ffff-4fff-8fff-000000000003",
+      modelId: process.env.GEMINI_FALLBACK_MODEL_ID ?? "gemini-3.6-flash",
+    },
+    {
+      promotionalId: "ffffffff-ffff-4fff-8fff-000000000002",
+      standardId: "ffffffff-ffff-4fff-8fff-000000000004",
+      modelId: process.env.GEMINI_PRIMARY_MODEL_ID ?? "gemini-3.7-flash",
+    },
+  ];
+
+  for (const model of pricedModels) {
+    const pricePeriods = [
+      {
+        id: model.promotionalId,
+        effectiveFrom: new Date("2026-08-26T00:00:00Z"),
+        effectiveTo: new Date("2027-01-01T00:00:00Z"),
+        prices: promotionalPrices,
+      },
+      {
+        id: model.standardId,
+        effectiveFrom: new Date("2027-01-01T00:00:00Z"),
+        effectiveTo: null,
+        prices: standardPrices,
+      },
+    ];
+
+    for (const period of pricePeriods) {
+      await db.insert(pricingConfigs).values({
+        id: period.id,
+        provider: "google",
+        modelId: model.modelId,
+        effectiveFrom: period.effectiveFrom,
+        effectiveTo: period.effectiveTo,
+        inputUsdPerMillion: String(period.prices.input),
+        outputUsdPerMillion: String(period.prices.output),
+        cachedInputUsdPerMillion: String(period.prices.cachedInput),
+      }).onConflictDoUpdate({
+        target: pricingConfigs.id,
+        set: {
+          modelId: model.modelId,
+          effectiveFrom: period.effectiveFrom,
+          effectiveTo: period.effectiveTo,
+          inputUsdPerMillion: String(period.prices.input),
+          outputUsdPerMillion: String(period.prices.output),
+          cachedInputUsdPerMillion: String(period.prices.cachedInput),
+        },
+      });
+    }
+  }
 }
 
 const courseKeys = Array.from(new Set(learningUnits.map((unit) => (
@@ -209,7 +256,7 @@ for (const [index, unit] of learningUnits.entries()) {
   });
 }
 
-console.log(`LearnCraft seed 완료: 학교 1개, 사용자 2명, 과정 ${courseIds.size}개, 단원 ${learningUnits.length}개`);
+console.log(`LearnCraft seed 완료: 학교 1개, 사용자 ${sampleStudentAccounts.length + 1}명, 과정 ${courseIds.size}개, 단원 ${learningUnits.length}개`);
 }
 
 main().catch((error) => {

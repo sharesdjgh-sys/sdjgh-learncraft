@@ -20,7 +20,8 @@ npm run dev
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL_ID=gemini-3.6-flash
+GEMINI_PRIMARY_MODEL_ID=gemini-3.7-flash
+GEMINI_FALLBACK_MODEL_ID=gemini-3.6-flash
 GEMINI_INPUT_USD_PER_MILLION=공식_입력_단가
 GEMINI_OUTPUT_USD_PER_MILLION=공식_출력_단가
 GEMINI_CACHED_INPUT_USD_PER_MILLION=공식_캐시_입력_단가
@@ -52,7 +53,8 @@ Neon이 연결되면 북마크, 사용량, 관리자 한도 설정이 PostgreSQL
 | `AUTH_DEV_LOGIN_ENABLED` | 로컬·Preview 개발 로그인 활성화 여부 |
 | `AUTH_ADMIN_ID`, `AUTH_ADMIN_PASSWORD` | 운영용 관리자 로그인 정보 |
 | `GEMINI_API_KEY` | Google Gemini API 키 |
-| `GEMINI_MODEL_ID` | 기본값 `gemini-3.6-flash` |
+| `GEMINI_PRIMARY_MODEL_ID` | 기본 모델, 기본값 `gemini-3.7-flash` |
+| `GEMINI_FALLBACK_MODEL_ID` | 기본 모델 연결 실패 시 대체 모델, 기본값 `gemini-3.6-flash` |
 | `GEMINI_*_USD_PER_MILLION` | 관리자 예상 비용 계산에 사용할 공식 단가 |
 | `APP_TIMEZONE` | 기본값 `Asia/Seoul` |
 
