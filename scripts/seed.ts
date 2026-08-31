@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { learningUnits, subjects as subjectSource } from "../src/data/curriculum";
+import { sampleStudentAccounts } from "../src/data/student-accounts";
 import {
   courses,
   curriculumVersions,
@@ -43,24 +44,45 @@ await db.insert(schools).values({
   set: { name: "서대전여자고등학교", updatedAt: new Date() },
 });
 
-await db.insert(users).values([
-  {
-    id: "11111111-1111-4111-8111-111111111111",
-    schoolId: SCHOOL_ID,
-    externalId: "student-2026-001",
-    name: "김서윤",
-    role: "STUDENT",
-    officialGrade: 1,
-    learningGrade: 1,
-  },
-  {
-    id: "22222222-2222-4222-8222-222222222222",
-    schoolId: SCHOOL_ID,
-    externalId: "admin-2026-001",
-    name: "박지현 선생님",
+for (const { user } of sampleStudentAccounts) {
+  await db.insert(users).values({
+    id: user.id,
+    schoolId: user.schoolId,
+    externalId: user.externalId,
+    name: user.name,
+    role: user.role,
+    officialGrade: user.officialGrade,
+    learningGrade: user.learningGrade,
+  }).onConflictDoUpdate({
+    target: users.id,
+    set: {
+      externalId: user.externalId,
+      name: user.name,
+      role: user.role,
+      officialGrade: user.officialGrade,
+      learningGrade: user.learningGrade,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+await db.insert(users).values({
+  id: "22222222-2222-4222-8222-222222222222",
+  schoolId: SCHOOL_ID,
+  externalId: "lifeprof",
+  name: "LearnCraft 관리자",
+  role: "ADMIN",
+}).onConflictDoUpdate({
+  target: users.id,
+  set: {
+    externalId: "lifeprof",
+    name: "LearnCraft 관리자",
     role: "ADMIN",
+    officialGrade: null,
+    learningGrade: null,
+    updatedAt: new Date(),
   },
-]).onConflictDoNothing();
+});
 
 await db.insert(curriculumVersions).values([
   { id: VERSION_2015_ID, code: "2015_REVISED", title: "2015 개정 교육과정", active: true },

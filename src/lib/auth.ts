@@ -1,6 +1,8 @@
 import "server-only";
+import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { sampleStudentAccounts } from "@/data/student-accounts";
 import { env } from "@/lib/env";
 import type { SessionUser } from "@/types";
 
@@ -9,31 +11,77 @@ const secret = new TextEncoder().encode(
   env.AUTH_SECRET ?? "learncraft-local-development-secret-key",
 );
 
-export const demoUsers: SessionUser[] = [
-  {
-    id: "11111111-1111-4111-8111-111111111111",
-    externalId: "student-2026-001",
-    schoolId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    schoolName: "서대전여자고등학교",
-    name: "김서윤",
-    role: "STUDENT",
-    officialGrade: 1,
-    learningGrade: 1,
-  },
-  {
-    id: "22222222-2222-4222-8222-222222222222",
-    externalId: "admin-2026-001",
-    schoolId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    schoolName: "서대전여자고등학교",
-    name: "박지현 선생님",
-    role: "ADMIN",
-    officialGrade: null,
-    learningGrade: null,
-  },
-];
+const adminUser: SessionUser = {
+  id: "22222222-2222-4222-8222-222222222222",
+  externalId: "lifeprof",
+  schoolId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  schoolName: "서대전여자고등학교",
+  name: "LearnCraft 관리자",
+  role: "ADMIN",
+  officialGrade: null,
+  learningGrade: null,
+};
 
 export function isDevLoginAvailable() {
   return env.AUTH_DEV_LOGIN_ENABLED === "true" && process.env.VERCEL_ENV !== "production";
+}
+
+type LoginCredential = {
+  loginId: string;
+  password: string;
+  user: SessionUser;
+};
+
+function configuredCredentials(): LoginCredential[] {
+  const credentials: LoginCredential[] = [];
+
+  if (env.AUTH_ADMIN_ID && env.AUTH_ADMIN_PASSWORD) {
+    credentials.push({
+      loginId: env.AUTH_ADMIN_ID,
+      password: env.AUTH_ADMIN_PASSWORD,
+      user: adminUser,
+    });
+  }
+
+  if (isDevLoginAvailable()) {
+    credentials.push(...sampleStudentAccounts.map((account) => ({
+      loginId: account.loginId,
+      password: account.initialPassword,
+      user: account.user,
+    })));
+
+    if (!(env.AUTH_ADMIN_ID && env.AUTH_ADMIN_PASSWORD)) {
+      credentials.push({ loginId: "lifeprof", password: "aitutor87&", user: adminUser });
+    }
+  }
+
+  return credentials;
+}
+
+function safeEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+export function authenticateCredentials(loginId: string, password: string) {
+  const normalizedLoginId = loginId.trim().toLocaleLowerCase("en-US");
+
+  for (const credential of configuredCredentials()) {
+    const idMatches = safeEqual(
+      normalizedLoginId,
+      credential.loginId.trim().toLocaleLowerCase("en-US"),
+    );
+    const passwordMatches = safeEqual(password, credential.password);
+    if (idMatches && passwordMatches) return credential.user;
+  }
+
+  return null;
+}
+
+export function getSampleStudentAccountPreviews() {
+  if (!isDevLoginAvailable()) return [];
+  return sampleStudentAccounts.map(({ loginId, user }) => ({ loginId, name: user.name }));
 }
 
 export async function createSession(user: SessionUser) {

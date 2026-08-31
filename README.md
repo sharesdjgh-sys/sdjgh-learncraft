@@ -10,7 +10,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`으로 접속한 뒤 학생 또는 관리자 체험 로그인을 선택합니다.
+브라우저에서 `http://localhost:3000`으로 접속한 뒤 학교 계정으로 로그인합니다. 학생 샘플 계정은 `ref/student-accounts-sample.csv`의 학번을 사용하고 초기 비밀번호는 `student^^`입니다. 관리자는 `lifeprof` / `aitutor87&`로 로그인한 뒤 `관리자 페이지` 버튼으로 운영 화면에 들어갈 수 있습니다.
 
 환경 변수를 설정하지 않아도 샘플 교육과정, 로컬 메모리 북마크, 데모 AI 답변으로 주요 화면을 체험할 수 있습니다. 서버를 재시작하면 로컬 메모리 데이터는 초기화됩니다.
 
@@ -50,12 +50,13 @@ Neon이 연결되면 북마크, 사용량, 관리자 한도 설정이 PostgreSQL
 | `DATABASE_URL` | Neon PostgreSQL 연결 문자열 |
 | `AUTH_SECRET` | 32자 이상의 세션 서명 비밀값 |
 | `AUTH_DEV_LOGIN_ENABLED` | 로컬·Preview 개발 로그인 활성화 여부 |
+| `AUTH_ADMIN_ID`, `AUTH_ADMIN_PASSWORD` | 운영용 관리자 로그인 정보 |
 | `GEMINI_API_KEY` | Google Gemini API 키 |
 | `GEMINI_MODEL_ID` | 기본값 `gemini-3.6-flash` |
 | `GEMINI_*_USD_PER_MILLION` | 관리자 예상 비용 계산에 사용할 공식 단가 |
 | `APP_TIMEZONE` | 기본값 `Asia/Seoul` |
 
-Vercel Production에서는 개발 로그인이 자동 차단됩니다. 실제 공개 전 학교 OIDC 또는 서명 JWT SSO 어댑터를 연결해야 합니다.
+Vercel Production에서는 기본 데모 계정이 자동 차단됩니다. 운영 전에 학생·관리자 로그인 정보를 환경 변수로 설정하거나 학교 OIDC/SSO를 연결해야 합니다.
 
 ## 검증 명령
 

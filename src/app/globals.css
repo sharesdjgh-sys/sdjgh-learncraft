@@ -130,6 +130,77 @@ button:active, a:active { transition-duration: 80ms; }
 .font-learning { font-family: var(--font-serif); }
 .lucide { stroke-width: 1.7; }
 
+.login-canvas {
+  background:
+    radial-gradient(circle at 14% 14%, rgba(255, 255, 255, 0.62), transparent 28rem),
+    radial-gradient(circle at 84% 86%, rgba(114, 84, 195, 0.25), transparent 32rem),
+    linear-gradient(145deg, #e1d9f3 0%, #bdace2 52%, #a993db 100%);
+}
+
+.login-shell {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 30px;
+  box-shadow: 0 28px 80px rgba(62, 42, 111, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.login-orb {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.login-orb-one { top: -11rem; left: -8rem; width: 30rem; height: 30rem; }
+.login-orb-two { right: -7rem; bottom: -13rem; width: 34rem; height: 34rem; }
+
+.login-input {
+  width: 100%;
+  min-height: 4rem;
+  border: 1px solid rgba(111, 91, 165, 0.18);
+  border-radius: 18px;
+  background: rgba(241, 246, 255, 0.94);
+  padding: 0 1.2rem;
+  color: #302a3c;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: inset 0 1px 2px rgba(57, 41, 96, 0.05), 0 1px 0 rgba(255, 255, 255, 0.42);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.login-input::placeholder { color: #948ca3; font-weight: 500; }
+.login-input:focus {
+  outline: none;
+  border-color: rgba(104, 80, 185, 0.62);
+  background: #f7f9ff;
+  box-shadow: 0 0 0 4px rgba(102, 78, 184, 0.13), inset 0 1px 2px rgba(57, 41, 96, 0.04);
+}
+
+.login-primary {
+  display: flex;
+  width: 100%;
+  min-height: 4.15rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #7d60dc 0%, #694dc8 100%);
+  color: white;
+  font-size: 1.08rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  box-shadow: 0 9px 0 #4f389f, 0 18px 28px rgba(67, 46, 139, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.login-primary:hover { transform: translateY(-2px); filter: saturate(1.08); }
+.login-primary:active { transform: translateY(5px); box-shadow: 0 4px 0 #4f389f, 0 10px 20px rgba(67, 46, 139, 0.18); }
+.login-primary:disabled { cursor: not-allowed; opacity: 0.58; transform: none; }
+
+@media (max-width: 639px) {
+  .login-shell { border-radius: 25px; }
+}
+
 .scrollbar-subtle { scrollbar-width: thin; scrollbar-color: #cfc9c0 transparent; }
 .scrollbar-subtle::-webkit-scrollbar { width: 10px; height: 10px; }
 .scrollbar-subtle::-webkit-scrollbar-thumb {
