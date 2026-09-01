@@ -1,14 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bookmark,
   BookmarkCheck,
   BookCopy,
+  BookOpen,
   BookOpenCheck,
   Camera,
+  CaseSensitive,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -21,6 +23,7 @@ import {
   Lightbulb,
   ListTree,
   Plus,
+  Radical,
   RotateCcw,
   Send,
   Sparkles,
@@ -30,7 +33,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
-import { subjects } from "@/data/curriculum";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
 
@@ -42,6 +44,19 @@ const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: stri
 ];
 
 const followUpOrder: TutorAction[] = ["QUIZ", "EASIER", "DEEPER", "REVEAL"];
+
+type SubjectCatalogItem = {
+  id: SubjectCode;
+  title: string;
+  icon: typeof BookOpen;
+  code: SubjectCode;
+};
+
+const subjectCatalog: SubjectCatalogItem[] = [
+  { id: "KOREAN", code: "KOREAN", title: "국어", icon: BookOpen },
+  { id: "ENGLISH", code: "ENGLISH", title: "영어", icon: CaseSensitive },
+  { id: "MATH", code: "MATH", title: "수학", icon: Radical },
+];
 
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const maxImageCount = 3;
@@ -448,8 +463,12 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 
   function changeGrade(nextGrade: SupportedGrade) {
     setGrade(nextGrade);
-    const nextUnit = units.find((unit) => unit.recommendedGrades.includes(nextGrade) && unit.subjectCode === subject);
-    if (nextUnit) selectUnit(nextUnit.id);
+    const nextUnit = units.find((unit) => unit.recommendedGrades.includes(nextGrade) && unit.subjectCode === subject)
+      ?? units.find((unit) => unit.recommendedGrades.includes(nextGrade));
+    if (nextUnit) {
+      setSubject(nextUnit.subjectCode);
+      selectUnit(nextUnit.id);
+    }
   }
 
   function changeSubject(nextSubject: SubjectCode) {
@@ -672,6 +691,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         <CurriculumPicker
           grade={grade}
           subject={subject}
+          allUnits={units}
           units={filteredUnits}
           selectedUnitId={selectedUnit.id}
           onGrade={changeGrade}
@@ -904,7 +924,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 
       {drawerOpen && (
         <Sheet title="학습 단원 선택" onClose={() => setDrawerOpen(false)}>
-          <CurriculumPicker grade={grade} subject={subject} units={filteredUnits} selectedUnitId={selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onUnit={selectUnit} />
+          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedUnitId={selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onUnit={selectUnit} />
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
@@ -917,16 +937,74 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   );
 }
 
-function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSubject, onUnit }: {
+function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onGrade, onSubject, onUnit }: {
   grade: SupportedGrade;
   subject: SubjectCode;
+  allUnits: LearningUnit[];
   units: LearningUnit[];
   selectedUnitId: string;
   onGrade: (grade: SupportedGrade) => void;
   onSubject: (subject: SubjectCode) => void;
   onUnit: (id: string) => void;
 }) {
+  const [subjectMenuOpen, setSubjectMenuOpen] = useState(false);
+  const [courseMenuOpen, setCourseMenuOpen] = useState(false);
+  const subjectMenuRef = useRef<HTMLDivElement>(null);
+  const courseMenuRef = useRef<HTMLDivElement>(null);
+  const subjectMenuId = useId();
+  const courseMenuId = useId();
   const selectedUnit = units.find((unit) => unit.id === selectedUnitId) ?? units[0];
+  const selectedSubject = subjectCatalog.find((item) => item.code === subject) ?? subjectCatalog[0];
+  const SelectedSubjectIcon = selectedSubject.icon;
+  const availableSubjects = useMemo(() => {
+    const codes = new Set(
+      allUnits
+        .filter((unit) => unit.recommendedGrades.includes(grade))
+        .map((unit) => unit.subjectCode),
+    );
+    return subjectCatalog.filter((item) => codes.has(item.code));
+  }, [allUnits, grade]);
+
+  useEffect(() => {
+    if (!subjectMenuOpen) return;
+
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (event.target instanceof Node && !subjectMenuRef.current?.contains(event.target)) {
+        setSubjectMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSubjectMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [subjectMenuOpen]);
+
+  useEffect(() => {
+    if (!courseMenuOpen) return;
+
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (event.target instanceof Node && !courseMenuRef.current?.contains(event.target)) {
+        setCourseMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCourseMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [courseMenuOpen]);
+
   const courseOptions = useMemo(() => {
     const seen = new Set<string>();
     return units
@@ -977,31 +1055,126 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
       <div className="mt-4 grid grid-cols-2 gap-1 rounded-[12px] border border-line bg-surface-3 p-1">
         {([1, 2] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97]", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        {subjects.map((item) => <button key={item.code} onClick={() => onSubject(item.code)} className={cn("min-h-10 cursor-pointer rounded-[11px] border text-[.82rem] font-semibold transition active:scale-[.97]", subject === item.code ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line bg-surface text-ink-3 hover:bg-surface-3 hover:text-ink")}>{item.title}</button>)}
+      <div ref={subjectMenuRef} className="relative mt-2">
+        <button
+          type="button"
+          onClick={() => {
+            setCourseMenuOpen(false);
+            setSubjectMenuOpen((open) => !open);
+          }}
+          className="flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[11px] border border-line bg-surface px-3 text-left shadow-[var(--lift-1)] transition-all hover:border-[var(--line-2)] hover:bg-surface-2 active:scale-[.99]"
+          aria-haspopup="menu"
+          aria-expanded={subjectMenuOpen}
+          aria-controls={subjectMenuId}
+        >
+          <span className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-brand-soft text-brand-dark">
+            <SelectedSubjectIcon size={15} strokeWidth={1.9} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[.7rem] font-semibold leading-4 text-ink-5">교과 선택</span>
+            <span className="block text-[.84rem] font-bold leading-5 text-ink">{selectedSubject.title}</span>
+          </span>
+          <ChevronDown size={15} className={cn("shrink-0 text-ink-5 transition-transform duration-200", subjectMenuOpen && "rotate-180")} />
+        </button>
+
+        {subjectMenuOpen && (
+          <div
+            id={subjectMenuId}
+            role="menu"
+            aria-label="교과 선택"
+            className="absolute left-0 right-0 top-[calc(100%+.45rem)] z-40 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--lift-3)]"
+          >
+            <p className="mb-2 px-1 text-[.76rem] font-bold text-ink">{grade}학년 교과</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {availableSubjects.map((item) => {
+                const SubjectIcon = item.icon;
+                const active = item.code === subject;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitemradio"
+                    onClick={() => {
+                      onSubject(item.code);
+                      setSubjectMenuOpen(false);
+                    }}
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-2 text-center text-[.76rem] font-bold transition-all active:scale-[.97]",
+                      active
+                        ? "cursor-pointer border-brand/25 bg-brand-soft text-brand-dark"
+                        : "border-line bg-surface text-ink-3 hover:border-[var(--line-2)] hover:bg-surface-2 hover:text-ink",
+                    )}
+                    aria-checked={active}
+                  >
+                    <SubjectIcon size={15} strokeWidth={1.8} aria-hidden="true" />
+                    <span>{item.title}</span>
+                    {active && <Check size={12} aria-hidden="true" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {courseOptions.length > 0 ? (
         <div className="mt-6">
-          <label className="block px-1 text-[.78rem] font-bold text-ink-4" htmlFor={`course-${grade}-${subject}`}>수강 과목</label>
-          <div className="relative mt-2.5">
-            <BookCopy size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand" />
-            <select
-              id={`course-${grade}-${subject}`}
-              value={selectedCourseCode}
-              onChange={(event) => {
-                const firstUnit = units.find((unit) => unit.courseCode === event.target.value);
-                if (firstUnit) onUnit(firstUnit.id);
+          <p className="px-1 text-[.78rem] font-bold text-ink-4">수강 과목</p>
+          <div ref={courseMenuRef} className="relative mt-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSubjectMenuOpen(false);
+                setCourseMenuOpen((open) => !open);
               }}
-              className="min-h-12 w-full cursor-pointer appearance-none rounded-[11px] border border-line bg-surface py-2 pl-9 pr-9 text-[.92rem] font-bold text-ink shadow-[var(--lift-1)] outline-none"
+              className="flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-[11px] border border-line bg-surface px-3 text-left shadow-[var(--lift-1)] transition-all hover:border-[var(--line-2)] hover:bg-surface-2 active:scale-[.99]"
+              aria-haspopup="menu"
+              aria-expanded={courseMenuOpen}
+              aria-controls={courseMenuId}
             >
-              {courseOptions.map((course) => (
-                <option key={course.courseCode} value={course.courseCode}>
-                  {course.courseTitle} · {units.filter((unit) => unit.courseCode === course.courseCode).length}개 주제
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft" />
+              <BookCopy size={16} className="shrink-0 text-brand" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-[.9rem] font-bold text-ink">{selectedCourse?.courseTitle}</span>
+              <span className="shrink-0 text-[.68rem] font-semibold text-ink-5">{courseUnits.length}개</span>
+              <ChevronDown size={15} className={cn("shrink-0 text-ink-5 transition-transform duration-200", courseMenuOpen && "rotate-180")} />
+            </button>
+
+            {courseMenuOpen && (
+              <div
+                id={courseMenuId}
+                role="menu"
+                aria-label="수강 과목 선택"
+                className="absolute left-0 right-0 top-[calc(100%+.45rem)] z-40 max-h-72 overflow-y-auto rounded-[14px] border border-line bg-surface p-2 shadow-[var(--lift-3)]"
+              >
+                <p className="mb-1.5 px-1.5 text-[.72rem] font-bold text-ink-4">{selectedSubject.title} 수강 과목</p>
+                <div className="grid gap-1">
+                  {courseOptions.map((course) => {
+                    const active = course.courseCode === selectedCourseCode;
+                    const topicCount = units.filter((unit) => unit.courseCode === course.courseCode).length;
+                    return (
+                      <button
+                        key={course.courseCode}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => {
+                          const firstUnit = units.find((unit) => unit.courseCode === course.courseCode);
+                          if (firstUnit) onUnit(firstUnit.id);
+                          setCourseMenuOpen(false);
+                        }}
+                        className={cn(
+                          "flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-[10px] px-2.5 py-2 text-left transition-all active:scale-[.99]",
+                          active ? "bg-brand-soft text-brand-dark" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[.8rem] font-bold">{course.courseTitle}</span>
+                        <span className="shrink-0 text-[.66rem] font-semibold text-ink-5">{topicCount}개 주제</span>
+                        {active && <Check size={13} className="shrink-0 text-brand" aria-hidden="true" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {selectedCourse && (
