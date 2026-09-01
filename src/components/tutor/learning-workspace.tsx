@@ -124,10 +124,40 @@ async function prepareImageAttachment(file: File): Promise<ImageAttachment> {
 }
 
 const levelConfig: Array<{ level: LearningLevel; label: string; description: string }> = [
-  { level: "FOUNDATION", label: "기초", description: "용어부터 차근차근" },
-  { level: "STANDARD", label: "표준", description: "개념과 대표 예제" },
-  { level: "ADVANCED", label: "심화", description: "원리와 개념 연결" },
+  { level: "SUMMARY", label: "빠른 요약", description: "핵심 답과 공식만 간결하게" },
+  { level: "FOUNDATION", label: "개념부터", description: "용어와 선수 개념부터 차근차근" },
+  { level: "STANDARD", label: "문제 적용", description: "대표 유형과 풀이 전략 중심" },
+  { level: "ADVANCED", label: "원리 탐구", description: "이유·조건·개념 연결까지" },
 ];
+
+function recommendedQuestionsFor(unit: LearningUnit, learningLevel: LearningLevel) {
+  const firstKeyPoint = unit.keyPoints[0] ?? unit.title;
+  const secondKeyPoint = unit.keyPoints[1];
+  const prerequisite = unit.prerequisites[0];
+
+  if (learningLevel === "SUMMARY") {
+    return [
+      `${unit.title}에서 꼭 알아야 할 내용만 짧게 정리해 주세요.`,
+      `핵심 개념과 판단 기준을 한눈에 볼 수 있게 알려 주세요.`,
+      `시험 전에 빠르게 확인할 내용을 세 가지로 정리해 주세요.`,
+    ];
+  }
+  if (learningLevel === "FOUNDATION") {
+    return [
+      `${unit.title}을 처음 배우는 것처럼 쉽게 설명해 주세요.`,
+      prerequisite ? `${prerequisite}에서 어떻게 이어지는지 알려 주세요.` : `${firstKeyPoint}의 뜻부터 차근차근 알려 주세요.`,
+      `${firstKeyPoint}을 가장 쉬운 예시로 보여 주세요.`,
+    ];
+  }
+  if (learningLevel === "ADVANCED") {
+    return [
+      `${unit.title}의 원리가 왜 성립하는지 설명해 주세요.`,
+      `조건이 달라지면 결과가 어떻게 바뀌는지 알려 주세요.`,
+      secondKeyPoint ? `${firstKeyPoint}과 ${secondKeyPoint}이 어떻게 연결되는지 깊게 설명해 주세요.` : `${firstKeyPoint}과 다른 개념의 연결을 설명해 주세요.`,
+    ];
+  }
+  return unit.recommendedQuestions;
+}
 
 type SupportedGrade = 1 | 2;
 
@@ -143,7 +173,7 @@ type SavedLearningSession = {
 };
 
 function isLearningLevel(value: unknown): value is LearningLevel {
-  return value === "FOUNDATION" || value === "STANDARD" || value === "ADVANCED";
+  return value === "SUMMARY" || value === "FOUNDATION" || value === "STANDARD" || value === "ADVANCED";
 }
 
 function isSavedSession(value: unknown): value is SavedLearningSession {
@@ -494,7 +524,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         />
       </aside>
 
-      <section className="mx-0 flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:my-3 min-[1024px]:mr-1 min-[1024px]:rounded-[18px] min-[1024px]:border min-[1024px]:border-line min-[1024px]:pb-0 min-[1024px]:shadow-[var(--lift-2)]">
+      <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
         <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
           <button onClick={() => setDrawerOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label="학습 단원 선택 열기">
             <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
@@ -508,7 +538,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
           <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
             {messages.length === 0 ? (
-              <Welcome unit={selectedUnit} studentName={studentName} learningLevel={learningLevel} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} />
+              <Welcome unit={selectedUnit} learningLevel={learningLevel} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} />
             ) : (
               <div className="flex-1 space-y-10 pb-5">
                 {messages.map((message, index) => (
@@ -864,35 +894,39 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
   );
 }
 
-function Welcome({ unit, studentName, learningLevel, onLevel, onQuestion }: { unit: LearningUnit; studentName: string; learningLevel: LearningLevel; onLevel: (level: LearningLevel) => void; onQuestion: (question: string) => void }) {
+function Welcome({ unit, learningLevel, onLevel, onQuestion }: { unit: LearningUnit; learningLevel: LearningLevel; onLevel: (level: LearningLevel) => void; onQuestion: (question: string) => void }) {
+  const selectedLevel = levelConfig.find((item) => item.level === learningLevel);
+  const suggestedQuestions = recommendedQuestionsFor(unit, learningLevel);
+
   return (
     <div className="flex flex-1 flex-col py-2 sm:py-4">
       <div className="max-w-[44rem]">
-        <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.courseTitle} · {unit.chapterTitle} · {unit.sectionTitle}</p>
-        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.4] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark">{unit.title}</span>,<br className="hidden sm:block" /> 핵심부터 연결해 봐요.</h2>
-        <p className="font-learning mt-4 max-w-[40rem] text-[1rem] leading-8 text-ink-2 sm:text-[1.08rem] sm:leading-9">{studentName}님이 지금 이해한 지점부터 시작할게요. {unit.summary}</p>
+        <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.chapterTitle} · {unit.sectionTitle}</p>
+        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark">{unit.title}</span></h2>
+        <p className="mt-4 text-[.78rem] font-semibold text-ink-4">이번 단원 학습 목표</p>
+        <p className="font-learning mt-1 max-w-[40rem] text-[1rem] leading-7 text-ink-2 sm:text-[1.08rem] sm:leading-8">{unit.summary}</p>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2 text-[.8rem] font-semibold">
-          <span className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-2">{unit.publisherName} · {unit.curriculum}</span>
-          <span className={cn("rounded-full px-3 py-1.5", unit.schoolAdopted ? "bg-[var(--ok-page)] text-ok" : "bg-[var(--warn-page)] text-warn")}>{unit.schoolAdopted ? "학교 채택 과정" : `학교 채택본 ${unit.schoolPublisherName ?? "별도 확인"}`}</span>
-          {unit.prerequisites.slice(0, 2).map((item) => <span key={item} className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-3">선수 · {item}</span>)}
-        </div>
+        {unit.prerequisites.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-[.8rem] font-semibold">
+            {unit.prerequisites.slice(0, 2).map((item) => <span key={item} className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-3">선수 · {item}</span>)}
+          </div>
+        )}
 
         <div className="mt-8">
-          <div className="mb-2.5 flex items-center justify-between"><p className="text-[.86rem] font-bold text-ink">설명 깊이</p><p className="text-[.8rem] text-ink-4">대화 중에도 바꿀 수 있어요</p></div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="mb-2.5 flex items-center justify-between gap-4"><p className="text-[.86rem] font-bold text-ink">답변 방식</p><p className="text-right text-[.8rem] text-ink-4">대화 중에도 바꿀 수 있어요</p></div>
+          <div className="grid grid-cols-2 gap-2">
             {levelConfig.map((item) => (
-              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[4rem] cursor-pointer rounded-[12px] border px-3 text-left transition-all duration-300 active:scale-[.98]", learningLevel === item.level ? "border-brand/30 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line bg-surface-2 text-ink-2 hover:bg-surface-3")}>
-                <span className="font-learning block text-[.95rem] font-bold">{item.label}</span><span className={cn("mt-1 block truncate text-[.78rem]", learningLevel === item.level ? "text-brand/70" : "text-ink-4")}>{item.description}</span>
+              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[4.35rem] cursor-pointer rounded-[12px] border px-3.5 py-2.5 text-left transition-all duration-300 active:scale-[.98]", learningLevel === item.level ? "border-brand/30 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line bg-surface-2 text-ink-2 hover:bg-surface-3")}>
+                <span className="font-learning block text-[.95rem] font-bold">{item.label}</span><span className={cn("mt-1 block text-[.76rem] leading-5", learningLevel === item.level ? "text-brand/70" : "text-ink-4")}>{item.description}</span>
               </button>
             ))}
           </div>
         </div>
 
         <div className="mt-8">
-          <p className="mb-2.5 text-[.86rem] font-bold text-ink">이렇게 물어볼 수 있어요</p>
+          <p className="mb-2.5 text-[.86rem] font-bold text-ink">{selectedLevel?.label ?? "선택한 방식"}으로 물어보기 예시</p>
           <div className="grid gap-1.5">
-          {unit.recommendedQuestions.map((question, index) => (
+          {suggestedQuestions.map((question, index) => (
             <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group grid min-h-[4.25rem] cursor-pointer grid-cols-[2rem_1fr_1.25rem] items-center gap-3 rounded-[13px] border border-transparent bg-surface-2 px-4 py-3 text-left transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:border-line hover:bg-surface active:scale-[.985]">
               <span className="figure text-[1.02rem] text-brand">0{index + 1}</span>
               <span className="font-learning text-[.96rem] font-semibold leading-6 text-ink">{question}</span>

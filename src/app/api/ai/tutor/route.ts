@@ -47,7 +47,7 @@ const requestSchema = z.object({
   requestId: z.string().uuid(),
   unitId: z.string().min(1).max(100),
   action: z.enum(["QUESTION", "EASIER", "DEEPER", "REVEAL", "QUIZ"]),
-  learningLevel: z.enum(["FOUNDATION", "STANDARD", "ADVANCED"]).default("STANDARD"),
+  learningLevel: z.enum(["SUMMARY", "FOUNDATION", "STANDARD", "ADVANCED"]).default("STANDARD"),
   message: z.string().trim().min(1).max(2400).optional(),
   images: z.array(imageSchema).max(3).default([]),
   recentMessages: z.array(contextMessageSchema).max(6).default([]),

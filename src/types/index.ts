@@ -1,7 +1,7 @@
 export type UserRole = "STUDENT" | "ADMIN";
 export type SubjectCode = "KOREAN" | "ENGLISH" | "MATH";
 export type TutorAction = "QUESTION" | "EASIER" | "DEEPER" | "REVEAL" | "QUIZ";
-export type LearningLevel = "FOUNDATION" | "STANDARD" | "ADVANCED";
+export type LearningLevel = "SUMMARY" | "FOUNDATION" | "STANDARD" | "ADVANCED";
 export type CourseCategory = "COMMON" | "GENERAL" | "CAREER" | "LEGACY";
 export type PublisherCode = "VISANG" | "DONGA" | "MIRAE" | "JIHAKSA" | "CHANGBI" | "HAENAM" | "GENERIC";
 

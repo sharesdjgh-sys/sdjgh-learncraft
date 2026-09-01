@@ -1,7 +1,7 @@
 import "server-only";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 10;
+export const TUTOR_PROMPT_VERSION = 11;
 
 type TutorPromptInput = {
   unit: LearningUnit;
@@ -13,9 +13,10 @@ type TutorPromptInput = {
 };
 
 const levelGuides: Record<LearningLevel, string> = {
-  FOUNDATION: "기초: 낯선 용어를 먼저 풀어 쓰고, 한 번에 한 개념씩 짧은 예시로 설명합니다. 선수 개념이 필요하면 바로 보충합니다.",
-  STANDARD: "표준: 교과서 수준의 개념과 대표 예제를 연결합니다. 고등학생에게 유치하게 느껴질 사물 개수 비유는 피하고, 수학적 패턴이나 실제 학습 상황으로 직관을 제공합니다. 확인이 실제 학습에 도움이 될 때만 학생이 다음 단계를 말해 보게 합니다.",
-  ADVANCED: "심화: 정의와 원리를 정확히 사용하고, 개념 간 연결·반례·조건의 의미까지 교육과정 범위에서 다룹니다.",
+  SUMMARY: "빠른 요약: 질문의 답과 꼭 필요한 개념·공식·판단 기준만 짧게 정리합니다. 풀이 질문은 정답 도출에 필요한 핵심 단계를 생략하지 않으며, 불필요한 확장과 확인 문제는 덧붙이지 않습니다.",
+  FOUNDATION: "개념부터: 낯선 용어와 선수 개념을 먼저 풀어 쓰고, 한 번에 한 개념씩 가장 단순한 예시로 설명합니다.",
+  STANDARD: "문제 적용: 교과서 수준의 개념을 대표 문제 유형과 연결하고, 어떤 조건에서 어떤 풀이 전략을 선택하는지 단계별로 보여 줍니다. 고등학생에게 유치하게 느껴질 사물 개수 비유는 피합니다.",
+  ADVANCED: "원리 탐구: 정의와 원리를 정확히 사용하고, 공식이 성립하는 이유와 조건의 의미, 개념 간 연결·반례까지 교육과정 범위에서 다룹니다.",
 };
 
 const actionGuides: Record<TutorAction, string> = {
@@ -50,6 +51,11 @@ function formulas(unit: LearningUnit) {
   return unit.formulas
     .map((formula) => `- ${formula.name}: ${formula.expression} — ${formula.explanation}`)
     .join("\n");
+}
+
+function studentCallName(name: string) {
+  const trimmedName = name.trim();
+  return /^[가-힣]{3,4}$/.test(trimmedName) ? trimmedName.slice(-2) : trimmedName;
 }
 
 function textbookContext(unit: LearningUnit) {
@@ -146,6 +152,7 @@ export function buildTutorSystemPrompt({ unit, student, action, learningLevel }:
 - 반말이 아닌 자연스러운 **해요체 존댓말**을 기본으로 사용하세요. '~합니다', '~됩니다'만 이어지는 보고서 말투는 피하고, '~예요', '~해요', '~볼게요'를 문맥에 맞게 섞으세요.
 - '~랍니다', '~이지요'처럼 어린 학생에게 설명하는 듯한 어미와 '~해 볼까요?'의 반복은 피하세요. 고등학생을 동등한 학습 파트너로 대하세요.
 - 친한 선배가 옆에서 알려 주는 것처럼 편안하고 또렷하게 말하세요. 지나치게 권위적이거나 훈계하는 말투, 유아를 대하듯 과하게 단순화하는 말투는 피하세요.
+- 학생을 부를 필요가 있을 때는 성을 뺀 이름에 '학생'을 붙인 '${studentCallName(student.name)} 학생'을 사용하세요. '김하늘님' 같은 전체 이름+님 호칭은 피하고, 매 답변마다 이름을 반복하지 마세요.
 - 첫 문장에서 질문의 핵심에 바로 답하되, "여기서 포인트는", "이렇게 생각하면 쉬워요", "겉보기엔 복잡하지만" 같은 자연스러운 연결 표현을 필요할 때 활용하세요.
 - 문장은 짧고 리듬감 있게 쓰고, 한 문단에는 하나의 생각만 담으세요. 긴 문단이 이어지면 2~4문장 단위로 나누세요.
 - 개념을 설명한 뒤에는 "왜 그럴까요?"라고 질문만 던지고 끝내지 말고, 바로 이해할 수 있는 직관이나 작은 예시를 이어 주세요.
@@ -155,9 +162,10 @@ export function buildTutorSystemPrompt({ unit, student, action, learningLevel }:
 
 ## 3. 현재 학생과 학습 맥락
 - 학생: ${student.name}
+- 자연스러운 호칭: ${studentCallName(student.name)} 학생
 - 공식 학년: ${student.officialGrade ? `고등학교 ${student.officialGrade}학년` : "확인되지 않음"}
 - 학습 학년: 고등학교 ${student.learningGrade ?? unit.grade}학년
-- 선택 난이도: ${levelGuides[learningLevel]}
+- 선택한 답변 방식: ${levelGuides[learningLevel]}
 - 현재 동작: ${action}
 
 ## 4. 교육과정 단원 자료
