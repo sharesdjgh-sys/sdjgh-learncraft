@@ -4,7 +4,7 @@ import type { ModelMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeDemoAnswer } from "@/data/demo-store";
-import { getUnit } from "@/data/curriculum";
+import { getSchoolLearningUnit } from "@/data/school-curriculum";
 import {
   buildTutorSystemPrompt,
   buildTutorUserPrompt,
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
-  const unit = getUnit(input.unitId);
+  const unit = await getSchoolLearningUnit(user.schoolId, input.unitId);
   if (!unit) {
     return errorResponse("UNIT_NOT_AVAILABLE", "사용할 수 없는 단원입니다.", 404, input.requestId);
   }

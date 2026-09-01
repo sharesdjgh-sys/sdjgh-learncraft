@@ -8,7 +8,9 @@ import {
   courses,
   curriculumVersions,
   pricingConfigs,
+  schoolCourseOfferings,
   schoolCourseSelections,
+  schoolCurriculumVersions,
   schools,
   subjects,
   unitContents,
@@ -92,7 +94,7 @@ await db.insert(curriculumVersions).values([
 ]).onConflictDoNothing();
 
 await db.insert(subjects).values(subjectSource.map((subject, index) => ({
-  id: subjectIds[subject.code],
+  id: subjectIds[subject.code as keyof typeof subjectIds],
   code: subject.code,
   title: subject.title,
   displayOrder: index + 1,
@@ -173,7 +175,7 @@ for (const courseKey of courseKeys) {
   const versionId = courseUnit.curriculum.startsWith("2015") ? VERSION_2015_ID : VERSION_2022_ID;
   const [savedCourse] = await db.insert(courses).values({
     curriculumVersionId: versionId,
-    subjectId: subjectIds[courseUnit.subjectCode],
+    subjectId: subjectIds[courseUnit.subjectCode as keyof typeof subjectIds],
     grade: courseUnit.grade,
     code: `COURSE-${courseUnit.courseCode}`,
     title: courseUnit.courseTitle,
@@ -181,7 +183,7 @@ for (const courseKey of courseKeys) {
   }).onConflictDoUpdate({
     target: [courses.curriculumVersionId, courses.code],
     set: {
-      subjectId: subjectIds[courseUnit.subjectCode],
+      subjectId: subjectIds[courseUnit.subjectCode as keyof typeof subjectIds],
       grade: courseUnit.grade,
       title: courseUnit.courseTitle,
       displayOrder: courseUnit.courseOrder,
@@ -202,6 +204,42 @@ await db.insert(schoolCourseSelections).values(schoolCourseCatalog.map((item) =>
   publisherName: item.publisherName,
   contentCourseCode: item.contentCourseCode ?? null,
   enabled: defaultSelectedSet.has(item.key),
+}))).onConflictDoNothing();
+
+const [savedSchoolCurriculum] = await db.insert(schoolCurriculumVersions).values({
+  schoolId: SCHOOL_ID,
+  academicYear: 2026,
+  revision: 1,
+  title: "2026학년도 교육과정",
+  status: "PUBLISHED",
+  sourceFileName: "2026학년도 서대전여고 검인정 교과서 선정결과.pdf",
+  publishedAt: new Date(),
+}).onConflictDoUpdate({
+  target: [
+    schoolCurriculumVersions.schoolId,
+    schoolCurriculumVersions.academicYear,
+    schoolCurriculumVersions.revision,
+  ],
+  set: {
+    title: "2026학년도 교육과정",
+    updatedAt: new Date(),
+  },
+}).returning({ id: schoolCurriculumVersions.id });
+if (!savedSchoolCurriculum) throw new Error("학교 교육과정 버전을 저장하지 못했습니다.");
+
+await db.insert(schoolCourseOfferings).values(schoolCourseCatalog.map((item, displayOrder) => ({
+  versionId: savedSchoolCurriculum.id,
+  rowKey: item.key,
+  grade: item.grade,
+  subjectCode: item.subjectCode,
+  subjectTitle: item.subjectTitle,
+  courseTitle: item.courseTitle,
+  publisherName: item.publisherName,
+  contentCourseCode: item.contentCourseCode ?? null,
+  enabled: defaultSelectedSet.has(item.key),
+  confidence: 100,
+  reviewRequired: false,
+  displayOrder,
 }))).onConflictDoNothing();
 
 for (const [index, unit] of learningUnits.entries()) {

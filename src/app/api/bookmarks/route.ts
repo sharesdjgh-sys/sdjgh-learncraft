@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getUnit } from "@/data/curriculum";
+import { getSchoolLearningUnit } from "@/data/school-curriculum";
 import { requireStudent } from "@/lib/auth";
 import { createStudentBookmark, listStudentBookmarks } from "@/features/bookmarks/repository";
 
@@ -15,7 +15,7 @@ const createSchema = z.object({
 export async function GET() {
   const user = await requireStudent();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
-  return NextResponse.json({ bookmarks: await listStudentBookmarks(user.id) });
+  return NextResponse.json({ bookmarks: await listStudentBookmarks(user.id, user.schoolId) });
 }
 
 export async function POST(request: Request) {
@@ -23,13 +23,13 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "저장할 답변을 확인해 주세요." } }, { status: 400 });
-  const unit = getUnit(parsed.data.unitId);
+  const unit = await getSchoolLearningUnit(user.schoolId, parsed.data.unitId);
   if (!unit) return NextResponse.json({ error: { code: "UNIT_NOT_AVAILABLE" } }, { status: 404 });
   const bookmark = await createStudentBookmark({
     ...parsed.data,
     studentId: user.id,
     subjectTitle: unit.subjectTitle,
     unitTitle: unit.title,
-  });
+  }, user.schoolId);
   return NextResponse.json({ bookmark }, { status: 201 });
 }

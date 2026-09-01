@@ -1,15 +1,15 @@
 import { and, desc, eq } from "drizzle-orm";
 import { addBookmark as addDemoBookmark, deleteBookmark as deleteDemoBookmark, listBookmarks as listDemoBookmarks } from "@/data/demo-store";
-import { getUnit } from "@/data/curriculum";
+import { getSchoolLearningUnit } from "@/data/school-curriculum";
 import { db } from "@/db";
 import { bookmarks as bookmarkTable } from "@/db/schema";
 import type { Bookmark } from "@/types";
 
-export async function listStudentBookmarks(studentId: string): Promise<Bookmark[]> {
+export async function listStudentBookmarks(studentId: string, schoolId: string): Promise<Bookmark[]> {
   if (!db) return listDemoBookmarks(studentId);
   const rows = await db.select().from(bookmarkTable).where(eq(bookmarkTable.studentId, studentId)).orderBy(desc(bookmarkTable.createdAt));
-  return rows.map((row) => {
-    const unit = getUnit(row.unitId);
+  return Promise.all(rows.map(async (row) => {
+    const unit = await getSchoolLearningUnit(schoolId, row.unitId);
     return {
       id: row.id,
       studentId: row.studentId,
@@ -22,13 +22,16 @@ export async function listStudentBookmarks(studentId: string): Promise<Bookmark[
       unitTitle: unit?.title ?? "단원",
       createdAt: row.createdAt.toISOString(),
     };
-  });
+  }));
 }
 
-export async function createStudentBookmark(input: Omit<Bookmark, "id" | "createdAt">) {
+export async function createStudentBookmark(
+  input: Omit<Bookmark, "id" | "createdAt">,
+  schoolId: string,
+) {
   if (!db) return addDemoBookmark(input);
   const [created] = await db.insert(bookmarkTable).values({
-    schoolId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    schoolId,
     studentId: input.studentId,
     unitId: input.unitId,
     clientAnswerId: input.clientAnswerId,

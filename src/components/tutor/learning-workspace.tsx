@@ -18,7 +18,10 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  FlaskConical,
+  Globe2,
   ImagePlus,
+  Languages,
   LibraryBig,
   Lightbulb,
   ListTree,
@@ -27,6 +30,8 @@ import {
   RotateCcw,
   Send,
   Sparkles,
+  Palette,
+  Cpu,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -56,6 +61,13 @@ const subjectCatalog: SubjectCatalogItem[] = [
   { id: "KOREAN", code: "KOREAN", title: "국어", icon: BookOpen },
   { id: "ENGLISH", code: "ENGLISH", title: "영어", icon: CaseSensitive },
   { id: "MATH", code: "MATH", title: "수학", icon: Radical },
+  { id: "SOCIAL", code: "SOCIAL", title: "사회", icon: Globe2 },
+  { id: "SCIENCE", code: "SCIENCE", title: "과학", icon: FlaskConical },
+  { id: "ARTS", code: "ARTS", title: "예체능", icon: Palette },
+  { id: "INFORMATICS", code: "INFORMATICS", title: "정보", icon: Cpu },
+  { id: "TECHNOLOGY_HOME", code: "TECHNOLOGY_HOME", title: "기술·가정", icon: Cpu },
+  { id: "SECOND_LANGUAGE", code: "SECOND_LANGUAGE", title: "제2외국어", icon: Languages },
+  { id: "CAREER", code: "CAREER", title: "진로", icon: BookOpenCheck },
 ];
 
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -267,7 +279,36 @@ function cacheUnitSession(cache: Map<string, CachedUnitSession>, unitId: string,
   }
 }
 
-export function LearningWorkspace({ units, initialGrade, studentName, schoolName }: { units: LearningUnit[]; initialGrade: number; studentName: string; schoolName: string }) {
+type LearningWorkspaceProps = {
+  units: LearningUnit[];
+  initialGrade: number;
+  studentName: string;
+  schoolName: string;
+};
+
+export function LearningWorkspace(props: LearningWorkspaceProps) {
+  if (props.units.length === 0) {
+    return <EmptyLearningWorkspace studentName={props.studentName} schoolName={props.schoolName} />;
+  }
+  return <LearningWorkspaceContent {...props} />;
+}
+
+function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorkspaceProps, "studentName" | "schoolName">) {
+  return (
+    <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
+      <StudentTopNavigation user={{ name: studentName, schoolName }} />
+      <main className="grid min-h-0 flex-1 place-items-center bg-surface px-5">
+        <div className="max-w-md rounded-[18px] border border-line bg-surface p-7 text-center shadow-[var(--lift-2)]">
+          <span className="mx-auto grid size-12 place-items-center rounded-[14px] bg-brand-soft text-brand"><AlertCircle size={23} /></span>
+          <h1 className="mt-4 text-lg font-extrabold text-ink">학습 과정을 준비하고 있어요</h1>
+          <p className="mt-2 text-[.84rem] leading-6 text-ink-4">학교 교육과정이 공개되면 여기에서 바로 학습을 시작할 수 있어요. 잠시 후 다시 확인해 주세요.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName }: LearningWorkspaceProps) {
   const normalizedInitialGrade = supportedGrade(initialGrade);
   const initialUnitId = units.find((unit) => unit.recommendedGrades.includes(normalizedInitialGrade) && unit.subjectCode === "MATH")?.id ?? units[0]?.id ?? "";
   const [grade, setGrade] = useState<SupportedGrade>(normalizedInitialGrade);

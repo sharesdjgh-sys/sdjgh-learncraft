@@ -32,6 +32,16 @@ export const usageStatus = pgEnum("usage_status", [
   "FAILED",
   "CANCELLED",
 ]);
+export const schoolCurriculumStatus = pgEnum("school_curriculum_status", [
+  "DRAFT",
+  "PUBLISHED",
+  "ARCHIVED",
+]);
+export const curriculumImportStatus = pgEnum("curriculum_import_status", [
+  "REVIEW",
+  "COMPLETED",
+  "FAILED",
+]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -121,6 +131,95 @@ export const schoolCourseSelections = pgTable(
     ...timestamps,
   },
   (table) => [uniqueIndex("school_course_selection_idx").on(table.schoolId, table.academicYear, table.catalogKey)],
+);
+
+export const schoolCurriculumVersions = pgTable(
+  "school_curriculum_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+    academicYear: integer("academic_year").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    title: text("title").notNull(),
+    status: schoolCurriculumStatus("status").default("DRAFT").notNull(),
+    sourceFileName: text("source_file_name"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    publishedBy: uuid("published_by").references(() => users.id, { onDelete: "set null" }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("school_curriculum_version_idx").on(
+      table.schoolId,
+      table.academicYear,
+      table.revision,
+    ),
+  ],
+);
+
+export const curriculumImports = pgTable("curriculum_imports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+  versionId: uuid("version_id").references(() => schoolCurriculumVersions.id, { onDelete: "cascade" }).notNull(),
+  academicYear: integer("academic_year").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileHash: text("file_hash").notNull(),
+  pageCount: integer("page_count").notNull(),
+  extractedCount: integer("extracted_count").default(0).notNull(),
+  status: curriculumImportStatus("status").default("REVIEW").notNull(),
+  uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  errorMessage: text("error_message"),
+  ...timestamps,
+});
+
+export const schoolCourseOfferings = pgTable(
+  "school_course_offerings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    versionId: uuid("version_id")
+      .references(() => schoolCurriculumVersions.id, { onDelete: "cascade" })
+      .notNull(),
+    rowKey: text("row_key").notNull(),
+    grade: integer("grade").notNull(),
+    subjectCode: text("subject_code").notNull(),
+    subjectTitle: text("subject_title").notNull(),
+    courseTitle: text("course_title").notNull(),
+    publisherName: text("publisher_name").default("").notNull(),
+    textbookTitle: text("textbook_title"),
+    contentCourseCode: text("content_course_code"),
+    contentCourseId: uuid("content_course_id").references(() => courses.id, { onDelete: "set null" }),
+    enabled: boolean("enabled").default(true).notNull(),
+    confidence: integer("confidence").default(100).notNull(),
+    reviewRequired: boolean("review_required").default(false).notNull(),
+    displayOrder: integer("display_order").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("school_course_offering_idx").on(table.versionId, table.rowKey)],
+);
+
+export const generatedCourseContents = pgTable(
+  "generated_course_contents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+    offeringId: uuid("offering_id")
+      .references(() => schoolCourseOfferings.id, { onDelete: "cascade" })
+      .notNull(),
+    courseId: uuid("course_id").references(() => courses.id, { onDelete: "cascade" }).notNull(),
+    unitsJson: jsonb("units_json").$type<import("@/types").LearningUnit[]>().default([]).notNull(),
+    status: contentStatus("status").default("DRAFT").notNull(),
+    sourceModel: text("source_model"),
+    promptVersion: integer("prompt_version").default(1).notNull(),
+    inputTokens: integer("input_tokens").default(0).notNull(),
+    outputTokens: integer("output_tokens").default(0).notNull(),
+    reviewerId: uuid("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("generated_course_content_offering_idx").on(table.offeringId)],
 );
 
 export const units = pgTable(

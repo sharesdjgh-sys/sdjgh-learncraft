@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:graph": "tsx scripts/verify-graph.tsx",
     "test:math": "tsx scripts/verify-math-rendering.ts",
+    "test:curriculum-import": "tsx scripts/verify-curriculum-import.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts"
@@ -34,6 +35,7 @@
     "remark-gfm": "latest",
     "remark-math": "latest",
     "tailwind-merge": "latest",
+    "unpdf": "^1.8.1",
     "zod": "latest"
   },
   "devDependencies": {

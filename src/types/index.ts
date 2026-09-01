@@ -1,5 +1,16 @@
 export type UserRole = "STUDENT" | "ADMIN";
-export type SubjectCode = "KOREAN" | "ENGLISH" | "MATH";
+export type SubjectCode =
+  | "KOREAN"
+  | "ENGLISH"
+  | "MATH"
+  | "SOCIAL"
+  | "SCIENCE"
+  | "ARTS"
+  | "TECHNOLOGY_HOME"
+  | "INFORMATICS"
+  | "SECOND_LANGUAGE"
+  | "CAREER"
+  | `OTHER_${string}`;
 export type TutorAction = "QUESTION" | "EASIER" | "DEEPER" | "REVEAL" | "QUIZ";
 export type LearningLevel = "SUMMARY" | "FOUNDATION" | "STANDARD" | "ADVANCED";
 export type CourseCategory = "COMMON" | "GENERAL" | "CAREER" | "LEGACY";

@@ -64,7 +64,7 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
   }
 
   return (
-    <form onSubmit={submit} className="mt-8 min-w-0" aria-describedby={error ? "login-error" : undefined}>
+    <form method="post" onSubmit={submit} className="mt-8 min-w-0" aria-describedby={error ? "login-error" : undefined}>
       <div className="grid gap-4.5">
         <label className="grid gap-2.5">
           <span className="text-[.82rem] font-bold tracking-[-0.01em] text-ink-3">학번 또는 아이디</span>

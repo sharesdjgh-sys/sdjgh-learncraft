@@ -22,6 +22,20 @@
       "when": 1788261558488,
       "tag": "0002_shocking_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788263798911,
+      "tag": "0003_fair_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788270534119,
+      "tag": "0004_serious_zeigeist",
+      "breakpoints": true
     }
   ]
 }
