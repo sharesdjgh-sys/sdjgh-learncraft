@@ -298,15 +298,11 @@ button:active, a:active { transition-duration: 80ms; }
   border-radius: 14px; background: var(--surface-2);
   scrollbar-width: thin; scrollbar-color: #cfc9c0 transparent;
 }
-.learncraft-markdown .katex-display > .katex { min-width: max-content; font-size: 1.28em; }
+.learncraft-markdown .katex-display > .katex { min-width: max-content; font-size: 1.06em; }
 .learncraft-markdown p:has(.katex .mfrac),
 .learncraft-markdown li:has(.katex .mfrac),
 .learncraft-markdown td:has(.katex .mfrac) { line-height: 2.15; }
-.learncraft-markdown .katex .msupsub .katex-sizing { font-size: 0.52em; }
 .graph-math-label .katex { font-size: 1em; line-height: 1; }
-.graph-math-label .katex .msupsub .katex-sizing { font-size: 0.52em; }
-.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:first-child { transform: translateY(0.07em); }
-.learncraft-markdown .katex .mfrac > .vlist-t > .vlist-r:first-child > .vlist > span:last-child { transform: translateY(-0.07em); }
 
 .text-balance { text-wrap: balance; }
 

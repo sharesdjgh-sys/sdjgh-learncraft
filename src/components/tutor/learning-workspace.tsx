@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
+  Copy,
   ExternalLink,
   Eye,
   ImagePlus,
@@ -265,6 +266,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   const [attachmentError, setAttachmentError] = useState("");
   const [preparingImages, setPreparingImages] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -584,6 +586,11 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         setMessages((current) => current.map((message) => message.id === answerId ? { ...message, content: nextContent } : message));
       }
       if (!accumulated.trim()) throw new Error("비어 있는 답변이 도착했어요.");
+      console.log("[LearnCraft AI 답변 완료]", {
+        requestId: response.headers.get("X-Request-Id"),
+        unit: selectedUnit.title,
+        answer: accumulated,
+      });
       setMessages((current) => current.map((message) => message.id === answerId ? { ...message, content: accumulated, completed: true } : message));
     } catch (error) {
       if (currentAttachments.length > 0) setAttachments(currentAttachments);
@@ -616,6 +623,35 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
       setNotice("답변을 학습 북마크에 저장했어요.");
       window.setTimeout(() => setNotice(""), 2400);
     }
+  }
+
+  async function copyMessage(message: TutorMessage) {
+    if (!message.completed || !message.content) return;
+
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      const textArea = document.createElement("textarea");
+      textArea.value = message.content;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      const copied = document.execCommand("copy");
+      textArea.remove();
+      if (!copied) {
+        setNotice("답변을 복사하지 못했어요.");
+        window.setTimeout(() => setNotice(""), 2400);
+        return;
+      }
+    }
+
+    setCopiedMessageId(message.id);
+    setNotice("답변 내용을 복사했어요.");
+    window.setTimeout(() => {
+      setCopiedMessageId((current) => current === message.id ? null : current);
+      setNotice("");
+    }, 2400);
   }
 
   return (
@@ -688,12 +724,18 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                         <div>
                           {message.content ? <Markdown>{message.content}</Markdown> : <Thinking />}
                           {message.completed && (
-                            <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
+                            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
-                              <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
-                                {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
-                                <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
-                              </button>
+                              <div className="ml-auto flex items-center gap-2">
+                                <button onClick={() => void copyMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
+                                  {copiedMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
+                                  <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
+                                </button>
+                                <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
+                                  {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
+                                  <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

@@ -6,6 +6,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
+import { compactDollarMath } from "@/lib/math-notation";
 
 function nodeText(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -125,7 +126,7 @@ const markdownComponents: Components = {
  * remark-math expects dollar delimiters, so translate them without touching
  * fenced code blocks or inline code spans that may be teaching the syntax.
  */
-function normalizeMathDelimiters(markdown: string) {
+export function normalizeMathDelimiters(markdown: string) {
   let output = "";
   let plainText = "";
   let cursor = 0;
@@ -146,6 +147,10 @@ function normalizeMathDelimiters(markdown: string) {
         output += line;
         fenceCharacter = openingFence[1][0];
         fenceLength = openingFence[1].length;
+      } else if (/^(?: {4}|\t)/.test(line)) {
+        output += normalizeInlineCodeAwareText(plainText);
+        plainText = "";
+        output += line;
       } else {
         plainText += line;
       }
@@ -213,9 +218,15 @@ function findExactBacktickRun(value: string, from: number, length: number) {
 }
 
 function normalizePlainMath(value: string) {
-  const escapedStrongNormalized = normalizeEscapedStrongMarkers(value);
+  const texAliasNormalized = normalizeTexAliases(value);
+  const texInlineDelimiterNormalized = texAliasNormalized.replace(
+    /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
+    (match, expression: string) => expression.trim() ? `$${expression.trim()}$` : match,
+  );
+  const escapedStrongNormalized = normalizeEscapedStrongMarkers(texInlineDelimiterNormalized);
   const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
-  const adjacentMathNormalized = normalizeAdjacentDollarMath(emphasisNormalized);
+  const brokenLineMathNormalized = normalizeBrokenLineMath(emphasisNormalized);
+  const adjacentMathNormalized = normalizeAdjacentDollarMath(brokenLineMathNormalized);
   const unclosedLineMathNormalized = normalizeUnclosedLineMath(adjacentMathNormalized);
   const shortDisplayMathNormalized = normalizeShortDisplayMath(unclosedLineMathNormalized);
   const displayMathNormalized = shortDisplayMathNormalized.replace(
@@ -228,13 +239,261 @@ function normalizePlainMath(value: string) {
 
   const dollarDisplayMathNormalized = normalizeDollarDisplayMath(displayMathNormalized);
 
-  return dollarDisplayMathNormalized.replace(
+  const texInlineMathNormalized = dollarDisplayMathNormalized.replace(
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
     (match, expression: string) => {
       const trimmedExpression = expression.trim();
       return trimmedExpression ? `$${trimmedExpression}$` : match;
     },
   );
+
+  const looseMathNormalized = normalizeLooseMathNotation(texInlineMathNormalized);
+  return compactDollarMath(separateKoreanFromDollarMath(looseMathNormalized));
+}
+
+function repairKoreanInsideMath(expression: string, delimiter: "$" | "$$") {
+  const protectedCommands: string[] = [];
+  const protectedExpression = expression.replace(
+    /\\(?:text|textrm|textbf|operatorname)\s*\{[^{}]*\}/g,
+    (command) => {
+      const index = protectedCommands.push(command) - 1;
+      return `LEARNCRAFTTEXT${index}TOKEN`;
+    },
+  );
+
+  if (!/[가-힣]/.test(protectedExpression)) return null;
+
+  const restoreCommands = (value: string) => value.replace(
+    /LEARNCRAFTTEXT(\d+)TOKEN/g,
+    (_, index: string) => protectedCommands[Number(index)] ?? "",
+  );
+
+  return protectedExpression
+    .split(/([가-힣]+(?:[ \t]+[가-힣]+)*(?:[.!?]+)?)/g)
+    .map((part) => {
+      if (!part) return "";
+      const restored = restoreCommands(part);
+      if (/[가-힣]/.test(part)) return restored;
+
+      const trimmed = restored.trim();
+      if (!trimmed || !/(?:\\[A-Za-z]+|[A-Za-z0-9]|[_^=<>≤≥+*/÷×])/.test(trimmed)) {
+        return restored;
+      }
+
+      const leadingSpace = restored.match(/^\s*/)?.[0] ?? "";
+      const trailingSpace = restored.match(/\s*$/)?.[0] ?? "";
+      return `${leadingSpace}${delimiter}${trimmed}${delimiter}${trailingSpace}`;
+    })
+    .join("");
+}
+
+/** Keep Korean prose outside math even when a model closes `$` several sentences late. */
+function separateKoreanFromDollarMath(value: string) {
+  let output = "";
+  let textStart = 0;
+  let openingStart = -1;
+  let delimiter: "$" | "$$" | "" = "";
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    if (value[cursor] !== "$" || (cursor > 0 && value[cursor - 1] === "\\")) {
+      cursor += 1;
+      continue;
+    }
+
+    const foundDelimiter: "$" | "$$" = value[cursor + 1] === "$" ? "$$" : "$";
+    if (!delimiter) {
+      output += value.slice(textStart, cursor);
+      delimiter = foundDelimiter;
+      openingStart = cursor;
+      cursor += foundDelimiter.length;
+      textStart = cursor;
+      continue;
+    }
+
+    if (foundDelimiter !== delimiter) {
+      cursor += foundDelimiter.length;
+      continue;
+    }
+
+    const expression = value.slice(textStart, cursor);
+    const repaired = repairKoreanInsideMath(expression, delimiter);
+    output += repaired ?? `${delimiter}${expression}${delimiter}`;
+    cursor += delimiter.length;
+    textStart = cursor;
+    openingStart = -1;
+    delimiter = "";
+  }
+
+  return output + value.slice(openingStart === -1 ? textStart : openingStart);
+}
+
+function looksLikeMathExpression(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0
+    && !/[가-힣]/.test(trimmed)
+    && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
+}
+
+function singleDollarIndexes(value: string) {
+  const indexes: number[] = [];
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    if (value[cursor] !== "$" || (cursor > 0 && value[cursor - 1] === "\\")) {
+      cursor += 1;
+      continue;
+    }
+    if (value[cursor + 1] === "$" || (cursor > 0 && value[cursor - 1] === "$")) {
+      cursor += 1;
+      continue;
+    }
+    indexes.push(cursor);
+    cursor += 1;
+  }
+
+  return indexes;
+}
+
+/**
+ * Repair streaming answers where a model lets inline math cross a newline or
+ * emits the closing dollar without its opening pair on the next line.
+ */
+function normalizeBrokenLineMath(value: string) {
+  return value.split(/(\r?\n)/).map((line) => {
+    if (line === "\n" || line === "\r\n" || line.includes("$$")) return line;
+    let repaired = line;
+
+    repaired = repaired.replace(
+      /^(\s*)([^$]+?)\$(?=[가-힣])/,
+      (match, indentation: string, expression: string) => (
+        looksLikeMathExpression(expression)
+          ? `${indentation}$${expression.trim()}$`
+          : match
+      ),
+    );
+
+    repaired = repaired.replace(
+      /^(.*[가-힣])((?:\\[A-Za-z]+)[^$]*?)\$(?=[가-힣])/,
+      (_, sentence: string, expression: string) => (
+        looksLikeMathExpression(expression)
+          ? `${sentence.trimEnd()} $${expression.trim()}$`
+          : `${sentence}${expression}$`
+      ),
+    );
+
+    if (!repaired.includes("$")) {
+      if (looksLikeMathExpression(repaired)) return `$$${repaired.trim()}$$`;
+
+      const mixed = repaired.match(/^(.*[가-힣])((?:[A-Za-z]|\\[A-Za-z]+).*)$/);
+      if (mixed && looksLikeMathExpression(mixed[2])) {
+        return `${mixed[1].trimEnd()} $${mixed[2].trim()}$`;
+      }
+    }
+
+    const indexes = singleDollarIndexes(repaired);
+    if (indexes.length % 2 === 0) return repaired;
+
+    const lastDollar = indexes.at(-1)!;
+    const trailing = repaired.slice(lastDollar + 1);
+    if (looksLikeMathExpression(trailing)) return `${repaired}$`;
+
+    return repaired;
+  }).join("");
+}
+
+/** Normalize common model aliases before KaTeX parses the expression. */
+function normalizeTexAliases(value: string) {
+  return value
+    .replace(/\\vector\s*\{([^{}]+)\}/g, String.raw`\vec{$1}`)
+    .replace(/\\vec\s+([A-Z]{2,3})\b/g, String.raw`\overrightarrow{$1}`);
+}
+
+const superscriptCharacters: Record<string, string> = {
+  "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+  "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+  "⁺": "+", "⁻": "-", "⁼": "=", "⁽": "(", "⁾": ")",
+  "ⁿ": "n", "ⁱ": "i",
+};
+
+const subscriptCharacters: Record<string, string> = {
+  "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4",
+  "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
+  "₊": "+", "₋": "-", "₌": "=", "₍": "(", "₎": ")",
+  "ₐ": "a", "ₑ": "e", "ₕ": "h", "ᵢ": "i", "ⱼ": "j", "ₖ": "k",
+  "ₗ": "l", "ₘ": "m", "ₙ": "n", "ₒ": "o", "ₚ": "p", "ᵣ": "r",
+  "ₛ": "s", "ₜ": "t", "ₓ": "x",
+};
+
+const superscriptRun = "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ";
+const subscriptRun = "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜₓ";
+
+function translateCharacters(value: string, map: Record<string, string>) {
+  return Array.from(value, (character) => map[character] ?? character).join("");
+}
+
+function normalizeLooseTextMath(value: string) {
+  return value
+    .replace(
+      /\\overrightarrow\s*(?:\{[^{}]+\}|[A-Za-z]{1,3})/g,
+      (expression) => `$${expression}$`,
+    )
+    .replace(/\\vec\s*([A-Z]{2,3})\b/g, (_, symbols: string) => `$\\overrightarrow{${symbols}}$`)
+    .replace(/\\vec\s*(?:\{[^{}]+\}|[A-Za-z])/g, (expression) => `$${expression}$`)
+    .replace(/([A-Z]{2,3})⃗/g, (_, symbols: string) => `$\\overrightarrow{${symbols}}$`)
+    .replace(/([A-Za-zΑ-Ωα-ω])⃗/g, (_, symbol: string) => `$\\vec{${symbol}}$`)
+    .replace(
+      new RegExp(`\\b(log|ln|sin|cos|tan)([${subscriptRun}${superscriptRun}]+)([A-Za-z0-9]?)`, "g"),
+      (_, name: string, scripts: string, argument: string) => {
+        const subscript = Array.from(scripts).filter((character) => character in subscriptCharacters).map((character) => subscriptCharacters[character]).join("");
+        const superscript = Array.from(scripts).filter((character) => character in superscriptCharacters).map((character) => superscriptCharacters[character]).join("");
+        return `$\\${name}${subscript ? `_{${subscript}}` : ""}${superscript ? `^{${superscript}}` : ""}${argument}$`;
+      },
+    )
+    .replace(
+      new RegExp(`((?:[A-Za-zΑ-Ωα-ω]|[0-9]+))([${subscriptRun}${superscriptRun}]+)`, "g"),
+      (match, base: string, scripts: string) => {
+        const translatedSubscript = translateCharacters(Array.from(scripts).filter((character) => character in subscriptCharacters).join(""), subscriptCharacters);
+        const translatedSuperscript = translateCharacters(Array.from(scripts).filter((character) => character in superscriptCharacters).join(""), superscriptCharacters);
+        if (!translatedSubscript && !translatedSuperscript) return match;
+        return `$${base}${translatedSubscript ? `_{${translatedSubscript}}` : ""}${translatedSuperscript ? `^{${translatedSuperscript}}` : ""}$`;
+      },
+    );
+}
+
+/** Convert loose Unicode notation only outside existing dollar math blocks. */
+function normalizeLooseMathNotation(value: string) {
+  let output = "";
+  let textStart = 0;
+  let cursor = 0;
+  let delimiterLength = 0;
+
+  while (cursor < value.length) {
+    if (value[cursor] !== "$" || (cursor > 0 && value[cursor - 1] === "\\")) {
+      cursor += 1;
+      continue;
+    }
+
+    const runLength = value[cursor + 1] === "$" ? 2 : 1;
+    if (delimiterLength === 0) {
+      output += normalizeLooseTextMath(value.slice(textStart, cursor));
+      output += "$".repeat(runLength);
+      delimiterLength = runLength;
+      cursor += runLength;
+      textStart = cursor;
+    } else if (runLength === delimiterLength) {
+      output += value.slice(textStart, cursor + runLength);
+      delimiterLength = 0;
+      cursor += runLength;
+      textStart = cursor;
+    } else {
+      cursor += runLength;
+    }
+  }
+
+  return output + (delimiterLength === 0
+    ? normalizeLooseTextMath(value.slice(textStart))
+    : value.slice(textStart));
 }
 
 /** Models occasionally escape both Markdown strong markers, making ** visible. */

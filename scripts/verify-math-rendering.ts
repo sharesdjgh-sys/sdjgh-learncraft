@@ -1,0 +1,118 @@
+import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import katex from "katex";
+import { Markdown, normalizeMathDelimiters } from "../src/components/ui/markdown";
+import { mathLearningUnits } from "../src/data/math-curriculum";
+import { compactMathScripts } from "../src/lib/math-notation";
+
+const normalizationCases = [
+  ["x², aₙ, v⃗", String.raw`$x^{\scriptscriptstyle 2}$, $a_{\scriptscriptstyle n}$, $\vec{v}$`],
+  ["log₃ 81", String.raw`$\log_{\scriptscriptstyle 3}$ 81`],
+  ["sin²x", String.raw`$\sin^{\scriptscriptstyle 2}x$`],
+  ["x²₁", String.raw`$x_{\scriptscriptstyle 1}^{\scriptscriptstyle 2}$`],
+  ["AB⃗", String.raw`$\overrightarrow{AB}$`],
+  [String.raw`\vec AB`, "\n\n$$\n" + String.raw`\overrightarrow{AB}` + "\n$$\n\n"],
+  [String.raw`\vector{v}`, "\n\n$$\n" + String.raw`\vec{v}` + "\n$$\n\n"],
+  [String.raw`\(\vec{a}\)`, String.raw`$\vec{a}$`],
+] as const;
+
+for (const [input, expected] of normalizationCases) {
+  assert.equal(normalizeMathDelimiters(input), expected, `정규화 실패: ${input}`);
+}
+
+const protectedMarkdown = [
+  "`x²와 $x^2$`",
+  "```text\nx²와 $x^2$\n```",
+  "    x²와 $x^2$",
+].join("\n");
+assert.equal(normalizeMathDelimiters(protectedMarkdown), protectedMarkdown, "코드 영역을 변경하면 안 됩니다.");
+assert.equal(normalizeMathDelimiters("가격은 $100입니다."), "가격은 $100입니다.", "통화 표기를 수식으로 바꾸면 안 됩니다.");
+
+const latexCorpus = [
+  String.raw`x_i^2`,
+  String.raw`x^{\frac{1}{2}}`,
+  String.raw`a_{n+1}^{\frac{k}{m}}`,
+  String.raw`\vec{a}`,
+  String.raw`\overrightarrow{AB}`,
+  String.raw`\vec{v}_i`,
+  String.raw`\frac{x_1+x_2}{2}`,
+  String.raw`\sqrt[n]{a^m}`,
+  String.raw`\log_a b=c\iff a^c=b`,
+  String.raw`\sin^2\theta+\cos^2\theta=1`,
+  String.raw`\sum_{k=1}^{n}k`,
+  String.raw`\lim_{x\to0}\frac{\sin x}{x}=1`,
+  String.raw`\int_a^b f(x)\,dx`,
+  String.raw`A\subseteq B,\quad x\in A`,
+  String.raw`P(A\mid B)=\frac{P(A\cap B)}{P(B)}`,
+  String.raw`\begin{pmatrix}a&b\\c&d\end{pmatrix}`,
+  String.raw`f(x)=\begin{cases}x^2&x\ge0\\-x&x<0\end{cases}`,
+  String.raw`\begin{aligned}x+y&=3\\x-y&=1\end{aligned}`,
+];
+
+for (const expression of latexCorpus) {
+  const html = katex.renderToString(compactMathScripts(expression), {
+    displayMode: true,
+    output: "htmlAndMathml",
+    strict: "error",
+    throwOnError: true,
+  });
+  assert.match(html, /class="katex"/, `KaTeX 결과가 없습니다: ${expression}`);
+  assert.doesNotMatch(html, /katex-error/, `KaTeX 오류가 있습니다: ${expression}`);
+}
+
+let curriculumFormulaCount = 0;
+for (const unit of mathLearningUnits) {
+  for (const formula of unit.formulas) {
+    curriculumFormulaCount += 1;
+    assert.doesNotThrow(
+      () => katex.renderToString(compactMathScripts(formula.expression), {
+        displayMode: true,
+        output: "htmlAndMathml",
+        strict: "error",
+        throwOnError: true,
+      }),
+      `${unit.code} · ${formula.name}: ${formula.expression}`,
+    );
+  }
+}
+
+const malformedModelAnswer = String.raw`풀이 전략: 로그의 값을
+x로 두고, 지수식으로 바꾸어 방정식을 풀면 돼요.
+
+log
+3
+​
+81=x라고 두면, 로그의 정의에 따라 지수식으로 바꿀 수 있어요. $3^x = 81
+81 = 3^4$이므로 $x = 4$가 돼요. 따라서 $\log_3 81 = 4$예요. 2. $\log_5 \sqrt{5} = x$라고 두면, 마찬가지로 지수식으로 바꿀 수 있어요. $5^x = \sqrt{5}
+\sqrt{5} = 5^{\frac{1}{2}}
+이므로 x = \frac{1}{2}
+이 돼요. 따라서 \log_5 \sqrt{5} = \frac{1}{2}$이에요.`;
+
+const markdownCases = [
+  "벡터 $\\overrightarrow{AB}$와 $\\vec{a}_i$를 비교해요.",
+  "분수 지수 $a_{n+1}^{\\frac{k}{m}}$는 서로 겹치면 안 돼요.",
+  "$$\\begin{aligned}x+y&=3\\\\x-y&=1\\end{aligned}$$",
+  String.raw`값은 $3^4이므로 x=4가 돼요. 따라서 \log_3 81=4$예요.`,
+  malformedModelAnswer,
+];
+
+for (const input of markdownCases) {
+  const normalized = normalizeMathDelimiters(input);
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...values: unknown[]) => warnings.push(values);
+  let html: string;
+  try {
+    html = renderToStaticMarkup(createElement(Markdown, { children: input }));
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(warnings.length, 0, `KaTeX strict 경고:\n${normalized}\n${warnings.flat().join(" ")}`);
+  assert.doesNotMatch(html, /katex-error/, `Markdown KaTeX 오류:\n${normalized}`);
+  assert.doesNotMatch(html, /<annotation[^>]*>[^<]*[가-힣][^<]*<\/annotation>/, `한글 문장이 수식 안에 들어갔습니다:\n${normalized}`);
+}
+
+assert.match(normalizeMathDelimiters(malformedModelAnswer), /\\frac\{1\}\{2\}/, "실제 깨진 로그 응답의 분수 수식이 보존되어야 합니다.");
+
+console.log(`수학 렌더링 검증 완료: 정규화 ${normalizationCases.length}건, 표현식 ${latexCorpus.length}건, 교육과정 공식 ${curriculumFormulaCount}건, Markdown ${markdownCases.length}건`);

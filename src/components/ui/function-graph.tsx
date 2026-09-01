@@ -3,6 +3,7 @@
 import { useId, useMemo } from "react";
 import { ChartSpline, TriangleAlert } from "lucide-react";
 import katex from "katex";
+import { compactMathScripts } from "@/lib/math-notation";
 
 type Range = [number, number];
 type Curve = {
@@ -295,7 +296,7 @@ function graphLabelTex(value: string) {
 }
 
 function GraphMathLabel({ value }: { value: string }) {
-  const html = useMemo(() => katex.renderToString(graphLabelTex(value), {
+  const html = useMemo(() => katex.renderToString(compactMathScripts(graphLabelTex(value)), {
     displayMode: false,
     output: "html",
     strict: "ignore",
