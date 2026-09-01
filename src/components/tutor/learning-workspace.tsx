@@ -169,6 +169,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   const [preparingImages, setPreparingImages] = useState(false);
   const [loading, setLoading] = useState(false);
   const [remaining, setRemaining] = useState(20);
+  const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [conceptOpen, setConceptOpen] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -196,6 +197,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
       .then((response) => response.json())
       .then((data) => {
         if (typeof data.remaining === "number") setRemaining(data.remaining);
+        if (typeof data.limit === "number") setDailyLimit(data.limit);
       })
       .catch(() => undefined);
   }, []);
@@ -472,7 +474,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         <>
           <div className="flex items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2" title="오늘 남은 AI 학습 횟수">
             <span className="hidden text-[.8rem] font-semibold text-ink-3 sm:inline">오늘 남은 질문</span>
-            <span className="figure text-sm font-semibold text-ink">{remaining}<span className="text-[.78rem] text-ink-5">/20</span></span>
+            <span className="figure text-sm font-semibold text-ink">{remaining}<span className="text-[.78rem] text-ink-5">/{dailyLimit}</span></span>
           </div>
           <button onClick={() => resetConversation()} disabled={loading || messages.length === 0} className="hidden min-h-10 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 text-[.8rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex" aria-label="새 대화 시작">
             <Plus size={16} />새 대화
@@ -815,26 +817,26 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
             </div>
           )}
 
-          <div className="mt-6 grid gap-5">
+          <div className="mt-4 grid gap-3.5">
             {chapterGroups.map((chapter) => (
               <section key={`${selectedCourseCode}-${chapter.order}`}>
                 <div className="flex items-center gap-2 px-1">
                   <span className="figure shrink-0 text-[.82rem] font-semibold text-brand">{chapter.order}</span>
                   <h3 className="font-learning text-[.88rem] font-bold text-ink">{chapter.title}</h3>
                 </div>
-                <div className="mt-2 grid gap-3 border-l border-line pl-2.5">
+                <div className="mt-1.5 grid gap-1.5 border-l border-line pl-2">
                   {chapter.sections.map((section) => (
                     <div key={`${chapter.order}-${section.order}`}>
                       {(section.units.length > 1 || section.title !== section.units[0]?.title) && (
-                        <p className="mb-1.5 px-1 text-[.76rem] font-semibold text-ink-5">{section.order}. {section.title}</p>
+                        <p className="mb-0.5 px-1 text-[.74rem] font-semibold leading-5 text-ink-5">{section.order}. {section.title}</p>
                       )}
-                      <div className="grid gap-1">
+                      <div className="grid gap-0.5">
                         {section.units.map((unit) => (
                           <button
                             key={unit.id}
                             onClick={() => onUnit(unit.id)}
                             className={cn(
-                              "group flex min-h-[2.9rem] cursor-pointer items-start gap-2.5 rounded-[14px] px-2.5 py-2 text-left transition-all duration-200 active:scale-[.985]",
+                              "group flex min-h-9 cursor-pointer items-start gap-1.5 rounded-[9px] px-1.5 py-1 text-left transition-all duration-200 active:scale-[.985] min-[1024px]:min-h-8",
                               selectedUnitId === unit.id
                                 ? "bg-brand-soft text-[#4a3e7a]"
                                 : "text-ink-3 hover:bg-surface hover:text-ink",
