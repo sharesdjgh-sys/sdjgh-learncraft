@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { BookOpen, BrainCircuit, Sparkles } from "lucide-react";
+import { BookOpenCheck, BrainCircuit, Route } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { getSampleStudentAccountPreviews, getSession } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
@@ -12,46 +13,33 @@ export default async function LoginPage() {
 
   return (
     <main className="login-canvas relative min-h-dvh overflow-hidden px-4 py-5 sm:grid sm:place-items-center sm:px-7 sm:py-8">
-      <div className="login-orb login-orb-one" aria-hidden="true" />
-      <div className="login-orb login-orb-two" aria-hidden="true" />
-
-      <div className="login-shell relative z-10 mx-auto grid w-full max-w-[1040px] overflow-hidden lg:grid-cols-[.93fr_1.07fr]">
-        <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-[#50417f] p-12 text-white lg:flex">
-          <div className="absolute -right-28 top-20 size-80 rounded-full border border-white/10" aria-hidden="true" />
-          <div className="absolute -right-8 top-40 size-48 rounded-full border border-white/10" aria-hidden="true" />
+      <div className="login-shell relative z-10 mx-auto grid w-full min-w-0 max-w-[1060px] grid-cols-1 overflow-hidden lg:grid-cols-[.9fr_1.1fr]">
+        <section className="login-story relative hidden min-h-[700px] flex-col justify-between overflow-hidden border-r border-line p-12 lg:flex">
+          <div className="login-story-mark" aria-hidden="true"><Route size={190} /></div>
           <div>
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-2xl bg-white/12 text-lg font-black">L</span>
-              <span className="text-[.86rem] font-extrabold tracking-[.18em]">LEARNCRAFT</span>
-            </div>
-            <p className="mt-20 text-[.76rem] font-bold tracking-[.18em] text-[#cbbff1]">YOUR PERSONAL LEARNING SPACE</p>
-            <h1 className="font-learning mt-5 text-[2.65rem] font-bold leading-[1.35] tracking-[-0.05em]">
-              오늘의 궁금증이<br />내일의 실력이 되도록
+            <Logo />
+            <p className="mt-20 text-[.74rem] font-extrabold tracking-[.14em] text-brand">LEARNCRAFT SCHOOL</p>
+            <h1 className="font-learning mt-5 text-[2.55rem] font-bold leading-[1.38] tracking-[-0.055em] text-ink text-balance">
+              궁금한 지점에서 시작해<br />개념의 흐름을 이어가요
             </h1>
-            <p className="mt-5 max-w-[22rem] text-[.95rem] leading-7 text-white/65">
-              학교 교육과정에 맞춘 AI 튜터와 함께 질문하고, 이해하고, 스스로 답을 찾아가세요.
+            <p className="mt-5 max-w-[23rem] text-[.92rem] leading-7 text-ink-3">
+              학교 교육과정과 지금 이해한 내용을 연결해, 필요한 설명부터 차근차근 학습할 수 있어요.
             </p>
           </div>
 
-          <div className="grid gap-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4 py-3.5 text-[.84rem] text-white/75"><BookOpen size={18} className="text-[#cfc2fa]" /> 학교 진도에 맞춘 학습</div>
-            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4 py-3.5 text-[.84rem] text-white/75"><BrainCircuit size={18} className="text-[#cfc2fa]" /> 생각하는 힘을 키우는 설명</div>
+          <div className="grid gap-2.5">
+            <div className="login-story-item"><BookOpenCheck size={18} /><span><strong>학교 진도에 맞춰</strong> 필요한 단원부터 학습해요</span></div>
+            <div className="login-story-item"><BrainCircuit size={18} /><span><strong>이해한 지점부터</strong> 설명의 깊이를 조절해요</span></div>
           </div>
         </section>
 
-        <section className="min-h-[calc(100dvh-2.5rem)] bg-[#c8bae6]/92 px-5 py-8 backdrop-blur-xl sm:min-h-0 sm:px-10 sm:py-12 lg:flex lg:min-h-[720px] lg:items-center lg:px-14">
-          <div className="mx-auto w-full max-w-[31rem]">
-            <div className="flex items-center justify-between lg:hidden">
-              <div className="flex items-center gap-2.5">
-                <span className="grid size-9 place-items-center rounded-xl bg-[#5e4ba0] font-black text-white shadow-[0_7px_16px_rgba(68,50,126,.22)]">L</span>
-                <span className="text-[.78rem] font-black tracking-[.13em] text-[#514570]">LEARNCRAFT</span>
-              </div>
-              <Sparkles size={20} className="text-[#6654bd]" />
-            </div>
+        <section className="login-form-panel min-w-0 min-h-[calc(100dvh-2.5rem)] px-5 py-7 sm:min-h-0 sm:px-10 sm:py-11 lg:flex lg:min-h-[700px] lg:items-center lg:px-14">
+          <div className="mx-auto w-full min-w-0 max-w-[31rem]">
+            <div className="lg:hidden"><Logo /></div>
 
-            <p className="mt-12 text-[.75rem] font-black tracking-[.16em] text-[#6552bd] sm:mt-6 lg:mt-0">LEARNCRAFT SCHOOL</p>
-            <h2 className="font-learning mt-3 text-[2rem] font-bold tracking-[-0.045em] text-[#332b48] sm:text-[2.35rem]">다시 만나서 반가워요</h2>
-            <p className="mt-2 text-[.9rem] leading-6 text-[#645a77]">학교에서 받은 계정으로 나만의 학습 공간에 로그인하세요.</p>
+            <p className="mt-12 flex items-center gap-2 text-[.75rem] font-extrabold tracking-[.12em] text-brand sm:mt-8 lg:mt-0"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
+            <h2 className="font-learning mt-4 text-[2rem] font-bold tracking-[-0.045em] text-ink sm:text-[2.3rem]">학습 공간에 로그인</h2>
+            <p className="mt-2 max-w-[28rem] text-[.9rem] leading-6 text-ink-3">학교에서 받은 학번과 비밀번호를 입력해 주세요. 관리자 계정도 같은 방식으로 로그인합니다.</p>
 
             <LoginForm sampleAccounts={getSampleStudentAccountPreviews()} />
           </div>

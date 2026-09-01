@@ -64,10 +64,10 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
   }
 
   return (
-    <form onSubmit={submit} className="mt-8" aria-describedby={error ? "login-error" : undefined}>
-      <div className="grid gap-5">
+    <form onSubmit={submit} className="mt-8 min-w-0" aria-describedby={error ? "login-error" : undefined}>
+      <div className="grid gap-4.5">
         <label className="grid gap-2.5">
-          <span className="text-[.85rem] font-extrabold tracking-[-0.01em] text-[#584d72]">학번 또는 아이디</span>
+          <span className="text-[.82rem] font-bold tracking-[-0.01em] text-ink-3">학번 또는 아이디</span>
           <input
             name="loginId"
             value={loginId}
@@ -82,7 +82,7 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
         </label>
 
         <label className="grid gap-2.5">
-          <span className="text-[.85rem] font-extrabold tracking-[-0.01em] text-[#584d72]">비밀번호</span>
+          <span className="text-[.82rem] font-bold tracking-[-0.01em] text-ink-3">비밀번호</span>
           <span className="relative block">
             <input
               name="password"
@@ -97,7 +97,7 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
             <button
               type="button"
               onClick={() => setShowPassword((visible) => !visible)}
-              className="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-xl text-[#756991] transition hover:bg-[#dfd7f1] hover:text-[#4b3f6c]"
+              className="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-[10px] text-ink-4 transition-all duration-300 hover:bg-surface-3 hover:text-brand-dark active:scale-[.96]"
               aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
             >
               {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
@@ -109,7 +109,7 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
       <button
         type="button"
         onClick={() => setNotice("비밀번호 재설정은 학교 담당 선생님 또는 관리자에게 문의해 주세요.")}
-        className="ml-auto mt-3 block min-h-10 rounded-lg px-1 text-[.82rem] font-bold text-[#6c5adc] transition hover:text-[#4c3cb0] hover:underline hover:underline-offset-4"
+        className="ml-auto mt-2 block min-h-10 rounded-lg px-1 text-[.8rem] font-semibold text-brand transition hover:text-brand-dark hover:underline hover:underline-offset-4"
       >
         비밀번호를 잊었나요?
       </button>
@@ -118,7 +118,7 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
         <p
           id={error ? "login-error" : undefined}
           role={error ? "alert" : "status"}
-          className={`mt-2 rounded-xl px-4 py-3 text-[.82rem] leading-5 ${error ? "bg-[#fff0f2] font-semibold text-[#ad3f55]" : "bg-white/45 text-[#5d5275]"}`}
+          className={`mt-2 rounded-[11px] border px-4 py-3 text-[.82rem] leading-5 ${error ? "border-danger/15 bg-[var(--danger-page)] font-semibold text-danger" : "border-line bg-surface-2 text-ink-3"}`}
         >
           {error || notice}
         </p>
@@ -135,31 +135,31 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
       </button>
 
       {sampleAccounts.length > 0 && (
-        <div className="mt-5 rounded-2xl border border-white/50 bg-white/25 p-3.5">
-          <p className="text-[.72rem] font-extrabold tracking-[.08em] text-[#6e6385]">STUDENT SAMPLE ACCOUNTS</p>
+        <div className="mt-5 rounded-[13px] border border-line bg-surface-2 p-3.5">
+          <p className="text-[.71rem] font-extrabold tracking-[.08em] text-ink-4">학생 샘플 계정</p>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {sampleAccounts.map((account) => (
               <button
                 key={account.loginId}
                 type="button"
                 onClick={() => fillDemoAccount(account)}
-                className="rounded-xl bg-white/65 px-2.5 py-2 text-left text-[.72rem] font-bold text-[#5a4e76] transition hover:bg-white"
+                className="rounded-[10px] border border-transparent bg-surface px-2.5 py-2 text-left text-[.72rem] font-bold text-ink-3 shadow-[var(--lift-1)] transition-all duration-300 hover:-translate-y-0.5 hover:border-line hover:text-ink"
               >
-                <span className="block text-[#443764]">{account.loginId}</span>
-                <span className="mt-0.5 block font-medium text-[#7b7190]">{account.name}</span>
+                <span className="figure block text-brand-dark">{account.loginId}</span>
+                <span className="mt-0.5 block font-medium text-ink-4">{account.name}</span>
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[.7rem] text-[#7b7190]">학생 초기 비밀번호는 모두 student^^ 입니다.</p>
+          <p className="mt-2 text-[.7rem] text-ink-4">학생 초기 비밀번호는 모두 student^^ 입니다.</p>
         </div>
       )}
 
-      <p className="mt-5 text-center text-[.82rem] text-[#716683]">
+      <p className="mt-5 text-center text-[.8rem] text-ink-4">
         아직 계정이 없나요?{" "}
         <button
           type="button"
           onClick={() => setNotice("학생 계정은 학교 관리자에게 등록을 요청해 주세요.")}
-          className="font-extrabold text-[#6653cf] hover:underline hover:underline-offset-4"
+          className="font-bold text-brand hover:text-brand-dark hover:underline hover:underline-offset-4"
         >
           계정 등록 안내
         </button>
