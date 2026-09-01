@@ -9,7 +9,7 @@ import type { SessionUser } from "@/types";
 
 export const studentNavItems = [
   { href: "/learn", label: "학습", icon: BookOpenText },
-  { href: "/notebook", label: "오답 노트", icon: NotebookTabs },
+  { href: "/notebook", label: "학습 북마크", icon: NotebookTabs },
   { href: "/profile", label: "내 정보", icon: UserRound },
 ] as const;
 

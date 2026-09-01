@@ -39,7 +39,7 @@ export default async function ProfilePage() {
         <section className="rounded-[16px] border border-line bg-brand-page p-6 sm:p-8">
           <LockKeyhole size={22} className="text-brand" strokeWidth={1.8} />
           <h2 className="font-learning mt-5 text-xl font-bold">내 대화는 나에게만</h2>
-          <p className="font-learning mt-3 text-[1rem] leading-8 text-ink-2">일반 질문과 AI 답변은 서버에 저장하지 않습니다. 직접 고른 답변만 오답 노트에 남고, 관리자와 교사는 그 내용을 볼 수 없어요.</p>
+          <p className="font-learning mt-3 text-[1rem] leading-8 text-ink-2">일반 질문과 AI 답변은 서버에 저장하지 않습니다. 직접 고른 답변만 학습 북마크에 남고, 관리자와 교사는 그 내용을 볼 수 없어요.</p>
           <div className="mt-7 border-t border-line pt-5">
             <p className="text-[.82rem] font-bold text-brand">운영을 위해 저장되는 최소 정보</p>
             <ul className="mt-3 grid gap-2.5 text-[.88rem] text-ink-3">

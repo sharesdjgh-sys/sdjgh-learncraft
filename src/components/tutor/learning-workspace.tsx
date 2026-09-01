@@ -33,11 +33,11 @@ import { subjects } from "@/data/curriculum";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
 
-const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: string; description: string; icon: typeof Sparkles }> = [
-  { action: "EASIER", label: "더 쉽게 설명", shortLabel: "더 쉽게", description: "비유와 작은 예제로 다시 설명해요", icon: Lightbulb },
-  { action: "DEEPER", label: "원리까지 깊게", shortLabel: "더 깊게", description: "조건과 개념의 연결을 살펴봐요", icon: ListTree },
-  { action: "REVEAL", label: "전체 풀이 보기", shortLabel: "풀이 보기", description: "중간 단계를 생략하지 않고 풀어요", icon: Eye },
-  { action: "QUIZ", label: "확인 문제 풀기", shortLabel: "확인 문제", description: "방금 배운 내용을 바로 확인해요", icon: CircleHelp },
+const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: string; description: string; icon: typeof Sparkles; tone: string }> = [
+  { action: "EASIER", label: "더 쉽게 설명", shortLabel: "더 쉽게", description: "비유와 작은 예제로 다시 설명해요", icon: Lightbulb, tone: "border-[#eadfca] bg-[#fff9ed] text-[#735f35] shadow-[0_4px_12px_rgba(113,88,42,.06)] hover:border-[#decda9] hover:bg-[#fff5df]" },
+  { action: "DEEPER", label: "원리까지 깊게", shortLabel: "더 깊게", description: "조건과 개념의 연결을 살펴봐요", icon: ListTree, tone: "border-[#ddd3f3] bg-[#f7f3ff] text-[#624b91] shadow-[0_4px_12px_rgba(98,75,145,.06)] hover:border-[#cfc1ec] hover:bg-[#f1ebff]" },
+  { action: "REVEAL", label: "전체 풀이 보기", shortLabel: "풀이 보기", description: "중간 단계를 생략하지 않고 풀어요", icon: Eye, tone: "border-[#cfe6df] bg-[#f1faf7] text-[#356f65] shadow-[0_4px_12px_rgba(53,111,101,.06)] hover:border-[#bddbd2] hover:bg-[#e8f7f2]" },
+  { action: "QUIZ", label: "확인 문제 풀기", shortLabel: "확인 문제", description: "방금 배운 내용을 바로 확인해요", icon: CircleHelp, tone: "border-[#cfc1ef] bg-[linear-gradient(135deg,#f7f3ff_0%,#eee8ff_100%)] text-[#594083] shadow-[0_7px_18px_rgba(91,65,143,.1)] hover:border-[#bfaee6] hover:bg-[linear-gradient(135deg,#f2ecff_0%,#e8deff_100%)]" },
 ];
 
 const followUpOrder: TutorAction[] = ["QUIZ", "EASIER", "DEEPER", "REVEAL"];
@@ -317,6 +317,10 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   }
 
   function selectUnit(unitId: string) {
+    autoScrollRef.current = true;
+    window.requestAnimationFrame(() => {
+      messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
     if (unitId === selectedUnitId) {
       setDrawerOpen(false);
       return;
@@ -493,7 +497,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
     });
     if (response.ok) {
       setSavedIds((current) => new Set(current).add(message.id));
-      setNotice("답변을 오답 노트에 저장했어요.");
+      setNotice("답변을 학습 북마크에 저장했어요.");
       window.setTimeout(() => setNotice(""), 2400);
     }
   }
@@ -570,9 +574,9 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                           {message.completed && (
                             <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
-                              <button onClick={() => void bookmarkMessage(message)} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border border-line px-3.5 text-[.82rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink" aria-label="답변을 오답 노트에 저장">
+                              <button onClick={() => void bookmarkMessage(message)} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border border-line px-3.5 text-[.82rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink" aria-label="답변을 학습 북마크에 저장">
                                 {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
-                                <span>{savedIds.has(message.id) ? "저장됨" : "오답 노트에 저장"}</span>
+                                <span>{savedIds.has(message.id) ? "북마크됨" : "북마크"}</span>
                               </button>
                             </div>
                           )}
@@ -581,9 +585,9 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                           <div className="mt-6">
                             <p className="mb-3 text-[.86rem] font-bold text-ink">이어서 학습하기</p>
                             <div className="flex flex-wrap gap-2">
-                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon }, actionIndex) => (
-                              <button key={action} onClick={() => void ask(action)} disabled={loading || remaining <= 0} className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", actionIndex === 0 ? "border-brand bg-brand text-white shadow-[var(--lift-brand)] hover:-translate-y-0.5 hover:bg-brand-dark" : "border-line bg-surface text-ink-2 hover:-translate-y-px hover:border-[var(--line-2)] hover:bg-surface-2 hover:text-ink") }>
-                                <Icon size={15} />{label}{actionIndex === 0 && <span className="text-[.78rem] text-white/65">권장</span>}
+                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon, tone }) => (
+                              <button key={action} onClick={() => void ask(action)} disabled={loading || remaining <= 0} className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", tone)}>
+                                <Icon size={15} />{label}{action === "QUIZ" && <span className="rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)]">권장</span>}
                               </button>
                             ))}
                             </div>
@@ -907,9 +911,34 @@ function Welcome({ unit, learningLevel, onLevel, onQuestion }: { unit: LearningU
         <p className="font-learning mt-1 max-w-[40rem] text-[1rem] leading-7 text-ink-2 sm:text-[1.08rem] sm:leading-8">{unit.summary}</p>
 
         {unit.prerequisites.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-[.8rem] font-semibold">
-            {unit.prerequisites.slice(0, 2).map((item) => <span key={item} className="rounded-full bg-surface-3 px-3 py-1.5 text-ink-3">선수 · {item}</span>)}
-          </div>
+          unit.subjectCode === "MATH" ? (
+            <section className="mt-5 border-y border-line py-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-[.84rem] font-bold text-ink">학습 준비 확인</h3>
+                <span className="text-[.75rem] font-medium text-ink-5">수학 개념은 앞 단원과 이어져 있어요</span>
+              </div>
+              <p className="mt-1.5 text-[.8rem] leading-5 text-ink-4">아래 개념을 설명하거나 간단한 문제에 적용할 수 있으면 이 단원을 바로 시작해도 좋아요.</p>
+              <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                {unit.prerequisites.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => onQuestion(`${item}을 ${unit.title} 공부에 필요한 부분 중심으로 다시 설명해 주세요.`)}
+                    className="group flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] bg-surface-2 px-3 py-2 text-left transition-all duration-200 hover:bg-brand-soft active:scale-[.985]"
+                  >
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full border border-brand/25 text-[.68rem] font-bold text-brand">✓</span>
+                    <span className="min-w-0 flex-1 font-learning text-[.84rem] font-semibold leading-5 text-ink-2">{item}</span>
+                    <span className="shrink-0 text-[.72rem] font-semibold text-ink-5 transition-colors group-hover:text-brand">복습하기</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-l-2 border-brand/25 pl-3">
+              <span className="text-[.75rem] font-bold text-ink-4">먼저 확인할 개념</span>
+              <span className="font-learning text-[.86rem] font-semibold leading-6 text-ink-2">{unit.prerequisites.slice(0, 2).join(" · ")}</span>
+            </div>
+          )
         )}
 
         <div className="mt-8">

@@ -37,8 +37,8 @@ export function NotebookView() {
     <div className="mx-auto max-w-6xl px-4 py-9 sm:px-7 lg:px-10 lg:py-14">
       <header className="grid gap-6 border-b border-line pb-8 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><NotebookTabs size={16} /> 내가 고른 학습 기록</p>
-          <h1 className="font-learning mt-3 text-[2.2rem] font-bold tracking-[-0.045em] text-ink">나만의 오답 노트</h1>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><NotebookTabs size={16} /> 내가 저장한 답변</p>
+          <h1 className="font-learning mt-3 text-[2.2rem] font-bold tracking-[-0.045em] text-ink">학습 북마크</h1>
           <p className="mt-3 max-w-xl text-[.94rem] leading-7 text-ink-3">필요한 답변만 모아 두고, 시험 전에 과목과 단원별로 빠르게 다시 읽어 보세요.</p>
         </div>
         <p className="figure text-[.9rem] font-semibold text-ink-3"><span className="text-2xl text-brand">{items.length}</span>개 저장됨</p>

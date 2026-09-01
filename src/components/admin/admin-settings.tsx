@@ -52,7 +52,7 @@ export function AdminSettings() {
             <InfoRow icon={Bot} label="AI 모델" value="Gemini 3.6 Flash" note="환경 변수 연동" />
             <InfoRow icon={CircleDollarSign} label="비용 표시" value="USD 예상 비용" note="실제 청구액과 차이가 날 수 있음" />
           </dl>
-          <div className="mt-6 rounded-[13px] border border-line bg-brand-page p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-[.92rem] font-extrabold">학생 대화 비공개</h3><p className="mt-2 text-[.84rem] leading-6 text-ink-3">관리자 설정으로도 학생 질문 원문이나 오답 노트 내용을 열람할 수 없습니다.</p></div>
+          <div className="mt-6 rounded-[13px] border border-line bg-brand-page p-5"><LockKeyhole size={19} className="text-brand" /><h3 className="mt-3 text-[.92rem] font-extrabold">학생 대화 비공개</h3><p className="mt-2 text-[.84rem] leading-6 text-ink-3">관리자 설정으로도 학생 질문 원문이나 학습 북마크 내용을 열람할 수 없습니다.</p></div>
         </aside>
       </div>
     </div>
