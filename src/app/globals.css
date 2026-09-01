@@ -210,6 +210,13 @@ button:active, a:active { transition-duration: 80ms; }
   background-clip: content-box;
 }
 
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar { display: none; }
+
 .markdown-body {
   color: #3f3942;
   font-family: var(--font-serif);
