@@ -838,7 +838,15 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
                     className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-[1rem] leading-7 text-ink outline-none placeholder:text-ink-5"
                   />
-                  <Button type="submit" size="icon" disabled={(!input.trim() && attachments.length === 0) || loading || preparingImages} aria-label="질문 보내기" className="shrink-0 rounded-[10px]"><Send size={18} /></Button>
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={(!input.trim() && attachments.length === 0) || loading || preparingImages}
+                    aria-label="질문 보내기"
+                    className="shrink-0 rounded-[12px] border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#f1ecff_100%)] text-[#7253e8] shadow-[0_8px_20px_rgba(82,57,157,.23),0_2px_6px_rgba(45,34,77,.1)] hover:border-white hover:bg-[linear-gradient(145deg,#ffffff_0%,#ebe3ff_100%)] hover:text-[#6242d4] hover:shadow-[0_11px_24px_rgba(82,57,157,.29),0_3px_8px_rgba(45,34,77,.12)] focus-visible:ring-4 focus-visible:ring-[#8064ef]/20 disabled:translate-y-0 disabled:border-[#e7e1f2] disabled:bg-none disabled:bg-[#f3f0f8] disabled:text-[#b5acc8] disabled:shadow-none"
+                  >
+                    <Send size={19} strokeWidth={2.3} />
+                  </Button>
                 </div>
                 <div className="flex items-center justify-between gap-2 px-1.5 pb-1 pt-1">
                   <div className="flex items-center gap-1">

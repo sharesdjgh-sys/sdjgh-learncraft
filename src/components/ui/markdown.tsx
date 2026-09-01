@@ -577,8 +577,8 @@ function normalizeKoreanEmphasisBoundaries(value: string) {
  * display equations intact, but bring these accidental short blocks inline.
  */
 function normalizeShortDisplayMath(value: string) {
-  const betweenSentenceText = /(?<=\S)[\t ]*\r?\n[\t ]*\$\$[\t ]*(?:\r?\n[\t ]*)?([^$\r\n]{1,24}?)[\t ]*(?:\r?\n[\t ]*)?\$\$[\t ]*\r?\n[\t ]*(?=\S)/g;
-  const texDisplayBetweenSentenceText = /(?<=\S)[\t ]*\r?\n[\t ]*\\\[[\t ]*([^\]$\r\n]{1,24}?)[\t ]*\\\][\t ]*\r?\n[\t ]*(?=\S)/g;
+  const betweenSentenceText = /(?<=[^$\s])[\t ]*\r?\n[\t ]*\$\$[\t ]*(?:\r?\n[\t ]*)?([^$\r\n]{1,24}?)[\t ]*(?:\r?\n[\t ]*)?\$\$[\t ]*\r?\n[\t ]*(?=[^$\\\s])/g;
+  const texDisplayBetweenSentenceText = /(?<=[^\\\s])[\t ]*\r?\n[\t ]*\\\[[\t ]*([^\]$\r\n]{1,24}?)[\t ]*\\\][\t ]*\r?\n[\t ]*(?=[^$\\\s])/g;
 
   return value
     .replace(betweenSentenceText, (_, expression: string) => ` $${expression.trim()}$`)

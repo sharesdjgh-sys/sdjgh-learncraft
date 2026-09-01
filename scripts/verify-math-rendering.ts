@@ -97,6 +97,14 @@ const markdownCases = [
   malformedModelAnswer,
 ];
 
+const consecutiveDisplayMath = String.raw`3. **외접원의 반지름($R$) 구하기**
+   $\sin 30^\circ = \frac{1}{2}$이므로 식을 정리하면 다음과 같아요.
+   $$\frac{4}{\frac{1}{2}} = 2R$$
+   $$8 = 2R$$
+   $$R = 4$$`;
+
+markdownCases.push(consecutiveDisplayMath);
+
 for (const input of markdownCases) {
   const normalized = normalizeMathDelimiters(input);
   const warnings: unknown[][] = [];
@@ -111,6 +119,10 @@ for (const input of markdownCases) {
   assert.equal(warnings.length, 0, `KaTeX strict 경고:\n${normalized}\n${warnings.flat().join(" ")}`);
   assert.doesNotMatch(html, /katex-error/, `Markdown KaTeX 오류:\n${normalized}`);
   assert.doesNotMatch(html, /<annotation[^>]*>[^<]*[가-힣][^<]*<\/annotation>/, `한글 문장이 수식 안에 들어갔습니다:\n${normalized}`);
+  if (input === consecutiveDisplayMath) {
+    assert.equal((html.match(/class="katex-display"/g) ?? []).length, 3, "연속된 display 수식 3개가 유지되어야 합니다.");
+    assert.doesNotMatch(normalized, /^\s*\$(?:8 = 2R|R = 4)\s*$/gm, "display 수식의 달러 기호가 하나로 줄면 안 됩니다.");
+  }
 }
 
 assert.match(normalizeMathDelimiters(malformedModelAnswer), /\\frac\{1\}\{2\}/, "실제 깨진 로그 응답의 분수 수식이 보존되어야 합니다.");
