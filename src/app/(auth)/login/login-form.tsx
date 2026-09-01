@@ -7,7 +7,6 @@ import {
   Eye,
   EyeOff,
   LoaderCircle,
-  ShieldCheck,
 } from "lucide-react";
 
 type LoginResponse = {
@@ -133,16 +132,6 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
       >
         {loading === "learn" ? <LoaderCircle className="animate-spin" size={21} /> : <ArrowRight size={21} className="transition-transform group-hover:translate-x-0.5" />}
         학습 시작하기
-      </button>
-
-      <button
-        type="submit"
-        data-destination="admin"
-        disabled={Boolean(loading)}
-        className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#7864b7]/25 bg-white/35 px-5 text-[.9rem] font-extrabold text-[#584985] transition hover:-translate-y-0.5 hover:border-[#7864b7]/45 hover:bg-white/55 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading === "admin" ? <LoaderCircle className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-        관리자 페이지
       </button>
 
       {sampleAccounts.length > 0 && (

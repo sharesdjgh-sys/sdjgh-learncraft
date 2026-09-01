@@ -64,6 +64,16 @@ export const users = pgTable(
   (table) => [uniqueIndex("users_school_external_idx").on(table.schoolId, table.externalId)],
 );
 
+export const accountCredentials = pgTable("account_credentials", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  passwordUpdatedAt: timestamp("password_updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const curriculumVersions = pgTable("curriculum_versions", {
   id: uuid("id").defaultRandom().primaryKey(),
   code: text("code").notNull().unique(),

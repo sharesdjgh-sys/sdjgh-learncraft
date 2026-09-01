@@ -10,7 +10,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`으로 접속한 뒤 학교 계정으로 로그인합니다. 학생 샘플 계정은 `ref/student-accounts-sample.csv`의 학번을 사용하고 초기 비밀번호는 `student^^`입니다. 관리자는 `lifeprof` / `aitutor87&`로 로그인한 뒤 `관리자 페이지` 버튼으로 운영 화면에 들어갈 수 있습니다.
+브라우저에서 `http://localhost:3000`으로 접속한 뒤 학교 계정으로 로그인합니다. 학생 샘플 계정은 `ref/student-accounts-sample.csv`의 학번을 사용하고 초기 비밀번호는 `student^^`입니다. 관리자는 `lifeprof` / `aitutor87&`로 같은 로그인 버튼을 사용하면 관리자 화면으로 자동 이동합니다.
 
 환경 변수를 설정하지 않아도 샘플 교육과정, 로컬 메모리 북마크, 데모 AI 답변으로 주요 화면을 체험할 수 있습니다. 서버를 재시작하면 로컬 메모리 데이터는 초기화됩니다.
 
@@ -59,6 +59,8 @@ Neon이 연결되면 북마크, 사용량, 관리자 한도 설정이 PostgreSQL
 | `APP_TIMEZONE` | 기본값 `Asia/Seoul` |
 
 Vercel Production에서는 기본 데모 계정이 자동 차단됩니다. 운영 전에 학생·관리자 로그인 정보를 환경 변수로 설정하거나 학교 OIDC/SSO를 연결해야 합니다.
+
+관리자는 `학생 계정` 메뉴에서 `학번,이름,초기비밀번호` 헤더를 가진 CSV를 한 번에 최대 300명까지 등록할 수 있습니다. 동일 학번을 다시 등록하면 이름, 학년, 초기 비밀번호가 갱신됩니다. 비밀번호 원문은 저장하지 않으며 scrypt 해시만 DB에 보관합니다. 이 기능을 배포 환경에서 사용하려면 `DATABASE_URL`을 설정하고 `npm run db:migrate`로 최신 마이그레이션을 적용해야 합니다.
 
 ## 검증 명령
 

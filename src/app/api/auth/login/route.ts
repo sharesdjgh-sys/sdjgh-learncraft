@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = authenticateCredentials(parsed.data.loginId, parsed.data.password);
+  const user = await authenticateCredentials(parsed.data.loginId, parsed.data.password);
 
   if (!user) {
     return NextResponse.json(

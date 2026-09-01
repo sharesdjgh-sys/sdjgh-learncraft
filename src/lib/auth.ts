@@ -2,8 +2,12 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { and, eq, sql } from "drizzle-orm";
 import { sampleStudentAccounts } from "@/data/student-accounts";
+import { db } from "@/db";
+import { accountCredentials, schools, users } from "@/db/schema";
 import { env } from "@/lib/env";
+import { verifyPassword } from "@/lib/password";
 import type { SessionUser } from "@/types";
 
 const COOKIE_NAME = "learncraft_session";
@@ -64,7 +68,7 @@ function safeEqual(left: string, right: string) {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-export function authenticateCredentials(loginId: string, password: string) {
+export async function authenticateCredentials(loginId: string, password: string) {
   const normalizedLoginId = loginId.trim().toLocaleLowerCase("en-US");
 
   for (const credential of configuredCredentials()) {
@@ -74,6 +78,44 @@ export function authenticateCredentials(loginId: string, password: string) {
     );
     const passwordMatches = safeEqual(password, credential.password);
     if (idMatches && passwordMatches) return credential.user;
+  }
+
+  if (db) {
+    const [account] = await db
+      .select({
+        id: users.id,
+        externalId: users.externalId,
+        schoolId: users.schoolId,
+        schoolName: schools.name,
+        name: users.name,
+        role: users.role,
+        officialGrade: users.officialGrade,
+        learningGrade: users.learningGrade,
+        passwordHash: accountCredentials.passwordHash,
+      })
+      .from(users)
+      .innerJoin(schools, eq(schools.id, users.schoolId))
+      .innerJoin(accountCredentials, eq(accountCredentials.userId, users.id))
+      .where(and(
+        sql`lower(${users.externalId}) = ${normalizedLoginId}`,
+        eq(users.active, true),
+        eq(schools.active, true),
+      ))
+      .limit(1);
+
+    if (account && await verifyPassword(password, account.passwordHash)) {
+      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, account.id));
+      return {
+        id: account.id,
+        externalId: account.externalId,
+        schoolId: account.schoolId,
+        schoolName: account.schoolName,
+        name: account.name,
+        role: account.role,
+        officialGrade: account.officialGrade as 1 | 2 | 3 | null,
+        learningGrade: account.learningGrade as 1 | 2 | 3 | null,
+      } satisfies SessionUser;
+    }
   }
 
   return null;
