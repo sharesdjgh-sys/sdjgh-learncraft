@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, LibraryBig, LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
 
 const links = [
   { href: "/admin/dashboard", label: "사용 현황", icon: BarChart3 },
+  { href: "/admin/curriculum", label: "교육과정", icon: LibraryBig },
   { href: "/admin/accounts", label: "학생 계정", icon: UsersRound },
   { href: "/admin/settings", label: "운영 설정", icon: Settings },
 ] as const;

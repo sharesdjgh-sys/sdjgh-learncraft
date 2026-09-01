@@ -2,11 +2,13 @@ import { config } from "dotenv";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { learningUnits, subjects as subjectSource } from "../src/data/curriculum";
+import { defaultSelectedSchoolCourseKeys, schoolCourseCatalog } from "../src/data/school-course-catalog";
 import { sampleStudentAccounts } from "../src/data/student-accounts";
 import {
   courses,
   curriculumVersions,
   pricingConfigs,
+  schoolCourseSelections,
   schools,
   subjects,
   unitContents,
@@ -188,6 +190,19 @@ for (const courseKey of courseKeys) {
   if (!savedCourse) throw new Error(`${courseUnit.courseTitle} 과정을 저장하지 못했습니다.`);
   courseIds.set(courseKey, savedCourse.id);
 }
+
+const defaultSelectedSet = new Set(defaultSelectedSchoolCourseKeys);
+await db.insert(schoolCourseSelections).values(schoolCourseCatalog.map((item) => ({
+  schoolId: SCHOOL_ID,
+  catalogKey: item.key,
+  academicYear: item.academicYear,
+  grade: item.grade,
+  subjectCode: item.subjectCode,
+  courseTitle: item.courseTitle,
+  publisherName: item.publisherName,
+  contentCourseCode: item.contentCourseCode ?? null,
+  enabled: defaultSelectedSet.has(item.key),
+}))).onConflictDoNothing();
 
 for (const [index, unit] of learningUnits.entries()) {
   const courseKey = `${unit.curriculum}:${unit.subjectCode}:${unit.courseCode}`;

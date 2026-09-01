@@ -105,6 +105,24 @@ export const courses = pgTable(
   (table) => [uniqueIndex("courses_version_code_idx").on(table.curriculumVersionId, table.code)],
 );
 
+export const schoolCourseSelections = pgTable(
+  "school_course_selections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+    catalogKey: text("catalog_key").notNull(),
+    academicYear: integer("academic_year").notNull(),
+    grade: integer("grade").notNull(),
+    subjectCode: text("subject_code").notNull(),
+    courseTitle: text("course_title").notNull(),
+    publisherName: text("publisher_name").notNull(),
+    contentCourseCode: text("content_course_code"),
+    enabled: boolean("enabled").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("school_course_selection_idx").on(table.schoolId, table.academicYear, table.catalogKey)],
+);
+
 export const units = pgTable(
   "units",
   {
