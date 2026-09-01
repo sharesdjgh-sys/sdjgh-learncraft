@@ -130,6 +130,26 @@ const levelConfig: Array<{ level: LearningLevel; label: string; description: str
   { level: "ADVANCED", label: "원리 탐구", description: "이유·조건·개념 연결까지" },
 ];
 
+function makeBookmarkTitle(messages: TutorMessage[], answer: TutorMessage) {
+  const answerIndex = messages.findIndex((message) => message.id === answer.id);
+  const earlierMessages = answerIndex >= 0 ? messages.slice(0, answerIndex) : messages;
+  const source = [...earlierMessages].reverse().find((message) => message.role === "user" && message.action === "QUESTION")
+    ?? [...earlierMessages].reverse().find((message) => message.role === "user");
+  const imageCount = source?.imageNames?.length ?? 0;
+  const normalized = source?.content.replace(/\s+/g, " ").trim() ?? "";
+  const isImageOnly = !normalized || normalized === "첨부 이미지로 질문";
+  const imageLabel = imageCount > 0 ? `이미지 ${imageCount}장` : "첨부 이미지";
+  const suffix = imageCount > 0 && !isImageOnly ? ` · ${imageLabel}` : "";
+  const availableLength = Math.max(24, 88 - suffix.length);
+  const prompt = isImageOnly
+    ? `${imageLabel}으로 질문한 내용`
+    : normalized.length > availableLength
+      ? `${normalized.slice(0, availableLength - 1)}…`
+      : normalized;
+
+  return `${prompt}${suffix}`.slice(0, 100);
+}
+
 function recommendedQuestionsFor(unit: LearningUnit, learningLevel: LearningLevel) {
   const firstKeyPoint = unit.keyPoints[0] ?? unit.title;
   const secondKeyPoint = unit.keyPoints[1];
@@ -172,6 +192,19 @@ type SavedLearningSession = {
   messages: TutorMessage[];
 };
 
+type CachedUnitSession = Pick<SavedLearningSession, "learningLevel" | "messages">;
+
+type SavedLearningCache = {
+  version: 2;
+  activeUnitId: string;
+  grade?: SupportedGrade;
+  sessions: Record<string, CachedUnitSession>;
+};
+
+const learningCacheKey = "learncraft_chat";
+const maxCachedUnitSessions = 8;
+const maxCachedMessagesPerUnit = 16;
+
 function isLearningLevel(value: unknown): value is LearningLevel {
   return value === "SUMMARY" || value === "FOUNDATION" || value === "STANDARD" || value === "ADVANCED";
 }
@@ -185,6 +218,39 @@ function isSavedSession(value: unknown): value is SavedLearningSession {
     && Array.isArray(candidate.messages);
 }
 
+function isCachedUnitSession(value: unknown): value is CachedUnitSession {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CachedUnitSession>;
+  return isLearningLevel(candidate.learningLevel) && Array.isArray(candidate.messages);
+}
+
+function isSavedLearningCache(value: unknown): value is SavedLearningCache {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SavedLearningCache>;
+  return candidate.version === 2
+    && typeof candidate.activeUnitId === "string"
+    && (candidate.grade === undefined || candidate.grade === 1 || candidate.grade === 2)
+    && Boolean(candidate.sessions)
+    && typeof candidate.sessions === "object"
+    && Object.values(candidate.sessions).every(isCachedUnitSession);
+}
+
+function completedSessionMessages(messages: TutorMessage[]) {
+  return messages
+    .filter((message) => message.role === "user" || message.completed)
+    .slice(-maxCachedMessagesPerUnit);
+}
+
+function cacheUnitSession(cache: Map<string, CachedUnitSession>, unitId: string, session: CachedUnitSession) {
+  cache.delete(unitId);
+  cache.set(unitId, session);
+  while (cache.size > maxCachedUnitSessions) {
+    const oldestUnitId = cache.keys().next().value;
+    if (typeof oldestUnitId !== "string") break;
+    cache.delete(oldestUnitId);
+  }
+}
+
 export function LearningWorkspace({ units, initialGrade, studentName, schoolName }: { units: LearningUnit[]; initialGrade: number; studentName: string; schoolName: string }) {
   const normalizedInitialGrade = supportedGrade(initialGrade);
   const initialUnitId = units.find((unit) => unit.recommendedGrades.includes(normalizedInitialGrade) && unit.subjectCode === "MATH")?.id ?? units[0]?.id ?? "";
@@ -193,6 +259,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [conversationOpen, setConversationOpen] = useState(false);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
@@ -215,6 +282,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const streamingAnswerRef = useRef(false);
+  const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
 
   const filteredUnits = useMemo(
     () => units.filter((unit) => unit.recommendedGrades.includes(grade) && unit.subjectCode === subject),
@@ -234,27 +302,48 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 
   useEffect(() => {
     let savedSession: SavedLearningSession | null = null;
+    let savedCache: SavedLearningCache | null = null;
     let savedUnit: LearningUnit | undefined;
     try {
-      const raw = sessionStorage.getItem("learncraft_chat");
+      const raw = sessionStorage.getItem(learningCacheKey);
       if (raw) {
         const saved: unknown = JSON.parse(raw);
-        if (isSavedSession(saved)) {
+        if (isSavedLearningCache(saved)) {
+          savedCache = saved;
+          savedUnit = units.find((unit) => unit.id === saved.activeUnitId);
+        } else if (isSavedSession(saved)) {
           savedUnit = units.find((unit) => unit.id === saved.unitId);
           if (savedUnit) savedSession = saved;
         }
       }
     } catch {
-      sessionStorage.removeItem("learncraft_chat");
+      sessionStorage.removeItem(learningCacheKey);
     }
 
     const restoreTimer = window.setTimeout(() => {
-      if (savedSession && savedUnit) {
+      if (savedCache) {
+        for (const [unitId, session] of Object.entries(savedCache.sessions)) {
+          if (!units.some((unit) => unit.id === unitId)) continue;
+          cacheUnitSession(unitSessionsRef.current, unitId, {
+            learningLevel: session.learningLevel,
+            messages: completedSessionMessages(session.messages.filter((message) => Boolean(message?.id && message?.content))),
+          });
+        }
+      } else if (savedSession && savedUnit) {
+        cacheUnitSession(unitSessionsRef.current, savedUnit.id, {
+          learningLevel: savedSession.learningLevel,
+          messages: completedSessionMessages(savedSession.messages.filter((message) => Boolean(message?.id && message?.content))),
+        });
+      }
+
+      const restoredSession = savedUnit ? unitSessionsRef.current.get(savedUnit.id) : undefined;
+      if (savedUnit && restoredSession) {
         setSelectedUnitId(savedUnit.id);
-        setGrade(savedSession.grade ?? supportedGrade(savedUnit.grade));
+        setGrade(savedCache?.grade ?? savedSession?.grade ?? supportedGrade(savedUnit.grade));
         setSubject(savedUnit.subjectCode);
-        setLearningLevel(savedSession.learningLevel);
-        setMessages(savedSession.messages.filter((message) => Boolean(message?.id && message?.content)).slice(-20));
+        setLearningLevel(restoredSession.learningLevel);
+        setMessages(restoredSession.messages);
+        setConversationOpen(restoredSession.messages.length > 0);
       }
       setSessionReady(true);
     }, 0);
@@ -264,13 +353,16 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 
   useEffect(() => {
     if (!sessionReady || !selectedUnitId) return;
-    const completedMessages = messages.filter((message) => message.role === "user" || message.completed);
-    sessionStorage.setItem("learncraft_chat", JSON.stringify({
-      unitId: selectedUnitId,
-      grade,
+    cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
       learningLevel,
-      messages: completedMessages.slice(-20),
-    } satisfies SavedLearningSession));
+      messages: completedSessionMessages(messages),
+    });
+    sessionStorage.setItem(learningCacheKey, JSON.stringify({
+      version: 2,
+      activeUnitId: selectedUnitId,
+      grade,
+      sessions: Object.fromEntries(unitSessionsRef.current),
+    } satisfies SavedLearningCache));
   }, [grade, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
@@ -305,15 +397,25 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
   }
 
   function resetConversation(showNotice = true) {
-    setMessages([]);
+    setConversationOpen(false);
     setAttachments([]);
     setAttachmentError("");
     setRetryRequest(null);
-    sessionStorage.removeItem("learncraft_chat");
     if (showNotice) {
-      setNotice("새 학습 대화를 시작했어요.");
+      setNotice("새 대화를 시작할 준비가 됐어요.");
       window.setTimeout(() => setNotice(""), 2200);
     }
+  }
+
+  function resumeConversation() {
+    if (messages.length === 0) return;
+    autoScrollRef.current = true;
+    setConversationOpen(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      });
+    });
   }
 
   function selectUnit(unitId: string) {
@@ -322,11 +424,23 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
       messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
     if (unitId === selectedUnitId) {
+      setConversationOpen(false);
       setDrawerOpen(false);
       return;
     }
+    cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
+      learningLevel,
+      messages: completedSessionMessages(messages),
+    });
+    const nextSession = unitSessionsRef.current.get(unitId);
     setSelectedUnitId(unitId);
-    resetConversation(false);
+    setLearningLevel(nextSession?.learningLevel ?? "STANDARD");
+    setMessages(nextSession?.messages ?? []);
+    setConversationOpen(false);
+    setInput("");
+    setAttachments([]);
+    setAttachmentError("");
+    setRetryRequest(null);
     setDrawerOpen(false);
   }
 
@@ -403,6 +517,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
     const currentAttachments = action === "QUESTION" ? attachments : [];
     if (action === "QUESTION" && !question && currentAttachments.length === 0) return;
 
+    const baseMessages = conversationOpen ? messages : [];
     const actionLabel = actionConfig.find((item) => item.action === action)?.label ?? "질문";
     const userMessage: TutorMessage = {
       id: crypto.randomUUID(),
@@ -414,14 +529,15 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
     };
     const answerId = crypto.randomUUID();
     const assistantMessage: TutorMessage = { id: answerId, role: "assistant", content: "", action, completed: false };
-    const recentMessages = messages
+    const recentMessages = baseMessages
       .filter((message) => message.content && message.completed)
       .slice(-6)
       .map(({ role, content }) => ({ role, content: content.slice(0, 3000) }));
 
     streamingAnswerRef.current = true;
     autoScrollRef.current = false;
-    setMessages((current) => [...current, userMessage, assistantMessage]);
+    setConversationOpen(true);
+    setMessages([...baseMessages, userMessage, assistantMessage]);
     scrollToMessageStart(answerId);
     setInput("");
     setAttachments([]);
@@ -491,7 +607,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
         clientAnswerId: message.id,
         unitId: selectedUnit.id,
         answerMode: message.action ?? "QUESTION",
-        title: `${selectedUnit.title} 학습 메모`,
+        title: makeBookmarkTitle(messages, message),
         answerMarkdown: message.content,
       }),
     });
@@ -510,7 +626,7 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
             <span className="hidden text-[.8rem] font-semibold text-ink-3 sm:inline">오늘 남은 질문</span>
             <span className="figure text-sm font-semibold text-ink">{remaining}<span className="text-[.78rem] text-ink-5">/{dailyLimit}</span></span>
           </div>
-          <button onClick={() => resetConversation()} disabled={loading || messages.length === 0} className="hidden min-h-10 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 text-[.8rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex" aria-label="새 대화 시작">
+          <button onClick={() => resetConversation()} disabled={loading || !conversationOpen || messages.length === 0} className="hidden min-h-10 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 text-[.8rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex" aria-label="새 대화 시작">
             <Plus size={16} />새 대화
           </button>
         </>
@@ -541,8 +657,8 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
           <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
-            {messages.length === 0 ? (
-              <Welcome unit={selectedUnit} learningLevel={learningLevel} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} />
+            {!conversationOpen || messages.length === 0 ? (
+              <Welcome unit={selectedUnit} learningLevel={learningLevel} previousAnswerCount={messages.filter((message) => message.role === "assistant" && message.completed).length} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} onResume={resumeConversation} />
             ) : (
               <div className="flex-1 space-y-10 pb-5">
                 {messages.map((message, index) => (
@@ -574,9 +690,9 @@ export function LearningWorkspace({ units, initialGrade, studentName, schoolName
                           {message.completed && (
                             <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
-                              <button onClick={() => void bookmarkMessage(message)} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border border-line px-3.5 text-[.82rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink" aria-label="답변을 학습 북마크에 저장">
+                              <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
                                 {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
-                                <span>{savedIds.has(message.id) ? "북마크됨" : "북마크"}</span>
+                                <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
                               </button>
                             </div>
                           )}
@@ -898,7 +1014,7 @@ function CurriculumPicker({ grade, subject, units, selectedUnitId, onGrade, onSu
   );
 }
 
-function Welcome({ unit, learningLevel, onLevel, onQuestion }: { unit: LearningUnit; learningLevel: LearningLevel; onLevel: (level: LearningLevel) => void; onQuestion: (question: string) => void }) {
+function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion, onResume }: { unit: LearningUnit; learningLevel: LearningLevel; previousAnswerCount: number; onLevel: (level: LearningLevel) => void; onQuestion: (question: string) => void; onResume: () => void }) {
   const selectedLevel = levelConfig.find((item) => item.level === learningLevel);
   const suggestedQuestions = recommendedQuestionsFor(unit, learningLevel);
 
@@ -964,6 +1080,16 @@ function Welcome({ unit, learningLevel, onLevel, onQuestion }: { unit: LearningU
           ))}
           </div>
         </div>
+
+        {previousAnswerCount > 0 && (
+          <div className="mt-5 border-t border-line pt-4">
+            <button type="button" onClick={onResume} className="group flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-[12px] border border-brand/15 bg-brand-page px-4 py-3 text-left transition-all duration-300 hover:-translate-y-px hover:border-brand/25 hover:bg-brand-soft active:scale-[.99]">
+              <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface text-brand shadow-[var(--lift-1)]"><RotateCcw size={16} /></span>
+              <span className="min-w-0 flex-1"><span className="font-learning block text-[.9rem] font-bold text-brand-dark">이어서 대화하기</span><span className="mt-0.5 block text-[.76rem] leading-5 text-ink-4">이 단원에서 나눈 답변 {previousAnswerCount}개가 남아 있어요.</span></span>
+              <span className="text-lg text-brand/55 transition-transform group-hover:translate-x-0.5">→</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
