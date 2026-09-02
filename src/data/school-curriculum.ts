@@ -647,6 +647,7 @@ export async function getSchoolLearningUnits(schoolId: string) {
         topicOrder: units.topicOrder,
         courseCode: courses.code,
         courseTitle: courses.title,
+        courseOverview: courses.overview,
         courseOrder: courses.displayOrder,
         grade: courses.grade,
         curriculum: curriculumVersions.title,

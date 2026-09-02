@@ -35,6 +35,7 @@ export type LearningUnit = {
   subjectTitle: string;
   courseCode: string;
   courseTitle: string;
+  courseOverview?: string;
   courseCategory: CourseCategory;
   courseOrder: number;
   chapterTitle: string;

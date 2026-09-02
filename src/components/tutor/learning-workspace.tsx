@@ -224,6 +224,21 @@ function availableGradesFor(units: LearningUnit[]) {
   return supportedGrades.filter((grade) => units.some((unit) => unit.grade === grade));
 }
 
+function compareCurriculumOrder(left: LearningUnit, right: LearningUnit) {
+  return left.courseOrder - right.courseOrder
+    || left.chapterOrder - right.chapterOrder
+    || left.sectionOrder - right.sectionOrder
+    || left.topicOrder - right.topicOrder
+    || left.title.localeCompare(right.title, "ko");
+}
+
+function firstCurriculumUnit(
+  units: LearningUnit[],
+  matches: (unit: LearningUnit) => boolean,
+) {
+  return units.filter(matches).sort(compareCurriculumOrder)[0];
+}
+
 type SavedLearningSession = {
   unitId: string;
   grade?: SupportedGrade;
@@ -237,6 +252,7 @@ type SavedLearningCache = {
   version: 2;
   activeUnitId: string;
   grade?: SupportedGrade;
+  courseOverviewOpen?: boolean;
   sessions: Record<string, CachedUnitSession>;
 };
 
@@ -269,6 +285,7 @@ function isSavedLearningCache(value: unknown): value is SavedLearningCache {
   return candidate.version === 2
     && typeof candidate.activeUnitId === "string"
     && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
+    && (candidate.courseOverviewOpen === undefined || typeof candidate.courseOverviewOpen === "boolean")
     && Boolean(candidate.sessions)
     && typeof candidate.sessions === "object"
     && Object.values(candidate.sessions).every(isCachedUnitSession);
@@ -323,13 +340,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const availableGrades = availableGradesFor(units);
   const requestedInitialGrade = supportedGrade(initialGrade);
   const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
-  const initialUnit = units.find((unit) => unit.grade === normalizedInitialGrade && unit.subjectCode === "MATH")
-    ?? units.find((unit) => unit.grade === normalizedInitialGrade)
-    ?? units[0];
+  const initialUnit = firstCurriculumUnit(units, (unit) => unit.grade === normalizedInitialGrade && unit.subjectCode === "MATH")
+    ?? firstCurriculumUnit(units, (unit) => unit.grade === normalizedInitialGrade)
+    ?? [...units].sort(compareCurriculumOrder)[0];
   const initialUnitId = initialUnit?.id ?? "";
   const [grade, setGrade] = useState<SupportedGrade>(normalizedInitialGrade);
   const [subject, setSubject] = useState<SubjectCode>(initialUnit?.subjectCode ?? "MATH");
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
+  const [courseOverviewOpen, setCourseOverviewOpen] = useState(true);
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
@@ -359,10 +377,16 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
 
   const filteredUnits = useMemo(
-    () => units.filter((unit) => unit.grade === grade && unit.subjectCode === subject),
+    () => units
+      .filter((unit) => unit.grade === grade && unit.subjectCode === subject)
+      .sort(compareCurriculumOrder),
     [units, grade, subject],
   );
   const selectedUnit = (units.find((unit) => unit.id === selectedUnitId) ?? filteredUnits[0] ?? units[0])!;
+  const selectedCourseUnits = useMemo(
+    () => filteredUnits.filter((unit) => unit.courseCode === selectedUnit.courseCode),
+    [filteredUnits, selectedUnit.courseCode],
+  );
 
   useEffect(() => {
     fetch("/api/usage")
@@ -411,10 +435,16 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       }
 
       const restoredSession = savedUnit ? unitSessionsRef.current.get(savedUnit.id) : undefined;
-      if (savedUnit && restoredSession) {
+      if (savedUnit && savedCache?.courseOverviewOpen) {
+        setSelectedUnitId(savedUnit.id);
+        setGrade(savedCache.grade ?? supportedGrade(savedUnit.grade));
+        setSubject(savedUnit.subjectCode);
+        setCourseOverviewOpen(true);
+      } else if (savedUnit && restoredSession) {
         setSelectedUnitId(savedUnit.id);
         setGrade(savedCache?.grade ?? savedSession?.grade ?? supportedGrade(savedUnit.grade));
         setSubject(savedUnit.subjectCode);
+        setCourseOverviewOpen(false);
         setLearningLevel(restoredSession.learningLevel);
         setMessages(restoredSession.messages);
         setConversationOpen(restoredSession.messages.length > 0);
@@ -427,17 +457,20 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   useEffect(() => {
     if (!sessionReady || !selectedUnitId) return;
-    cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
-      learningLevel,
-      messages: completedSessionMessages(messages),
-    });
+    if (!courseOverviewOpen) {
+      cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
+        learningLevel,
+        messages: completedSessionMessages(messages),
+      });
+    }
     sessionStorage.setItem(learningCacheKey, JSON.stringify({
       version: 2,
       activeUnitId: selectedUnitId,
       grade,
+      courseOverviewOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
     } satisfies SavedLearningCache));
-  }, [grade, learningLevel, messages, selectedUnitId, sessionReady]);
+  }, [courseOverviewOpen, grade, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -494,18 +527,24 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   function selectUnit(unitId: string) {
     autoScrollRef.current = true;
+    setCourseOverviewOpen(false);
     window.requestAnimationFrame(() => {
       messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
     if (unitId === selectedUnitId) {
+      const currentSession = unitSessionsRef.current.get(unitId);
+      setLearningLevel(currentSession?.learningLevel ?? learningLevel);
+      setMessages(currentSession?.messages ?? messages);
       setConversationOpen(false);
       setDrawerOpen(false);
       return;
     }
-    cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
-      learningLevel,
-      messages: completedSessionMessages(messages),
-    });
+    if (!courseOverviewOpen) {
+      cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
+        learningLevel,
+        messages: completedSessionMessages(messages),
+      });
+    }
     const nextSession = unitSessionsRef.current.get(unitId);
     setSelectedUnitId(unitId);
     setLearningLevel(nextSession?.learningLevel ?? "STANDARD");
@@ -518,20 +557,46 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setDrawerOpen(false);
   }
 
+  function openCourseOverview(unitId: string) {
+    if (!courseOverviewOpen) {
+      cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
+        learningLevel,
+        messages: completedSessionMessages(messages),
+      });
+    }
+    setSelectedUnitId(unitId);
+    setCourseOverviewOpen(true);
+    setLearningLevel("STANDARD");
+    setMessages([]);
+    setConversationOpen(false);
+    setInput("");
+    setAttachments([]);
+    setAttachmentError("");
+    setRetryRequest(null);
+    setDrawerOpen(false);
+    autoScrollRef.current = true;
+    window.requestAnimationFrame(() => {
+      messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
   function changeGrade(nextGrade: SupportedGrade) {
     setGrade(nextGrade);
-    const nextUnit = units.find((unit) => unit.grade === nextGrade && unit.subjectCode === subject)
-      ?? units.find((unit) => unit.grade === nextGrade);
+    const nextUnit = firstCurriculumUnit(units, (unit) => unit.grade === nextGrade && unit.subjectCode === subject)
+      ?? firstCurriculumUnit(units, (unit) => unit.grade === nextGrade);
     if (nextUnit) {
       setSubject(nextUnit.subjectCode);
-      selectUnit(nextUnit.id);
+      openCourseOverview(nextUnit.id);
     }
   }
 
   function changeSubject(nextSubject: SubjectCode) {
     setSubject(nextSubject);
-    const nextUnit = units.find((unit) => unit.grade === grade && unit.subjectCode === nextSubject);
-    if (nextUnit) selectUnit(nextUnit.id);
+    const nextUnit = firstCurriculumUnit(
+      units,
+      (unit) => unit.grade === grade && unit.subjectCode === nextSubject,
+    );
+    if (nextUnit) openCourseOverview(nextUnit.id);
   }
 
   const addImageFiles = useCallback(async (fileList: FileList | File[] | null) => {
@@ -750,9 +815,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           subject={subject}
           allUnits={units}
           units={filteredUnits}
-          selectedUnitId={selectedUnit.id}
+          selectedUnitId={courseOverviewOpen ? "" : selectedUnit.id}
           onGrade={changeGrade}
           onSubject={changeSubject}
+          onCourse={openCourseOverview}
           onUnit={selectUnit}
         />
       </aside>
@@ -760,8 +826,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
         <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
           <button onClick={() => setDrawerOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label="학습 단원 선택 열기">
-            <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
-            <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{selectedUnit.title}</span>
+            {courseOverviewOpen ? (
+              <BookCopy size={15} className="shrink-0 text-brand" aria-hidden="true" />
+            ) : (
+              <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
+            )}
+            <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{courseOverviewOpen ? `${selectedUnit.courseTitle} 과목 안내` : selectedUnit.title}</span>
             <ChevronDown size={14} className="ml-auto shrink-0 text-ink-5" />
           </button>
           <span className="shrink-0 text-[.78rem] font-semibold text-ink-4 sm:hidden">{studentName}</span>
@@ -770,7 +840,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
           <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
-            {!conversationOpen || messages.length === 0 ? (
+            {courseOverviewOpen ? (
+              <CourseOverview units={selectedCourseUnits} onOpenCurriculum={() => setDrawerOpen(true)} />
+            ) : !conversationOpen || messages.length === 0 ? (
               <Welcome unit={selectedUnit} learningLevel={learningLevel} previousAnswerCount={messages.filter((message) => message.role === "assistant" && message.completed).length} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} onResume={resumeConversation} />
             ) : (
               <div className="flex-1 space-y-10 pb-5">
@@ -850,7 +922,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           </div>
         </div>
 
-        <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
+        {!courseOverviewOpen && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
           <div className="mx-auto max-w-[45rem]">
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
@@ -966,10 +1038,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             )}
             <p className="mt-2 text-center text-[.78rem] text-ink-5">AI 답변은 교과서와 선생님께 다시 확인하세요.</p>
           </div>
-        </div>
+        </div>}
       </section>
 
-      <button
+      {!courseOverviewOpen && <button
         ref={conceptTriggerRef}
         type="button"
         onClick={() => setConceptOpen(true)}
@@ -984,11 +1056,11 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       >
         <Image src="/images/core-notes-icon.png" alt="" width={60} height={40} className="h-auto w-[3.7rem] select-none drop-shadow-[0_3px_5px_rgba(79,55,151,.2)] min-[1024px]:w-[4.05rem]" aria-hidden="true" priority />
         <span className="pointer-events-none absolute right-[calc(100%+.65rem)] hidden whitespace-nowrap rounded-[10px] border border-line bg-surface px-3 py-2 text-[.76rem] font-bold text-ink shadow-[var(--lift-2)] opacity-0 transition-all duration-200 group-hover:-translate-x-1 group-hover:opacity-100 min-[1024px]:block">단원 핵심 노트</span>
-      </button>
+      </button>}
 
       {drawerOpen && (
         <Sheet title="학습 단원 선택" onClose={() => setDrawerOpen(false)}>
-          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedUnitId={selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onUnit={selectUnit} />
+          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedUnitId={courseOverviewOpen ? "" : selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
@@ -1001,7 +1073,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   );
 }
 
-function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onGrade, onSubject, onUnit }: {
+function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
   grade: SupportedGrade;
   subject: SubjectCode;
   allUnits: LearningUnit[];
@@ -1009,6 +1081,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
   selectedUnitId: string;
   onGrade: (grade: SupportedGrade) => void;
   onSubject: (subject: SubjectCode) => void;
+  onCourse: (firstUnitId: string) => void;
   onUnit: (id: string) => void;
 }) {
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false);
@@ -1222,8 +1295,11 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
                         role="menuitemradio"
                         aria-checked={active}
                         onClick={() => {
-                          const firstUnit = units.find((unit) => unit.courseCode === course.courseCode);
-                          if (firstUnit) onUnit(firstUnit.id);
+                          const firstUnit = firstCurriculumUnit(
+                            units,
+                            (unit) => unit.courseCode === course.courseCode,
+                          );
+                          if (firstUnit) onCourse(firstUnit.id);
                           setCourseMenuOpen(false);
                         }}
                         className={cn(
@@ -1298,6 +1374,72 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
           <p className="mt-1 text-[.8rem] leading-5 text-ink-3">다른 학년이나 과목을 선택해 주세요.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function CourseOverview({ units, onOpenCurriculum }: {
+  units: LearningUnit[];
+  onOpenCurriculum: () => void;
+}) {
+  const course = units[0];
+  if (!course) return null;
+
+  const chapters = [...new Map(units.map((unit) => [unit.chapterOrder, {
+    order: unit.chapterOrder,
+    title: unit.chapterTitle,
+  }])).values()].sort((left, right) => left.order - right.order);
+  const overview = course.courseOverview?.trim()
+    || `${course.courseTitle}에서는 ${chapters.slice(0, 3).map((chapter) => chapter.title).join(", ")}${chapters.length > 3 ? " 등" : ""}을 중심으로 핵심 개념과 활용 방법을 배웁니다. 아래 학습 흐름을 살펴본 뒤 목차에서 공부할 주제를 직접 선택해 주세요.`;
+
+  return (
+    <div className="flex flex-1 flex-col py-2 sm:py-4">
+      <div className="max-w-[44rem]">
+        <p className="flex items-center gap-2 text-[.8rem] font-bold text-brand"><BookOpenCheck size={16} /> {course.subjectTitle} · 과목 안내</p>
+        <h2 className="font-learning mt-3 text-balance text-[2rem] font-bold leading-[1.3] tracking-[-0.05em] text-ink sm:text-[2.45rem]">{course.courseTitle}</h2>
+        <div className="mt-3 flex flex-wrap gap-2 text-[.74rem] font-semibold text-ink-4">
+          <span className="rounded-full border border-line bg-surface-2 px-3 py-1.5">{course.publisherName}</span>
+          <span className="rounded-full border border-line bg-surface-2 px-3 py-1.5">{course.curriculum}</span>
+          <span className="rounded-full border border-line bg-surface-2 px-3 py-1.5">{units.length}개 학습 주제</span>
+        </div>
+
+        <section className="mt-8 rounded-[18px] border border-brand/15 bg-brand-page px-5 py-5 sm:px-6">
+          <p className="text-[.78rem] font-bold text-brand">이 과목에서 배우는 내용</p>
+          <div className="font-learning mt-2 text-[1rem] leading-7 text-ink-2 sm:text-[1.06rem]"><Markdown>{overview}</Markdown></div>
+        </section>
+
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[.82rem] font-bold text-ink">학습 흐름</p>
+              <p className="mt-1 text-[.78rem] leading-5 text-ink-4">대단원 순서를 확인하고 왼쪽 목차에서 학습 주제를 선택하세요.</p>
+            </div>
+            <span className="figure text-[.75rem] font-semibold text-ink-5">대단원 {chapters.length}개</span>
+          </div>
+          <ol className="mt-4 grid gap-2 sm:grid-cols-2">
+            {chapters.map((chapter) => {
+              const topicCount = units.filter((unit) => unit.chapterOrder === chapter.order).length;
+              return (
+                <li key={chapter.order} className="flex min-h-20 items-center gap-3 rounded-[14px] border border-line bg-surface-2 px-4 py-3">
+                  <span className="figure grid size-9 shrink-0 place-items-center rounded-[11px] bg-brand-soft text-[.82rem] font-bold text-brand">{String(chapter.order).padStart(2, "0")}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-learning block text-[.9rem] font-bold leading-5 text-ink"><InlineMarkdown>{chapter.title}</InlineMarkdown></span>
+                    <span className="mt-1 block text-[.72rem] font-medium text-ink-5">{topicCount}개 학습 주제</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
+        <div className="mt-7 rounded-[15px] border border-dashed border-brand/25 bg-surface px-4 py-4 text-center">
+          <p className="font-learning text-[.9rem] font-bold text-ink">아직 선택된 학습 주제가 없어요</p>
+          <p className="mt-1 text-[.76rem] leading-5 text-ink-4">목차에서 원하는 주제를 고르면 단원 설명과 AI 질문 기능이 열립니다.</p>
+          <button type="button" onClick={onOpenCurriculum} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-[10px] bg-brand px-4 text-[.8rem] font-bold text-white shadow-[var(--lift-1)] transition hover:bg-brand-dark min-[1024px]:hidden">
+            <ListTree size={15} /> 학습 주제 선택하기
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
