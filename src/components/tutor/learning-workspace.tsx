@@ -838,7 +838,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </div>
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
-          <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
+          <div className={cn("mx-auto flex min-h-full w-full flex-col px-4 py-6 sm:px-7 sm:py-9", homeOpen ? "max-w-[72rem]" : "max-w-[45rem]")}>
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={() => setDrawerOpen(true)} />
             ) : courseOverviewOpen ? (
@@ -1387,53 +1387,104 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
     { number: "02", title: "주제 선택", description: "교과서 목차에서 지금 공부할 주제를 골라요.", icon: ListTree },
     { number: "03", title: "이해까지 질문", description: "더 쉽게, 더 깊게, 문제로 이어서 물어봐요.", icon: CircleHelp },
   ] as const;
+  const questionExamples = [
+    "이 개념을 처음 배우는 것처럼 쉬운 예시로 설명해 줘.",
+    "이 공식이 왜 성립하는지 중간 과정을 생략하지 말고 알려 줘.",
+    "내 풀이에서 틀린 부분을 찾고, 비슷한 확인 문제도 만들어 줘.",
+  ] as const;
+  const studyTips = [
+    "이해되지 않은 문장이나 풀이를 그대로 붙여 넣어도 괜찮아요.",
+    "답변이 어렵다면 ‘더 쉽게’, 이유가 궁금하면 ‘더 깊게’를 선택하세요.",
+    "다시 볼 설명은 북마크하고, 중요한 내용은 교과서와 함께 확인하세요.",
+  ] as const;
 
   return (
-    <div className="flex flex-1 flex-col justify-center py-1 sm:py-3">
-      <section className="relative overflow-hidden rounded-[24px] border border-brand/15 bg-[linear-gradient(135deg,#ffffff_0%,#f7f3ff_68%,#fff9e9_100%)] p-5 shadow-[0_20px_55px_rgba(61,44,107,.11)] sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 size-52 rounded-full border-[34px] border-brand/5" aria-hidden="true" />
-        <div className="relative grid items-center gap-6 sm:grid-cols-[1.05fr_.95fr]">
-          <div>
-            <p className="flex items-center gap-2 text-[.76rem] font-extrabold tracking-[.08em] text-brand"><Sparkles size={15} /> YOUR LEARNING, YOUR WAY</p>
-            <p className="mt-4 text-[.82rem] font-bold text-ink-3">안녕하세요, {studentName}님</p>
-            <h1 className="font-learning mt-1.5 text-balance text-[1.85rem] font-bold leading-[1.25] tracking-[-0.05em] text-ink sm:text-[2.25rem]">
-              막힌 지점에서 시작해<br /><span className="text-brand-dark">내 언어로 이해해요</span>
-            </h1>
-            <p className="mt-4 text-[.84rem] leading-6 text-ink-3">
-              LearnCraft는 학교 교육과정과 채택 교과서를 바탕으로, 이해한 지점부터 다시 설명하는 AI 학습 파트너예요.
-            </p>
-            <button type="button" onClick={onOpenCurriculum} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand px-4 text-[.84rem] font-bold text-white shadow-[0_9px_22px_rgba(98,70,204,.24)] transition hover:-translate-y-0.5 hover:bg-brand-dark min-[1024px]:hidden">
-              <BookOpen size={17} /> 학습할 과목 선택하기
-            </button>
-            <p className="mt-5 hidden items-center gap-2 text-[.78rem] font-bold text-brand-dark min-[1024px]:flex"><BookOpen size={16} /> 왼쪽에서 학습할 과목을 선택해 시작하세요.</p>
-          </div>
+    <div className="relative flex flex-1 flex-col overflow-hidden rounded-[20px] border border-line bg-[radial-gradient(circle_at_82%_12%,rgba(171,151,120,.11),transparent_24rem),radial-gradient(circle_at_68%_28%,rgba(118,95,130,.065),transparent_25rem),var(--surface)] px-5 py-8 shadow-[var(--lift-2)] sm:px-10 sm:py-11 lg:px-14 lg:py-12">
+      <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(48,42,49,.018)_1px,transparent_1px),linear-gradient(90deg,rgba(48,42,49,.018)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:linear-gradient(to_bottom,black,transparent_68%)]" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full border-[42px] border-brand/[.035]" aria-hidden="true" />
 
-          <div className="relative mx-auto w-full max-w-[20rem] overflow-hidden rounded-[20px] border border-white/90 bg-white/75 p-2 shadow-[0_20px_38px_rgba(70,47,135,.16)]">
-            <video autoPlay loop muted playsInline disablePictureInPicture preload="metadata" poster="/images/learncraft-logo-animation-poster.webp" aria-label="움직이는 LearnCraft 로고" className="aspect-video w-full rounded-[15px] object-cover motion-reduce:hidden">
-              <source src="/images/learncraft-logo-animation.mp4" type="video/mp4" />
-            </video>
-            <Image src="/images/learncraft-logo-animation-poster.webp" alt="LearnCraft" width={1280} height={720} priority className="hidden aspect-video w-full rounded-[15px] object-cover motion-reduce:block" />
+      <section className="relative grid min-h-[30rem] items-center gap-9 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+        <div className="max-w-[38rem]">
+          <p className="flex items-center gap-2 text-[.72rem] font-extrabold tracking-[.12em] text-brand"><Sparkles size={15} /> LEARNCRAFT</p>
+          <p className="mt-6 text-[.86rem] font-semibold text-ink-3">안녕하세요, {studentName}님.</p>
+          <h1 className="font-learning mt-2 break-keep text-balance text-[2.35rem] font-bold leading-[1.16] tracking-[-0.055em] text-ink sm:text-[3.1rem] lg:text-[3.55rem]">
+            모르는 지점부터,<br /><span className="text-brand-dark">내 방식으로 이해하는 학습</span>
+          </h1>
+          <p className="mt-6 max-w-[34rem] break-keep text-[.94rem] leading-7 text-ink-3 sm:text-[1.02rem] sm:leading-8">
+            학교 교육과정과 채택 교과서 안에서 질문하고, 쉬운 설명부터 원리와 문제 풀이까지 내 속도에 맞춰 이어가세요.
+          </p>
+          <button type="button" onClick={onOpenCurriculum} className="group mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-[12px] border border-brand bg-brand px-5 text-[.88rem] font-bold text-white shadow-[var(--lift-brand)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-brand-dark active:scale-[.98] min-[1024px]:hidden">
+            <BookOpen size={18} /> 학습할 과목 선택하기 <ChevronDown size={15} className="-rotate-90 transition-transform group-hover:translate-x-0.5" />
+          </button>
+          <div className="mt-7 hidden items-center gap-3 min-[1024px]:flex">
+            <span className="grid size-10 place-items-center rounded-[12px] border border-line bg-surface text-brand shadow-[var(--lift-1)]"><BookOpen size={17} /></span>
+            <p className="text-[.8rem] leading-5 text-ink-4"><strong className="block font-bold text-ink-2">왼쪽 교육과정에서 시작하세요</strong>학년과 교과를 확인한 뒤 수강 과목을 직접 선택해 주세요.</p>
           </div>
+        </div>
+
+        <div className="relative mx-auto w-full max-w-[32rem] rounded-[20px] border border-line bg-surface p-2 shadow-[var(--lift-2)]">
+          <div className="absolute inset-x-[12%] bottom-[-3%] h-[24%] rounded-[50%] bg-brand/10 blur-2xl" aria-hidden="true" />
+          <video autoPlay loop muted playsInline disablePictureInPicture preload="metadata" poster="/images/learncraft-logo-animation-poster.webp" aria-label="움직이는 LearnCraft 로고" className="relative aspect-video w-full rounded-[14px] object-cover motion-reduce:hidden">
+            <source src="/images/learncraft-logo-animation.mp4" type="video/mp4" />
+          </video>
+          <Image src="/images/learncraft-logo-animation-poster.webp" alt="LearnCraft" width={1280} height={720} priority className="relative hidden aspect-video w-full rounded-[14px] object-cover motion-reduce:block" />
+          <div className="absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3.5 py-2 text-[.7rem] font-bold text-brand-dark shadow-[var(--lift-2)]"><CheckCircle2 size={13} className="text-ok" /> 교육과정 기반 AI 튜터</div>
         </div>
       </section>
 
-      <ol className="mt-4 grid gap-2.5 sm:grid-cols-3">
-        {steps.map(({ number, title, description, icon: Icon }) => (
-          <li key={number} className="rounded-[16px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
-            <div className="flex items-center justify-between">
-              <span className="grid size-9 place-items-center rounded-[11px] bg-brand-soft text-brand-dark"><Icon size={17} /></span>
-              <span className="figure text-[.68rem] font-bold text-brand/55">STEP {number}</span>
-            </div>
-            <h2 className="font-learning mt-3 text-[.9rem] font-bold text-ink">{title}</h2>
-            <p className="mt-1 text-[.74rem] leading-5 text-ink-4">{description}</p>
-          </li>
-        ))}
-      </ol>
-
-      <div className="mt-4 flex items-start gap-2 rounded-[14px] border border-brand/10 bg-brand-page px-4 py-3 text-[.76rem] leading-5 text-ink-3">
-        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ok" />
-        <p><strong className="text-ink-2">LearnCraft를 만든 이유:</strong> 모르는 것을 편하게 묻고, 여러 설명을 거쳐 결국 자신의 말로 이해할 수 있게 돕기 위해서예요.</p>
+      <div className="relative mt-10 border-t border-line pt-8">
+        <p className="text-[.75rem] font-bold tracking-[.06em] text-ink-4">학습은 이렇게 이어져요</p>
+        <ol className="mt-5 grid gap-5 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-line">
+          {steps.map(({ number, title, description, icon: Icon }, index) => (
+            <li key={number} className={cn("flex items-start gap-3", index > 0 && "sm:pl-5", index < steps.length - 1 && "sm:pr-5")}>
+              <span className="grid size-10 shrink-0 place-items-center rounded-[12px] border border-line bg-surface-2 text-brand"><Icon size={17} /></span>
+              <span className="min-w-0">
+                <span className="figure text-[.65rem] font-bold text-brand/60">{number}</span>
+                <strong className="font-learning ml-2 text-[.9rem] font-bold text-ink">{title}</strong>
+                <span className="mt-1.5 block break-keep text-[.76rem] leading-5 text-ink-4">{description}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
+
+      <section className="relative mt-12 grid gap-4 lg:grid-cols-[1.12fr_.88fr]">
+        <div className="rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-1)] sm:p-7">
+          <p className="flex items-center gap-2 text-[.76rem] font-bold text-brand"><CircleHelp size={16} /> 무엇이든, 막힌 그대로 물어보세요</p>
+          <h2 className="font-learning mt-2 break-keep text-[1.55rem] font-bold tracking-[-0.035em] text-ink sm:text-[1.8rem]">좋은 질문을 떠올리지 못해도 괜찮아요</h2>
+          <p className="mt-2 max-w-[38rem] break-keep text-[.8rem] leading-6 text-ink-4">단원을 고르면 학습 수준에 맞는 질문을 먼저 제안해 드려요. 아래처럼 편하게 바꿔 물을 수도 있어요.</p>
+          <div className="mt-5 grid gap-2.5">
+            {questionExamples.map((question, index) => (
+              <div key={question} className="group flex items-start gap-3 rounded-[12px] border border-transparent bg-surface-2 px-4 py-3.5 transition-all duration-300 hover:border-line hover:bg-surface hover:shadow-[var(--lift-1)]">
+                <span className="figure mt-0.5 text-[.7rem] font-bold text-brand">0{index + 1}</span>
+                <p className="font-learning break-keep text-[.82rem] font-semibold leading-6 text-ink-2">“{question}”</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-line bg-brand-page p-5 sm:p-7">
+          <p className="flex items-center gap-2 text-[.76rem] font-bold text-brand"><BookmarkCheck size={16} /> 답변을 내 공부로 만드는 방법</p>
+          <h2 className="font-learning mt-2 break-keep text-[1.4rem] font-bold tracking-[-0.035em] text-ink sm:text-[1.6rem]">한 번의 답보다, 이어지는 이해</h2>
+          <ul className="mt-5 grid gap-4">
+            {studyTips.map((tip, index) => (
+              <li key={tip} className="flex items-start gap-3">
+                <span className="figure grid size-7 shrink-0 place-items-center rounded-full border border-line bg-surface text-[.68rem] font-bold text-brand shadow-[var(--lift-1)]">{index + 1}</span>
+                <p className="break-keep pt-0.5 text-[.79rem] leading-6 text-ink-3">{tip}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="relative mt-5 overflow-hidden rounded-[18px] border border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface-2))] px-5 py-7 shadow-[var(--lift-1)] sm:px-8 sm:py-8">
+        <div className="pointer-events-none absolute -right-10 -top-16 size-52 rounded-full border-[32px] border-brand/[.045]" aria-hidden="true" />
+        <div className="relative max-w-[48rem]">
+          <p className="text-[.72rem] font-bold tracking-[.1em] text-brand">WHY LEARNCRAFT</p>
+          <h2 className="font-learning mt-2 break-keep text-[1.5rem] font-bold tracking-[-0.035em] sm:text-[1.85rem]">스스로 설명할 수 있을 때, 비로소 내 지식이 됩니다.</h2>
+          <p className="mt-3 max-w-[44rem] break-keep text-[.82rem] leading-6 text-ink-3 sm:text-[.88rem]">모르는 것을 편하게 묻고, 같은 내용을 여러 방식으로 다시 듣고, 결국 자신의 말로 설명할 수 있게 하는 것. 그것이 LearnCraft를 만든 이유입니다.</p>
+        </div>
+      </section>
     </div>
   );
 }
