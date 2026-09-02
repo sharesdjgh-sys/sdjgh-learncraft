@@ -38,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
+import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
 
@@ -1288,7 +1289,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
         <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.chapterTitle} · {unit.sectionTitle}</p>
         <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark">{unit.title}</span></h2>
         <p className="mt-4 text-[.78rem] font-semibold text-ink-4">이번 단원 학습 목표</p>
-        <p className="font-learning mt-1 max-w-[40rem] text-[1rem] leading-7 text-ink-2 sm:text-[1.08rem] sm:leading-8">{unit.summary}</p>
+        <div className="font-learning mt-1 max-w-[40rem] text-[1rem] text-ink-2 sm:text-[1.08rem]"><Markdown>{unit.summary}</Markdown></div>
 
         {unit.prerequisites.length > 0 && (
           unit.subjectCode === "MATH" ? (
@@ -1368,7 +1369,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <p className="mt-2 text-[.78rem] font-semibold leading-5 text-ink-4">{unit.chapterTitle} · {unit.sectionTitle}</p>
         <div className="mt-4 border-t border-brand/10 pt-4">
           <p className="text-[.75rem] font-bold uppercase tracking-[.08em] text-brand/75">학습 목표</p>
-          <p className="font-learning mt-2 text-[.96rem] leading-7 text-ink-2">{unit.summary}</p>
+          <div className="font-learning mt-2 text-[.96rem] text-ink-2"><Markdown>{unit.summary}</Markdown></div>
         </div>
       </div>
 
@@ -1389,7 +1390,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
             <li key={point} className="grid grid-cols-[2rem_1fr] gap-3 rounded-[14px] border border-line bg-surface px-3.5 py-3.5 shadow-[var(--lift-1)]">
               <span className="figure grid size-8 place-items-center rounded-[10px] bg-brand-soft text-[.78rem] font-bold text-brand">{String(index + 1).padStart(2, "0")}</span>
               <div>
-                <p className="font-learning text-[.92rem] font-bold leading-6 text-ink">{point}</p>
+                <div className="font-learning text-[.92rem] font-bold text-ink"><Markdown>{point}</Markdown></div>
                 <p className="mt-1 text-[.78rem] leading-5 text-ink-4">{index === 0 ? "뜻과 성립 조건을 자신의 말로 설명해 보세요." : index === unit.keyPoints.length - 1 ? "문제에 적용한 뒤 결과가 조건에 맞는지 검산하세요." : "앞에서 배운 개념과 연결해 풀이 과정에 적용해 보세요."}</p>
               </div>
             </li>
@@ -1410,7 +1411,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7">
           <p className="text-[.82rem] font-bold text-ink">공식 · 원리와 쓰임</p>
           <div className="mt-3 space-y-2.5">
-            {unit.formulas.map((formula) => <div key={formula.name} className="rounded-[14px] border border-line bg-surface-2 p-4"><p className="text-[.8rem] font-bold text-brand">{formula.name}</p><div className="mt-2 overflow-x-auto text-[.82rem]"><Markdown>{`$$${formula.expression}$$`}</Markdown></div><p className="mt-2 text-[.82rem] leading-5 text-ink-3">{formula.explanation}</p></div>)}
+            {unit.formulas.map((formula) => <div key={formula.name} className="rounded-[14px] border border-line bg-surface-2 p-4"><p className="text-[.8rem] font-bold text-brand">{formula.name}</p><div className="mt-2 overflow-x-auto text-[.82rem]"><Markdown>{displayMathMarkdown(formula.expression)}</Markdown></div><div className="mt-2 text-[.82rem] text-ink-3"><Markdown>{formula.explanation}</Markdown></div></div>)}
           </div>
         </section>
       )}
@@ -1419,7 +1420,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7">
           <p className="text-[.82rem] font-bold text-ink">적용 · 예시로 연결하기</p>
           <div className="mt-3 grid gap-2.5">
-            {unit.examples.map((example) => <div key={`${example.title}-${example.body}`} className="rounded-[14px] bg-[var(--ok-page)] p-4"><p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ok"><Lightbulb size={15} />{example.title}</p><p className="mt-2 text-[.84rem] leading-6 text-[#376f63]">{example.body}</p></div>)}
+            {unit.examples.map((example) => <div key={`${example.title}-${example.body}`} className="rounded-[14px] bg-[var(--ok-page)] p-4"><p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ok"><Lightbulb size={15} />{example.title}</p><div className="mt-2 text-[.84rem] text-[#376f63]"><Markdown>{example.body}</Markdown></div></div>)}
           </div>
         </section>
       )}

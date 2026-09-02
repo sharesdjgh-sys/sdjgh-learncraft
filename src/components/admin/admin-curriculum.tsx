@@ -19,6 +19,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/ui/markdown";
+import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
 import type {
   CurriculumManagementState,
@@ -699,10 +701,10 @@ function GeneratedContentReview({
               <span className="ml-2 text-[.68rem] font-medium text-ink-5">{unit.chapterTitle}</span>
             </summary>
             <div className="mt-3 border-t border-line pt-3">
-              <p className="whitespace-pre-wrap text-[.78rem] leading-6 text-ink-3">{unit.summary}</p>
+              <div className="text-[.78rem] text-ink-3"><Markdown>{unit.summary}</Markdown></div>
               <ReviewList title="핵심 개념" items={unit.keyPoints} />
-              {unit.formulas.length > 0 && <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">수식·원리</p><div className="mt-2 space-y-2">{unit.formulas.map((formula) => <div key={`${formula.name}:${formula.expression}`} className="rounded-[8px] border border-line bg-surface px-3 py-2 text-[.72rem] leading-5"><p className="font-bold text-ink">{formula.name} · <code>{formula.expression}</code></p><p className="text-ink-4">{formula.explanation}</p></div>)}</div></div>}
-              {unit.examples.length > 0 && <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">학습 예시</p><div className="mt-2 space-y-2">{unit.examples.map((example) => <div key={example.title} className="rounded-[8px] bg-surface px-3 py-2 text-[.72rem] leading-5"><p className="font-bold text-ink">{example.title}</p><p className="whitespace-pre-wrap text-ink-4">{example.body}</p></div>)}</div></div>}
+              {unit.formulas.length > 0 && <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">수식·원리</p><div className="mt-2 space-y-2">{unit.formulas.map((formula) => <div key={`${formula.name}:${formula.expression}`} className="rounded-[8px] border border-line bg-surface px-3 py-2 text-[.72rem] leading-5"><p className="font-bold text-ink">{formula.name}</p><div className="overflow-x-auto"><Markdown>{displayMathMarkdown(formula.expression)}</Markdown></div><div className="text-ink-4"><Markdown>{formula.explanation}</Markdown></div></div>)}</div></div>}
+              {unit.examples.length > 0 && <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">학습 예시</p><div className="mt-2 space-y-2">{unit.examples.map((example) => <div key={example.title} className="rounded-[8px] bg-surface px-3 py-2 text-[.72rem] leading-5"><p className="font-bold text-ink">{example.title}</p><div className="text-ink-4"><Markdown>{example.body}</Markdown></div></div>)}</div></div>}
               <div className="grid gap-x-5 sm:grid-cols-2">
                 <ReviewList title="선수 개념" items={unit.prerequisites} />
                 <ReviewList title="자주 하는 실수" items={unit.commonMistakes} />
@@ -732,5 +734,5 @@ function GeneratedContentReview({
 
 function ReviewList({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
-  return <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">{title}</p><ul className="mt-1.5 space-y-1 text-[.72rem] leading-5 text-ink-4">{items.map((item) => <li key={item}>· {item}</li>)}</ul></div>;
+  return <div className="mt-4"><p className="text-[.7rem] font-extrabold text-ink">{title}</p><ul className="mt-1.5 space-y-1 text-[.72rem] leading-5 text-ink-4">{items.map((item) => <li key={item} className="grid grid-cols-[auto_1fr] gap-1"><span>·</span><Markdown>{item}</Markdown></li>)}</ul></div>;
 }

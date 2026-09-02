@@ -360,8 +360,17 @@ function singleDollarIndexes(value: string) {
  * emits the closing dollar without its opening pair on the next line.
  */
 function normalizeBrokenLineMath(value: string) {
+  let insideDisplayMath = false;
+
   return value.split(/(\r?\n)/).map((line) => {
-    if (line === "\n" || line === "\r\n" || line.includes("$$")) return line;
+    if (line === "\n" || line === "\r\n") return line;
+
+    const displayDelimiterCount = line.match(/(?<!\\)\$\$/g)?.length ?? 0;
+    if (insideDisplayMath || displayDelimiterCount > 0) {
+      if (displayDelimiterCount % 2 === 1) insideDisplayMath = !insideDisplayMath;
+      return line;
+    }
+
     let repaired = line;
 
     repaired = repaired.replace(

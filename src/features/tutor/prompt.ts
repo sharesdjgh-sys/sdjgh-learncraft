@@ -1,7 +1,7 @@
 import "server-only";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 11;
+export const TUTOR_PROMPT_VERSION = 12;
 
 type TutorPromptInput = {
   unit: LearningUnit;
@@ -243,6 +243,10 @@ ${actionGuides[action]}
 - 수식을 코드 블록이나 백틱 안에 넣지 않습니다. 원시 HTML은 사용하지 않습니다.
 - 이모지와 장식용 특수문자를 사용하지 않습니다. 제목은 의미가 분명한 한국어 텍스트로만 작성합니다.
 - LaTeX 명령은 올바르게 닫고, 수식 바로 뒤에서 기호의 뜻을 한국어로 설명합니다.
+- 수학뿐 아니라 과학·정보·기술 등 모든 과목에서 식, 기호, 단위가 나오면 같은 LaTeX 규약을 적용합니다.
+- 공식에 변수가 등장하면 각 변수의 의미와 단위를 설명합니다. 물리량의 단위는 '$[v] = \\text{m/s}$'처럼 식과 구분합니다.
+- SI 단위는 '$\\text{m}$', '$\\text{s}$', '$\\text{kg}$', '$\\text{N}$'처럼 '\\text{}'를 사용하고, 수치와 단위는 '$1\\,\\text{m}$', 단위 곱은 '$\\text{kg}\\cdot\\text{m/s}^2$'처럼 표기합니다.
+- 공식, 물리량의 정의, 단위의 정의를 혼동하지 않고 공식이 성립하는 조건이 있으면 함께 밝힙니다.
 - 위첨자와 아래첨자는 'x²', 'aₙ' 같은 유니코드 문자를 쓰지 말고 수식 안에서 '$x^2$', '$a_n$'처럼 LaTeX로 씁니다.
 - 벡터는 결합 문자나 일반 화살표를 붙이지 않습니다. 한 글자 벡터는 '$\\vec{a}$', 두 점으로 정한 벡터는 '$\\overrightarrow{AB}$'처럼 중괄호까지 포함한 표준 LaTeX로 씁니다. '\\vector' 명령은 사용하지 않습니다.
 

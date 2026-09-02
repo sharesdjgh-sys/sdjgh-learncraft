@@ -4,7 +4,46 @@ import { renderToStaticMarkup } from "react-dom/server";
 import katex from "katex";
 import { Markdown, normalizeMathDelimiters } from "../src/components/ui/markdown";
 import { mathLearningUnits } from "../src/data/math-curriculum";
-import { compactMathScripts } from "../src/lib/math-notation";
+import { compactMathScripts, displayMathMarkdown } from "../src/lib/math-notation";
+
+assert.equal(displayMathMarkdown(String.raw`d=c\times t`), "$$\nd=c\\times t\n$$");
+assert.equal(displayMathMarkdown(String.raw`$$v=\frac{d}{t}$$`), "$$\nv=\\frac{d}{t}\n$$");
+assert.equal(displayMathMarkdown(String.raw`\[F=ma\]`), "$$\nF=ma\n$$");
+
+const generatedFormulaCases = [
+  {
+    name: "다항식의 나눗셈",
+    expression: String.raw`P(x)=A(x)Q(x)+R(x)`,
+    explanation: "나머지의 차수는 나누는 다항식의 차수보다 작습니다.",
+  },
+  {
+    name: "빛의 속도와 거리의 관계",
+    expression: String.raw`$$d = c \times t$$`,
+    explanation: "거리 $d$는 진공에서의 빛의 속도 $c$와 빛이 이동한 시간 $t$의 곱으로 정의됩니다.",
+  },
+] as const;
+
+for (const formula of generatedFormulaCases) {
+  const expressionHtml = renderToStaticMarkup(createElement(Markdown, {
+    children: displayMathMarkdown(formula.expression),
+  }));
+  const explanationHtml = renderToStaticMarkup(createElement(Markdown, {
+    children: formula.explanation,
+  }));
+
+  assert.equal(
+    (expressionHtml.match(/class="katex-display"/g) ?? []).length,
+    1,
+    `${formula.name}: 블록 수식으로 렌더링되지 않았습니다.`,
+  );
+  assert.doesNotMatch(expressionHtml, /\$\$/, `${formula.name}: 수식 구분자가 화면에 남았습니다.`);
+  if (formula.explanation.includes("$")) {
+    assert.ok(
+      (explanationHtml.match(/class="katex"/g) ?? []).length >= 3,
+      `${formula.name}: 설명의 인라인 수식이 렌더링되지 않았습니다.`,
+    );
+  }
+}
 
 const normalizationCases = [
   ["x², aₙ, v⃗", String.raw`$x^{\scriptscriptstyle 2}$, $a_{\scriptscriptstyle n}$, $\vec{v}$`],

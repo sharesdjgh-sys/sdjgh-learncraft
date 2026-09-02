@@ -87,3 +87,12 @@ export function compactDollarMath(markdown: string) {
 
   return output + markdown.slice(textStart);
 }
+
+/** Wrap a stored raw TeX expression as display math without duplicating delimiters. */
+export function displayMathMarkdown(expression: string) {
+  let value = expression.trim();
+  if (value.startsWith("$$") && value.endsWith("$$")) value = value.slice(2, -2).trim();
+  else if (value.startsWith("\\[") && value.endsWith("\\]")) value = value.slice(2, -2).trim();
+  else if (value.startsWith("$") && value.endsWith("$")) value = value.slice(1, -1).trim();
+  return `$$\n${value}\n$$`;
+}
