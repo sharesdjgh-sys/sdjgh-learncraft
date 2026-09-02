@@ -52,6 +52,14 @@ const inlineSubjectHtml = renderToStaticMarkup(createElement(InlineMarkdown, {
 assert.match(inlineSubjectHtml, /<strong[^>]*>눈·귀·피부\(오감\)<\/strong>/, "강조 문법이 렌더링되지 않았습니다.");
 assert.doesNotMatch(inlineSubjectHtml, /\*\*/, "마크다운 강조 기호가 화면에 남았습니다.");
 
+const generatedScienceExplanation = String.raw`초기 속도가 $0\,\text{m/s}$일 때 낙하 거리 $s$([$s$] = \text{m})와 시간 $t$([$t$] = \text{s})의 관계를 나타내며, $g$는 중력 가속도([$g$] = \text{m/s}^2, 약 $9.8\,\text{m/s}^2$)입니다.`;
+const normalizedScienceExplanation = normalizeMathDelimiters(generatedScienceExplanation);
+assert.match(normalizedScienceExplanation, /\$\[s\] = \\text\{m\}\$/, "거리의 단위식 전체가 인라인 수식이어야 합니다.");
+assert.match(normalizedScienceExplanation, /\$\[t\] = \\text\{s\}\$/, "시간의 단위식 전체가 인라인 수식이어야 합니다.");
+assert.match(normalizedScienceExplanation, /\$\[g\] = \\text\{m\/s\}\^\{\\scriptscriptstyle 2\}\$/, "가속도의 단위식 전체가 인라인 수식이어야 합니다.");
+const generatedScienceHtml = renderToStaticMarkup(createElement(Markdown, { children: generatedScienceExplanation }));
+assert.doesNotMatch(generatedScienceHtml, /katex-error/, "과학 단위식에 KaTeX 오류가 없어야 합니다.");
+
 const normalizationCases = [
   ["x², aₙ, v⃗", String.raw`$x^{\scriptscriptstyle 2}$, $a_{\scriptscriptstyle n}$, $\vec{v}$`],
   ["log₃ 81", String.raw`$\log_{\scriptscriptstyle 3}$ 81`],

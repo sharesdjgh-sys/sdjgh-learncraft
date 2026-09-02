@@ -236,7 +236,8 @@ function normalizePlainMath(value: string) {
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
     (match, expression: string) => expression.trim() ? `$${expression.trim()}$` : match,
   );
-  const escapedStrongNormalized = normalizeEscapedStrongMarkers(texInlineDelimiterNormalized);
+  const dimensionalUnitsNormalized = normalizeDimensionalUnits(texInlineDelimiterNormalized);
+  const escapedStrongNormalized = normalizeEscapedStrongMarkers(dimensionalUnitsNormalized);
   const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
   const brokenLineMathNormalized = normalizeBrokenLineMath(emphasisNormalized);
   const adjacentMathNormalized = normalizeAdjacentDollarMath(brokenLineMathNormalized);
@@ -262,6 +263,22 @@ function normalizePlainMath(value: string) {
 
   const looseMathNormalized = normalizeLooseMathNotation(texInlineMathNormalized);
   return compactDollarMath(separateKoreanFromDollarMath(looseMathNormalized));
+}
+
+/**
+ * Generated science content may delimit only the symbol inside a dimensional
+ * expression, for example `[$s$] = \text{m}`. Treat the complete dimension as
+ * one inline equation so brackets, equality, and units do not render as
+ * disconnected prose fragments.
+ */
+function normalizeDimensionalUnits(value: string) {
+  return value.replace(
+    /\[\s*(?:\$([^$\r\n]+)\$|([A-Za-zΑ-Ωα-ω][A-Za-z0-9_]*))\s*\]\s*=\s*(\\text\{[^{}\r\n]+\}(?:\s*\^\s*(?:\{[^{}\r\n]+\}|[-+]?\d+))?)/g,
+    (match, delimitedSymbol: string | undefined, plainSymbol: string | undefined, unit: string) => {
+      const symbol = delimitedSymbol ?? plainSymbol;
+      return symbol ? `$[${symbol.trim()}] = ${unit.trim()}$` : match;
+    },
+  );
 }
 
 function repairKoreanInsideMath(expression: string, delimiter: "$" | "$$") {

@@ -51,6 +51,19 @@ type GeneratedContentDetail = {
   error?: { message?: string };
 };
 
+type BatchGenerationFailure = {
+  courseTitle: string;
+  message: string;
+};
+
+type BatchGenerationProgress = {
+  completed: number;
+  total: number;
+  currentTitle: string;
+  successCount: number;
+  failures: BatchGenerationFailure[];
+};
+
 const subjectCodeMap: Record<string, string> = {
   국어: "KOREAN",
   영어: "ENGLISH",
@@ -100,6 +113,10 @@ export function AdminCurriculum() {
   const [creatingReviewDraft, setCreatingReviewDraft] = useState(false);
   const [generatingOfferingId, setGeneratingOfferingId] = useState<string | null>(null);
   const [generationTarget, setGenerationTarget] = useState<CurriculumOffering | null>(null);
+  const [batchGenerationOpen, setBatchGenerationOpen] = useState(false);
+  const [batchGenerationItems, setBatchGenerationItems] = useState<CurriculumOffering[]>([]);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchGenerationProgress | null>(null);
   const [contentPublishing, setContentPublishing] = useState(false);
   const [contentDetail, setContentDetail] = useState<GeneratedContentDetail | null>(null);
   const [message, setMessage] = useState("");
@@ -142,6 +159,10 @@ export function AdminCurriculum() {
   const editable = selectedVersion?.status === "DRAFT";
   const dirty = JSON.stringify(items) !== JSON.stringify(savedItems);
   const selectedItems = useMemo(() => items.filter((item) => item.enabled), [items]);
+  const batchGenerationCandidates = useMemo(
+    () => selectedItems.filter((item) => !item.contentCourseCode && !item.generatedContent),
+    [selectedItems],
+  );
   const contentReadyCount = selectedItems.filter((item) => item.contentCourseCode).length;
   const contentDraftCount = selectedItems.filter((item) => !item.contentCourseCode && item.generatedContent).length;
   const contentRemainingCount = selectedItems.filter((item) => !item.contentCourseCode && !item.generatedContent).length;
@@ -249,10 +270,10 @@ export function AdminCurriculum() {
       if (!response.ok) throw new Error(stateError(data, "교육과정 초안을 저장하지 못했습니다."));
       applyState(data, { grade, subjectCode });
       if (showMessage) setMessage("검토한 교육과정 초안을 저장했습니다.");
-      return true;
+      return data;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "교육과정 초안을 저장하지 못했습니다.");
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -342,6 +363,90 @@ export function AdminCurriculum() {
       setError(reason instanceof Error ? reason.message : "AI 콘텐츠를 만들지 못했습니다.");
     } finally {
       setGeneratingOfferingId(null);
+    }
+  }
+
+  async function generateSelectedContent() {
+    if (!selectedVersion || !editable || batchGenerating) return;
+    setBatchGenerating(true);
+    clearNotice();
+    setContentDetail(null);
+
+    try {
+      let sourceItems = items;
+      if (dirty) {
+        const savedState = await saveDraft(false);
+        if (!savedState) return;
+        sourceItems = savedState.selectedVersion?.items ?? [];
+      }
+
+      const targets = sourceItems.filter((item) => (
+        item.enabled
+        && item.id
+        && !item.contentCourseCode
+        && !item.generatedContent
+      ));
+      if (targets.length === 0) {
+        setBatchGenerationOpen(false);
+        setBatchGenerationItems([]);
+        setBatchProgress(null);
+        setMessage("일괄 생성할 과목이 없습니다. 선택 과목의 콘텐츠 상태를 확인해 주세요.");
+        return;
+      }
+
+      let successCount = 0;
+      const failures: BatchGenerationFailure[] = [];
+      setBatchProgress({ completed: 0, total: targets.length, currentTitle: targets[0].courseTitle, successCount: 0, failures: [] });
+
+      for (const [index, item] of targets.entries()) {
+        setGeneratingOfferingId(item.id!);
+        setBatchProgress({
+          completed: index,
+          total: targets.length,
+          currentTitle: item.courseTitle,
+          successCount,
+          failures: [...failures],
+        });
+
+        try {
+          const response = await fetch(
+            `/api/admin/curriculum/content/${encodeURIComponent(item.id!)}/generate`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refreshSources: false }),
+            },
+          );
+          const data = await response.json() as GeneratedContentDetail;
+          if (!response.ok) throw new Error(data.error?.message ?? "AI 콘텐츠를 만들지 못했습니다.");
+          successCount += 1;
+        } catch (reason) {
+          failures.push({
+            courseTitle: item.courseTitle,
+            message: reason instanceof Error ? reason.message : "AI 콘텐츠를 만들지 못했습니다.",
+          });
+        }
+
+        setBatchProgress({
+          completed: index + 1,
+          total: targets.length,
+          currentTitle: index + 1 < targets.length ? targets[index + 1].courseTitle : "",
+          successCount,
+          failures: [...failures],
+        });
+      }
+
+      await refreshVersion(selectedVersion.id, { grade, subjectCode });
+      if (failures.length === 0) {
+        setMessage(`선택한 ${successCount}개 과목의 단원 학습자료 초안을 모두 만들었습니다.`);
+      } else {
+        setError(`${successCount}개 과목 생성 완료 · ${failures.length}개 과목 생성 실패`);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "일괄 생성을 마치지 못했습니다.");
+    } finally {
+      setGeneratingOfferingId(null);
+      setBatchGenerating(false);
     }
   }
 
@@ -478,7 +583,27 @@ export function AdminCurriculum() {
                 <p className="mt-1 max-w-3xl text-[.76rem] leading-5 text-ink-4">AI가 과목별 단원 목차, 핵심 개념, 수식·예시, 선수 개념, 추천 질문과 튜터 지침을 초안으로 만듭니다. 관리자가 내용을 확인하고 교육과정을 최종 공개하기 전까지 학생에게는 보이지 않습니다.</p>
               </div>
               {editable ? (
-                selectedItems.length === 0 ? <span className="rounded-[9px] bg-surface px-3 py-2 text-[.7rem] font-bold text-ink-4">운영 과목을 먼저 선택해 주세요</span> : contentReadyCount < selectedItems.length ? <Button onClick={focusContentWork} style={{ backgroundColor: "#6d4ed8", borderColor: "#6d4ed8", color: "#ffffff" }} className="!text-white shadow-[0_8px_22px_rgba(78,53,170,.24)] hover:!bg-[#5637c8] hover:!text-white"><WandSparkles size={15} />콘텐츠 작업 시작</Button> : <span className="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[var(--ok-page)] px-3.5 text-[.72rem] font-bold text-ok"><CheckCircle2 size={15} />최종 공개 준비 완료</span>
+                selectedItems.length === 0 ? (
+                  <span className="rounded-[9px] bg-surface px-3 py-2 text-[.7rem] font-bold text-ink-4">운영 과목을 먼저 선택해 주세요</span>
+                ) : batchGenerationCandidates.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={focusContentWork}>개별 작업 보기</Button>
+                    <Button
+                      onClick={() => {
+                        setBatchGenerationItems(batchGenerationCandidates);
+                        setBatchProgress(null);
+                        setBatchGenerationOpen(true);
+                      }}
+                      disabled={batchGenerating || generatingOfferingId !== null}
+                    >
+                      <WandSparkles size={15} />선택 과목 {batchGenerationCandidates.length}개 일괄 생성
+                    </Button>
+                  </div>
+                ) : contentReadyCount < selectedItems.length ? (
+                  <Button onClick={focusContentWork}><FileCheck2 size={15} />생성 초안 검토하기</Button>
+                ) : (
+                  <span className="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[var(--ok-page)] px-3.5 text-[.72rem] font-bold text-ok"><CheckCircle2 size={15} />최종 공개 준비 완료</span>
+                )
               ) : <Button variant="secondary" onClick={() => void createReviewDraft()} disabled={creatingReviewDraft}>{creatingReviewDraft ? <LoaderCircle size={15} className="animate-spin" /> : <FileCheck2 size={15} />}{creatingReviewDraft ? "검토본 만드는 중" : "수정용 검토본 만들기"}</Button>}
             </div>
             <div className="grid divide-y divide-brand/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -598,7 +723,113 @@ export function AdminCurriculum() {
           onConfirm={() => void generateContent(generationTarget)}
         />
       )}
+      {batchGenerationOpen && (
+        <BatchGenerationDialog
+          items={batchGenerationItems}
+          running={batchGenerating}
+          progress={batchProgress}
+          onClose={() => {
+            if (batchGenerating) return;
+            setBatchGenerationOpen(false);
+            setBatchGenerationItems([]);
+            setBatchProgress(null);
+          }}
+          onConfirm={() => void generateSelectedContent()}
+        />
+      )}
     </>
+  );
+}
+
+function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }: {
+  items: CurriculumOffering[];
+  running: boolean;
+  progress: BatchGenerationProgress | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const finished = Boolean(progress && progress.total > 0 && progress.completed === progress.total);
+  const progressPercent = progress?.total ? Math.round((progress.completed / progress.total) * 100) : 0;
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !running) onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, running]);
+
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(31,24,52,.34)] p-4 backdrop-blur-[3px]" onMouseDown={() => { if (!running) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="batch-generation-dialog-title" onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-[36rem] overflow-hidden rounded-[22px] border border-white/80 bg-surface shadow-[0_28px_80px_rgba(43,31,79,.3)]">
+        <div className="flex items-start justify-between gap-4 border-b border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] px-6 py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-brand text-white shadow-[var(--lift-brand)]"><WandSparkles size={21} /></span>
+            <div className="min-w-0">
+              <p className="text-[.7rem] font-bold text-brand">AI 학습자료 일괄 생성</p>
+              <h2 id="batch-generation-dialog-title" className="mt-1 text-lg font-extrabold tracking-[-0.025em]">선택한 {items.length}개 과목의 초안을 만들까요?</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} disabled={running} className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink disabled:opacity-35" aria-label="팝업 닫기"><X size={17} /></button>
+        </div>
+
+        <div className="px-6 py-5">
+          {progress ? (
+            <div>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[.76rem] font-bold text-ink">{finished ? "일괄 생성이 끝났습니다" : `${progress.currentTitle} 생성 중`}</p>
+                  <p className="mt-1 text-[.7rem] text-ink-4">성공 {progress.successCount}개 · 실패 {progress.failures.length}개</p>
+                </div>
+                <span className="figure text-[.78rem] font-bold text-brand">{progress.completed}/{progress.total}</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3">
+                <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${progressPercent}%` }} />
+              </div>
+              {progress.failures.length > 0 && (
+                <div className="mt-4 max-h-36 overflow-y-auto rounded-[11px] border border-[var(--danger)]/15 bg-[var(--danger-page)] px-3.5 py-3">
+                  <p className="text-[.7rem] font-bold text-danger">생성하지 못한 과목</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {progress.failures.map((failure) => <li key={failure.courseTitle} className="text-[.68rem] leading-5 text-ink-3"><strong className="text-ink-2">{failure.courseTitle}</strong> · {failure.message}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-[.82rem] leading-6 text-ink-3">아직 학습자료가 없는 운영 과목을 순서대로 생성합니다. 기존 초안과 공개 콘텐츠는 변경하지 않습니다.</p>
+              <div className="mt-4 max-h-48 overflow-y-auto rounded-[12px] border border-line bg-surface-2 p-2">
+                {items.map((item, index) => (
+                  <div key={item.rowKey} className="flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[.76rem]">
+                    <span className="figure text-[.68rem] font-bold text-brand">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1 truncate font-bold text-ink">{item.courseTitle}</span>
+                    <span className="shrink-0 text-[.68rem] text-ink-4">{item.grade}학년 · {item.publisherName || "출판사 미입력"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[11px] border border-line bg-surface px-4 py-3">
+                <p className="flex items-center gap-1.5 text-[.72rem] font-bold text-ink"><CheckCircle2 size={14} className="text-ok" />한 과목이 실패해도 다음 과목을 계속 생성합니다</p>
+                <p className="mt-1 text-[.7rem] leading-5 text-ink-4">작업 중에는 이 창과 브라우저를 닫지 마세요. 생성된 초안은 과목별로 검토한 뒤 공개할 수 있습니다.</p>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-line bg-surface-2 px-6 py-4">
+          {finished ? (
+            <Button type="button" onClick={onClose}>확인</Button>
+          ) : (
+            <>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={running}>취소</Button>
+              <Button type="button" onClick={onConfirm} disabled={running || items.length === 0}>
+                {running ? <LoaderCircle size={15} className="animate-spin" /> : <WandSparkles size={15} />}
+                {running ? "순서대로 생성 중" : `${items.length}개 과목 생성 시작`}
+              </Button>
+            </>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
