@@ -1399,10 +1399,7 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
   ] as const;
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden rounded-[20px] border border-line bg-[radial-gradient(circle_at_82%_12%,rgba(171,151,120,.11),transparent_24rem),radial-gradient(circle_at_68%_28%,rgba(118,95,130,.065),transparent_25rem),var(--surface)] px-5 py-8 shadow-[var(--lift-2)] sm:px-10 sm:py-11 lg:px-14 lg:py-12">
-      <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(48,42,49,.018)_1px,transparent_1px),linear-gradient(90deg,rgba(48,42,49,.018)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:linear-gradient(to_bottom,black,transparent_68%)]" aria-hidden="true" />
-      <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full border-[42px] border-brand/[.035]" aria-hidden="true" />
-
+    <div className="relative flex flex-1 flex-col py-2 sm:py-4">
       <section className="relative grid min-h-[30rem] items-center gap-9 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
         <div className="max-w-[38rem]">
           <p className="flex items-center gap-2 text-[.72rem] font-extrabold tracking-[.12em] text-brand"><Sparkles size={15} /> LEARNCRAFT</p>
