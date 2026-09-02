@@ -777,11 +777,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                       </div>
                     ) : (
                       <div className="w-full">
-                        <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
-                          <span className="h-4 w-[3px] rounded-full bg-brand" />
-                          <span className="text-[.86rem] font-bold text-ink">LearnCraft 튜터</span>
-                          <span className="text-[.82rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · {selectedUnit.publisherName} 기준</span>
-                          {!message.completed && message.content && <span className="text-[.82rem] font-medium text-ink-4">답변 작성 중</span>}
+                        <div className="mb-4 flex items-center gap-3">
+                          <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-brand/15 bg-[linear-gradient(145deg,#ffffff_0%,#f2edff_100%)] shadow-[0_6px_16px_rgba(82,57,157,.14)]" aria-hidden="true">
+                            <Image src="/images/learncraft-tutor-avatar.png" alt="" width={420} height={418} className="size-[2.65rem] object-contain drop-shadow-[0_2px_4px_rgba(70,42,170,.18)]" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-[.88rem] font-extrabold text-ink">LearnCraft 튜터</span>
+                              <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[.67rem] font-bold text-brand-dark">AI 학습 파트너</span>
+                              {!message.completed && message.content && <span className="text-[.76rem] font-semibold text-brand">답변 작성 중</span>}
+                            </div>
+                            <p className="mt-0.5 truncate text-[.78rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · {selectedUnit.publisherName} 기준</p>
+                          </div>
                         </div>
                         <div>
                           {message.content ? <Markdown>{message.content}</Markdown> : <Thinking />}
