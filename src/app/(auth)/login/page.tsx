@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { BookOpenCheck, BrainCircuit, Route } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { getSampleStudentAccountPreviews, getSession } from "@/lib/auth";
+import {
+  getSampleStudentAccountPreviews,
+  getSession,
+  isLocalAdminLoginAvailable,
+} from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "로그인" };
@@ -41,7 +45,10 @@ export default async function LoginPage() {
             <h2 className="font-learning mt-4 text-[2rem] font-bold tracking-[-0.045em] text-ink sm:text-[2.3rem]">학습 공간에 로그인</h2>
             <p className="mt-2 max-w-[28rem] text-[.9rem] leading-6 text-ink-3">학교에서 받은 학번과 비밀번호를 입력해 주세요. 관리자 계정도 같은 방식으로 로그인합니다.</p>
 
-            <LoginForm sampleAccounts={getSampleStudentAccountPreviews()} />
+            <LoginForm
+              sampleAccounts={getSampleStudentAccountPreviews()}
+              showLocalAdminLogin={isLocalAdminLoginAvailable()}
+            />
           </div>
         </section>
       </div>

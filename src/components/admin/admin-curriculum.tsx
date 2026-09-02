@@ -105,16 +105,25 @@ export function AdminCurriculum() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  function applyState(next: CurriculumManagementState) {
+  function applyState(
+    next: CurriculumManagementState,
+    preferredSelection?: { grade: 1 | 2 | 3; subjectCode: string },
+  ) {
     setState(next);
     const nextItems = next.selectedVersion?.items ?? [];
     setItems(nextItems);
     setSavedItems(nextItems);
     if (next.selectedVersion) setAcademicYear(next.selectedVersion.academicYear);
-    const first = nextItems[0];
-    if (first) {
-      setGrade(first.grade);
-      setSubjectCode(first.subjectCode);
+    const selected = preferredSelection
+      ? nextItems.find((item) => (
+        item.grade === preferredSelection.grade
+        && item.subjectCode === preferredSelection.subjectCode
+      ))
+      : null;
+    const fallback = selected ?? nextItems[0];
+    if (fallback) {
+      setGrade(fallback.grade);
+      setSubjectCode(fallback.subjectCode);
     }
   }
 
@@ -193,11 +202,14 @@ export function AdminCurriculum() {
     }
   }
 
-  async function refreshVersion(versionId: string) {
+  async function refreshVersion(
+    versionId: string,
+    preferredSelection = { grade, subjectCode },
+  ) {
     const response = await fetch(`/api/admin/curriculum?versionId=${encodeURIComponent(versionId)}`);
     const data = await response.json() as ApiResponse;
     if (!response.ok) throw new Error(stateError(data, "교육과정 정보를 새로 불러오지 못했습니다."));
-    applyState(data);
+    applyState(data, preferredSelection);
   }
 
   async function upload(file: File) {
@@ -235,7 +247,7 @@ export function AdminCurriculum() {
       });
       const data = await response.json() as ApiResponse;
       if (!response.ok) throw new Error(stateError(data, "교육과정 초안을 저장하지 못했습니다."));
-      applyState(data);
+      applyState(data, { grade, subjectCode });
       if (showMessage) setMessage("검토한 교육과정 초안을 저장했습니다.");
       return true;
     } catch (reason) {
@@ -259,7 +271,7 @@ export function AdminCurriculum() {
       );
       const data = await response.json() as ApiResponse;
       if (!response.ok) throw new Error(stateError(data, "교육과정을 공개하지 못했습니다."));
-      applyState(data);
+      applyState(data, { grade, subjectCode });
       setMessage("교육과정을 공개했습니다. 학생의 다음 학습 화면부터 반영됩니다.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "교육과정을 공개하지 못했습니다.");
@@ -280,7 +292,7 @@ export function AdminCurriculum() {
       );
       const data = await response.json() as ApiResponse;
       if (!response.ok) throw new Error(stateError(data, "수정용 검토본을 만들지 못했습니다."));
-      applyState(data);
+      applyState(data, { grade, subjectCode });
       setOnlySelected(false);
       setOnlyNeedsContent(false);
       setMessage("수정용 검토본을 열었습니다. 과목을 선택하거나 해제한 뒤 콘텐츠를 준비해 주세요.");
@@ -321,7 +333,10 @@ export function AdminCurriculum() {
       const data = await response.json() as GeneratedContentDetail;
       if (!response.ok) throw new Error(data.error?.message ?? "AI 콘텐츠를 만들지 못했습니다.");
       setContentDetail(data);
-      await refreshVersion(selectedVersion.id);
+      await refreshVersion(selectedVersion.id, {
+        grade: item.grade,
+        subjectCode: item.subjectCode,
+      });
       setMessage(`${data.units.length}개 단원 초안을 만들었습니다. 내용을 확인한 뒤 콘텐츠를 공개해 주세요.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "AI 콘텐츠를 만들지 못했습니다.");
@@ -356,7 +371,11 @@ export function AdminCurriculum() {
       const data = await response.json() as GeneratedContentDetail;
       if (!response.ok) throw new Error(data.error?.message ?? "AI 콘텐츠를 공개하지 못했습니다.");
       setContentDetail(data);
-      await refreshVersion(selectedVersion.id);
+      const item = items.find((entry) => entry.id === contentDetail.offeringId);
+      await refreshVersion(selectedVersion.id, item ? {
+        grade: item.grade,
+        subjectCode: item.subjectCode,
+      } : undefined);
       setMessage("AI 콘텐츠를 공개하고 학교 과목에 연결했습니다.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "AI 콘텐츠를 공개하지 못했습니다.");
@@ -545,7 +564,7 @@ export function AdminCurriculum() {
                         </div>
                       </article>
                     ))}
-                    {contentDetail && (
+                    {contentDetail && visibleItems.some((item) => item.id === contentDetail.offeringId) && (
                       <GeneratedContentReview
                         content={contentDetail}
                         publishing={contentPublishing}

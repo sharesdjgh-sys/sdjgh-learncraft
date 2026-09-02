@@ -30,6 +30,10 @@ export function isDevLoginAvailable() {
   return env.AUTH_DEV_LOGIN_ENABLED === "true" && process.env.VERCEL_ENV !== "production";
 }
 
+export function isLocalAdminLoginAvailable() {
+  return isDevLoginAvailable() && process.env.NODE_ENV === "development";
+}
+
 type LoginCredential = {
   loginId: string;
   password: string;
@@ -139,6 +143,12 @@ export async function createSession(user: SessionUser) {
     path: "/",
     maxAge: 60 * 60 * 12,
   });
+}
+
+export async function createLocalAdminSession() {
+  if (!isLocalAdminLoginAvailable()) return false;
+  await createSession(adminUser);
+  return true;
 }
 
 export async function clearSession() {

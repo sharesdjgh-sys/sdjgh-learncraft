@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   LoaderCircle,
+  ShieldCheck,
 } from "lucide-react";
 
 type LoginResponse = {
@@ -16,12 +17,18 @@ type LoginResponse = {
 
 type SampleAccountPreview = { loginId: string; name: string };
 
-export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPreview[] }) {
+export function LoginForm({
+  sampleAccounts,
+  showLocalAdminLogin,
+}: {
+  sampleAccounts: SampleAccountPreview[];
+  showLocalAdminLogin: boolean;
+}) {
   const router = useRouter();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState<"learn" | "admin" | null>(null);
+  const [loading, setLoading] = useState<"learn" | "admin" | "local-admin" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -44,6 +51,29 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
 
       if (!response.ok || !data.redirectTo) {
         setError(data.error?.message ?? "로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        setLoading(null);
+        return;
+      }
+
+      router.push(data.redirectTo);
+      router.refresh();
+    } catch {
+      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      setLoading(null);
+    }
+  }
+
+  async function loginAsLocalAdmin() {
+    setLoading("local-admin");
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch("/api/auth/dev-login", { method: "POST" });
+      const data = (await response.json().catch(() => ({}))) as LoginResponse;
+
+      if (!response.ok || !data.redirectTo) {
+        setError(data.error?.message ?? "관리자 샘플 로그인에 실패했습니다.");
         setLoading(null);
         return;
       }
@@ -133,6 +163,18 @@ export function LoginForm({ sampleAccounts }: { sampleAccounts: SampleAccountPre
         {loading === "learn" ? <LoaderCircle className="animate-spin" size={21} /> : <ArrowRight size={21} className="transition-transform group-hover:translate-x-0.5" />}
         학습 시작하기
       </button>
+
+      {showLocalAdminLogin && (
+        <button
+          type="button"
+          onClick={loginAsLocalAdmin}
+          disabled={Boolean(loading)}
+          className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[12px] border border-brand/20 bg-brand-pale px-5 text-[.9rem] font-bold text-brand-dark transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/35 hover:bg-brand-soft active:scale-[.985] disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none"
+        >
+          {loading === "local-admin" ? <LoaderCircle className="animate-spin" size={19} /> : <ShieldCheck size={19} />}
+          관리자 샘플 로그인
+        </button>
+      )}
 
       {sampleAccounts.length > 0 && (
         <div className="mt-5 rounded-[13px] border border-line bg-surface-2 p-3.5">
