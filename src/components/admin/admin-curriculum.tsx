@@ -64,6 +64,17 @@ type BatchGenerationProgress = {
   failures: BatchGenerationFailure[];
 };
 
+type ConfirmationDialogState = {
+  tone: "brand" | "warning";
+  icon: "publish" | "draft" | "replace" | "leave";
+  eyebrow: string;
+  title: string;
+  description: string;
+  note?: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+};
+
 const subjectCodeMap: Record<string, string> = {
   국어: "KOREAN",
   영어: "ENGLISH",
@@ -119,6 +130,7 @@ export function AdminCurriculum() {
   const [batchProgress, setBatchProgress] = useState<BatchGenerationProgress | null>(null);
   const [contentPublishing, setContentPublishing] = useState(false);
   const [contentDetail, setContentDetail] = useState<GeneratedContentDetail | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -207,8 +219,7 @@ export function AdminCurriculum() {
     document.getElementById("curriculum-course-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function chooseVersion(versionId: string) {
-    if (dirty && !window.confirm("저장하지 않은 변경사항이 있습니다. 다른 버전으로 이동할까요?")) return;
+  async function loadVersion(versionId: string) {
     setLoading(true);
     clearNotice();
     try {
@@ -221,6 +232,23 @@ export function AdminCurriculum() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function chooseVersion(versionId: string) {
+    if (!dirty) {
+      void loadVersion(versionId);
+      return;
+    }
+    setConfirmation({
+      tone: "warning",
+      icon: "leave",
+      eyebrow: "저장하지 않은 변경사항",
+      title: "다른 버전으로 이동할까요?",
+      description: "현재 검토 중인 수정 내용은 저장되지 않고 사라집니다.",
+      note: "변경사항을 유지하려면 취소한 뒤 먼저 ‘초안 저장’을 눌러 주세요.",
+      confirmLabel: "저장하지 않고 이동",
+      onConfirm: () => void loadVersion(versionId),
+    });
   }
 
   async function refreshVersion(
@@ -279,9 +307,8 @@ export function AdminCurriculum() {
     }
   }
 
-  async function publish() {
+  async function performPublish() {
     if (!selectedVersion || !editable) return;
-    if (!window.confirm(`${selectedVersion.academicYear}학년도 교육과정을 학생 화면에 공개할까요? 현재 공개 중인 버전은 이전 버전으로 보관됩니다.`)) return;
     setPublishing(true);
     clearNotice();
     try {
@@ -301,9 +328,22 @@ export function AdminCurriculum() {
     }
   }
 
-  async function createReviewDraft() {
+  function publish() {
+    if (!selectedVersion || !editable) return;
+    setConfirmation({
+      tone: "brand",
+      icon: "publish",
+      eyebrow: "학생 화면 공개",
+      title: `${selectedVersion.academicYear}학년도 교육과정을 공개할까요?`,
+      description: "선택한 과목과 연결된 학습 콘텐츠가 학생의 다음 학습 화면부터 적용됩니다.",
+      note: "현재 공개 중인 교육과정은 이전 버전으로 안전하게 보관됩니다.",
+      confirmLabel: "교육과정 공개",
+      onConfirm: () => void performPublish(),
+    });
+  }
+
+  async function performCreateReviewDraft() {
     if (!selectedVersion || editable) return;
-    if (!window.confirm("현재 학생에게 공개된 교육과정은 그대로 유지하고, 과목 선택과 콘텐츠를 수정할 새 검토본을 만들까요?")) return;
     setCreatingReviewDraft(true);
     clearNotice();
     try {
@@ -322,6 +362,20 @@ export function AdminCurriculum() {
     } finally {
       setCreatingReviewDraft(false);
     }
+  }
+
+  function createReviewDraft() {
+    if (!selectedVersion || editable) return;
+    setConfirmation({
+      tone: "brand",
+      icon: "draft",
+      eyebrow: "새 검토본 만들기",
+      title: "교육과정 수정을 시작할까요?",
+      description: "현재 버전을 복사해 과목 선택과 콘텐츠를 수정할 수 있는 새 검토본을 만듭니다.",
+      note: "지금 학생에게 공개된 교육과정은 새 검토본을 공개하기 전까지 그대로 유지됩니다.",
+      confirmLabel: "검토본 만들기",
+      onConfirm: () => void performCreateReviewDraft(),
+    });
   }
 
   async function openGeneratedContent(offeringId: string) {
@@ -450,22 +504,27 @@ export function AdminCurriculum() {
     }
   }
 
-  async function regenerateContent() {
+  function regenerateContent() {
     if (!contentDetail || !editable) return;
     const item = items.find((entry) => entry.id === contentDetail.offeringId);
     if (!item) {
       setError("재생성할 과목 정보를 찾지 못했습니다.");
       return;
     }
-    if (!window.confirm(
-      `'${contentDetail.courseTitle}'의 기존 목차와 초안을 교체할까요?\n\n공식 출처를 웹에서 다시 검색한 뒤 전체 단원 콘텐츠를 재생성합니다.`,
-    )) return;
-    await generateContent(item, true);
+    setConfirmation({
+      tone: "warning",
+      icon: "replace",
+      eyebrow: "AI 콘텐츠 재생성",
+      title: `‘${contentDetail.courseTitle}’ 초안을 교체할까요?`,
+      description: "공식 출처를 웹에서 다시 검색한 뒤 전체 단원 콘텐츠를 새로 생성합니다.",
+      note: "현재 목차와 작성된 초안은 새 결과로 교체되며 되돌릴 수 없습니다.",
+      confirmLabel: "다시 검색하고 재생성",
+      onConfirm: () => void generateContent(item, true),
+    });
   }
 
-  async function publishContent() {
+  async function performPublishContent() {
     if (!contentDetail || !selectedVersion) return;
-    if (!window.confirm(`'${contentDetail.courseTitle}' AI 콘텐츠를 공개하고 이 과목에 연결할까요?`)) return;
     setContentPublishing(true);
     clearNotice();
     try {
@@ -487,6 +546,20 @@ export function AdminCurriculum() {
     } finally {
       setContentPublishing(false);
     }
+  }
+
+  function publishContent() {
+    if (!contentDetail || !selectedVersion) return;
+    setConfirmation({
+      tone: "brand",
+      icon: "publish",
+      eyebrow: "AI 콘텐츠 공개",
+      title: `‘${contentDetail.courseTitle}’ 콘텐츠를 공개할까요?`,
+      description: "검토한 AI 콘텐츠를 이 학교 과목에 연결하고 공개 상태로 전환합니다.",
+      note: "학생 화면에는 교육과정까지 최종 공개한 뒤 나타납니다.",
+      confirmLabel: "콘텐츠 공개 및 연결",
+      onConfirm: () => void performPublishContent(),
+    });
   }
 
   function addCourse() {
@@ -737,7 +810,118 @@ export function AdminCurriculum() {
           onConfirm={() => void generateSelectedContent()}
         />
       )}
+      {confirmation && (
+        <ConfirmationDialog
+          config={confirmation}
+          onClose={() => setConfirmation(null)}
+        />
+      )}
     </>
+  );
+}
+
+function ConfirmationDialog({ config, onClose }: {
+  config: ConfirmationDialogState;
+  onClose: () => void;
+}) {
+  const Icon = config.icon === "publish"
+    ? Rocket
+    : config.icon === "draft"
+      ? FileCheck2
+      : config.icon === "replace"
+        ? WandSparkles
+        : TriangleAlert;
+  const warning = config.tone === "warning";
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  function handleConfirm() {
+    const action = config.onConfirm;
+    onClose();
+    action();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] grid place-items-center bg-[rgba(31,24,52,.38)] p-4 backdrop-blur-[4px]"
+      onMouseDown={onClose}
+    >
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-dialog-title"
+        aria-describedby="confirmation-dialog-description"
+        onMouseDown={(event) => event.stopPropagation()}
+        className="w-full max-w-[30rem] overflow-hidden rounded-[22px] border border-white/80 bg-surface shadow-[0_28px_80px_rgba(43,31,79,.3)]"
+      >
+        <div className={cn(
+          "flex items-start justify-between gap-4 border-b px-6 py-5",
+          warning
+            ? "border-warn/10 bg-[linear-gradient(135deg,var(--warn-page),var(--surface))]"
+            : "border-brand/10 bg-[linear-gradient(135deg,var(--brand-page),var(--surface))]",
+        )}>
+          <div className="flex min-w-0 items-start gap-3.5">
+            <span className={cn(
+              "grid size-11 shrink-0 place-items-center rounded-[13px] text-white",
+              warning
+                ? "bg-warn shadow-[0_8px_20px_rgba(162,95,85,.24)]"
+                : "bg-brand shadow-[var(--lift-brand)]",
+            )}>
+              <Icon size={21} />
+            </span>
+            <div className="min-w-0 pt-0.5">
+              <p className={cn("text-[.7rem] font-bold", warning ? "text-warn" : "text-brand")}>{config.eyebrow}</p>
+              <h2 id="confirmation-dialog-title" className="mt-1 text-lg font-extrabold leading-6 tracking-[-0.025em]">{config.title}</h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink"
+            aria-label="팝업 닫기"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          <p id="confirmation-dialog-description" className="text-[.84rem] leading-6 text-ink-3">{config.description}</p>
+          {config.note && (
+            <div className={cn(
+              "mt-4 flex items-start gap-2 rounded-[11px] border px-3.5 py-3",
+              warning
+                ? "border-warn/15 bg-[var(--warn-page)] text-warn"
+                : "border-brand/15 bg-brand-soft/55 text-brand-dark",
+            )}>
+              {warning ? <TriangleAlert size={15} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={15} className="mt-0.5 shrink-0" />}
+              <p className="text-[.72rem] font-semibold leading-5">{config.note}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 border-t border-line bg-surface-2 px-6 py-4 sm:flex sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onClose} autoFocus>취소</Button>
+          <Button type="button" variant={warning ? "danger" : "primary"} onClick={handleConfirm}>
+            <Icon size={15} />{config.confirmLabel}
+          </Button>
+        </div>
+      </section>
+    </div>
   );
 }
 
