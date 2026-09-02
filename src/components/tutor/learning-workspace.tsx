@@ -347,7 +347,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [grade, setGrade] = useState<SupportedGrade>(normalizedInitialGrade);
   const [subject, setSubject] = useState<SubjectCode>(initialUnit?.subjectCode ?? "MATH");
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
-  const [courseOverviewOpen, setCourseOverviewOpen] = useState(true);
+  const [homeOpen, setHomeOpen] = useState(true);
+  const [courseOverviewOpen, setCourseOverviewOpen] = useState(false);
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
@@ -434,21 +435,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         });
       }
 
-      const restoredSession = savedUnit ? unitSessionsRef.current.get(savedUnit.id) : undefined;
-      if (savedUnit && savedCache?.courseOverviewOpen) {
-        setSelectedUnitId(savedUnit.id);
-        setGrade(savedCache.grade ?? supportedGrade(savedUnit.grade));
-        setSubject(savedUnit.subjectCode);
-        setCourseOverviewOpen(true);
-      } else if (savedUnit && restoredSession) {
-        setSelectedUnitId(savedUnit.id);
-        setGrade(savedCache?.grade ?? savedSession?.grade ?? supportedGrade(savedUnit.grade));
-        setSubject(savedUnit.subjectCode);
-        setCourseOverviewOpen(false);
-        setLearningLevel(restoredSession.learningLevel);
-        setMessages(restoredSession.messages);
-        setConversationOpen(restoredSession.messages.length > 0);
-      }
       setSessionReady(true);
     }, 0);
 
@@ -456,8 +442,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }, [units]);
 
   useEffect(() => {
-    if (!sessionReady || !selectedUnitId) return;
-    if (!courseOverviewOpen) {
+    if (!sessionReady || homeOpen || !selectedUnitId) return;
+    if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
         learningLevel,
         messages: completedSessionMessages(messages),
@@ -470,7 +456,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       courseOverviewOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
     } satisfies SavedLearningCache));
-  }, [courseOverviewOpen, grade, learningLevel, messages, selectedUnitId, sessionReady]);
+  }, [courseOverviewOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -527,6 +513,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   function selectUnit(unitId: string) {
     autoScrollRef.current = true;
+    setHomeOpen(false);
     setCourseOverviewOpen(false);
     window.requestAnimationFrame(() => {
       messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -539,7 +526,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setDrawerOpen(false);
       return;
     }
-    if (!courseOverviewOpen) {
+    if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
         learningLevel,
         messages: completedSessionMessages(messages),
@@ -558,13 +545,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }
 
   function openCourseOverview(unitId: string) {
-    if (!courseOverviewOpen) {
+    if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
         learningLevel,
         messages: completedSessionMessages(messages),
       });
     }
     setSelectedUnitId(unitId);
+    setHomeOpen(false);
     setCourseOverviewOpen(true);
     setLearningLevel("STANDARD");
     setMessages([]);
@@ -586,7 +574,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       ?? firstCurriculumUnit(units, (unit) => unit.grade === nextGrade);
     if (nextUnit) {
       setSubject(nextUnit.subjectCode);
-      openCourseOverview(nextUnit.id);
+      setSelectedUnitId(nextUnit.id);
+      setHomeOpen(true);
+      setCourseOverviewOpen(false);
+      setDrawerOpen(false);
     }
   }
 
@@ -596,7 +587,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       units,
       (unit) => unit.grade === grade && unit.subjectCode === nextSubject,
     );
-    if (nextUnit) openCourseOverview(nextUnit.id);
+    if (nextUnit) {
+      setSelectedUnitId(nextUnit.id);
+      setHomeOpen(true);
+      setCourseOverviewOpen(false);
+      setDrawerOpen(false);
+    }
   }
 
   const addImageFiles = useCallback(async (fileList: FileList | File[] | null) => {
@@ -815,7 +811,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           subject={subject}
           allUnits={units}
           units={filteredUnits}
-          selectedUnitId={courseOverviewOpen ? "" : selectedUnit.id}
+          selectedCourseCode={homeOpen ? "" : selectedUnit.courseCode}
+          selectedUnitId={homeOpen || courseOverviewOpen ? "" : selectedUnit.id}
           onGrade={changeGrade}
           onSubject={changeSubject}
           onCourse={openCourseOverview}
@@ -826,12 +823,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
         <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
           <button onClick={() => setDrawerOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label="학습 단원 선택 열기">
-            {courseOverviewOpen ? (
+            {homeOpen ? (
+              <Sparkles size={15} className="shrink-0 text-brand" aria-hidden="true" />
+            ) : courseOverviewOpen ? (
               <BookCopy size={15} className="shrink-0 text-brand" aria-hidden="true" />
             ) : (
               <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
             )}
-            <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{courseOverviewOpen ? `${selectedUnit.courseTitle} 과목 안내` : selectedUnit.title}</span>
+            <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{homeOpen ? "LearnCraft 소개" : courseOverviewOpen ? `${selectedUnit.courseTitle} 과목 안내` : selectedUnit.title}</span>
             <ChevronDown size={14} className="ml-auto shrink-0 text-ink-5" />
           </button>
           <span className="shrink-0 text-[.78rem] font-semibold text-ink-4 sm:hidden">{studentName}</span>
@@ -840,7 +839,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
           <div className="mx-auto flex min-h-full w-full max-w-[45rem] flex-col px-4 py-6 sm:px-7 sm:py-9">
-            {courseOverviewOpen ? (
+            {homeOpen ? (
+              <LearnCraftIntro studentName={studentName} onOpenCurriculum={() => setDrawerOpen(true)} />
+            ) : courseOverviewOpen ? (
               <CourseOverview units={selectedCourseUnits} onOpenCurriculum={() => setDrawerOpen(true)} />
             ) : !conversationOpen || messages.length === 0 ? (
               <Welcome unit={selectedUnit} learningLevel={learningLevel} previousAnswerCount={messages.filter((message) => message.role === "assistant" && message.completed).length} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} onResume={resumeConversation} />
@@ -922,7 +923,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           </div>
         </div>
 
-        {!courseOverviewOpen && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
+        {!homeOpen && !courseOverviewOpen && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
           <div className="mx-auto max-w-[45rem]">
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
@@ -1041,7 +1042,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </div>}
       </section>
 
-      {!courseOverviewOpen && <button
+      {!homeOpen && !courseOverviewOpen && <button
         ref={conceptTriggerRef}
         type="button"
         onClick={() => setConceptOpen(true)}
@@ -1060,7 +1061,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
       {drawerOpen && (
         <Sheet title="학습 단원 선택" onClose={() => setDrawerOpen(false)}>
-          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedUnitId={courseOverviewOpen ? "" : selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
+          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={homeOpen ? "" : selectedUnit.courseCode} selectedUnitId={homeOpen || courseOverviewOpen ? "" : selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
@@ -1073,11 +1074,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   );
 }
 
-function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
+function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
   grade: SupportedGrade;
   subject: SubjectCode;
   allUnits: LearningUnit[];
   units: LearningUnit[];
+  selectedCourseCode: string;
   selectedUnitId: string;
   onGrade: (grade: SupportedGrade) => void;
   onSubject: (subject: SubjectCode) => void;
@@ -1090,7 +1092,6 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
   const courseMenuRef = useRef<HTMLDivElement>(null);
   const subjectMenuId = useId();
   const courseMenuId = useId();
-  const selectedUnit = units.find((unit) => unit.id === selectedUnitId) ?? units[0];
   const selectedSubject = subjectCatalog.find((item) => item.code === subject) ?? subjectCatalog[0];
   const SelectedSubjectIcon = selectedSubject.icon;
   const availableGrades = useMemo(() => availableGradesFor(allUnits), [allUnits]);
@@ -1153,7 +1154,6 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
       })
       .sort((a, b) => a.courseOrder - b.courseOrder);
   }, [units]);
-  const selectedCourseCode = selectedUnit?.courseCode ?? courseOptions[0]?.courseCode ?? "";
   const courseUnits = useMemo(
     () => units.filter((unit) => unit.courseCode === selectedCourseCode),
     [selectedCourseCode, units],
@@ -1271,8 +1271,8 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
               aria-controls={courseMenuId}
             >
               <BookCopy size={16} className="shrink-0 text-brand" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate text-[.9rem] font-bold text-ink">{selectedCourse?.courseTitle}</span>
-              <span className="shrink-0 text-[.68rem] font-semibold text-ink-5">{courseUnits.length}개</span>
+              <span className={cn("min-w-0 flex-1 truncate text-[.9rem] font-bold", selectedCourse ? "text-ink" : "text-ink-4")}>{selectedCourse?.courseTitle ?? "수강 과목을 선택하세요"}</span>
+              {selectedCourse && <span className="shrink-0 text-[.68rem] font-semibold text-ink-5">{courseUnits.length}개</span>}
               <ChevronDown size={15} className={cn("shrink-0 text-ink-5 transition-transform duration-200", courseMenuOpen && "rotate-180")} />
             </button>
 
@@ -1331,7 +1331,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
             </div>
           )}
 
-          <div className="mt-4 grid gap-3.5">
+          {selectedCourse && <div className="mt-4 grid gap-3.5">
             {chapterGroups.map((chapter) => (
               <section key={`${selectedCourseCode}-${chapter.order}`}>
                 <div className="flex items-center gap-2 px-1">
@@ -1366,7 +1366,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
                 </div>
               </section>
             ))}
-          </div>
+          </div>}
         </div>
       ) : (
         <div className="mt-6 rounded-[13px] border border-dashed border-line bg-surface/60 px-4 py-7 text-center">
@@ -1374,6 +1374,66 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
           <p className="mt-1 text-[.8rem] leading-5 text-ink-3">다른 학년이나 과목을 선택해 주세요.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function LearnCraftIntro({ studentName, onOpenCurriculum }: {
+  studentName: string;
+  onOpenCurriculum: () => void;
+}) {
+  const steps = [
+    { number: "01", title: "과목 선택", description: "왼쪽 교육과정에서 수강 과목을 직접 선택해요.", icon: BookOpenCheck },
+    { number: "02", title: "주제 선택", description: "교과서 목차에서 지금 공부할 주제를 골라요.", icon: ListTree },
+    { number: "03", title: "이해까지 질문", description: "더 쉽게, 더 깊게, 문제로 이어서 물어봐요.", icon: CircleHelp },
+  ] as const;
+
+  return (
+    <div className="flex flex-1 flex-col justify-center py-1 sm:py-3">
+      <section className="relative overflow-hidden rounded-[24px] border border-brand/15 bg-[linear-gradient(135deg,#ffffff_0%,#f7f3ff_68%,#fff9e9_100%)] p-5 shadow-[0_20px_55px_rgba(61,44,107,.11)] sm:p-7">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-52 rounded-full border-[34px] border-brand/5" aria-hidden="true" />
+        <div className="relative grid items-center gap-6 sm:grid-cols-[1.05fr_.95fr]">
+          <div>
+            <p className="flex items-center gap-2 text-[.76rem] font-extrabold tracking-[.08em] text-brand"><Sparkles size={15} /> YOUR LEARNING, YOUR WAY</p>
+            <p className="mt-4 text-[.82rem] font-bold text-ink-3">안녕하세요, {studentName}님</p>
+            <h1 className="font-learning mt-1.5 text-balance text-[1.85rem] font-bold leading-[1.25] tracking-[-0.05em] text-ink sm:text-[2.25rem]">
+              막힌 지점에서 시작해<br /><span className="text-brand-dark">내 언어로 이해해요</span>
+            </h1>
+            <p className="mt-4 text-[.84rem] leading-6 text-ink-3">
+              LearnCraft는 학교 교육과정과 채택 교과서를 바탕으로, 이해한 지점부터 다시 설명하는 AI 학습 파트너예요.
+            </p>
+            <button type="button" onClick={onOpenCurriculum} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand px-4 text-[.84rem] font-bold text-white shadow-[0_9px_22px_rgba(98,70,204,.24)] transition hover:-translate-y-0.5 hover:bg-brand-dark min-[1024px]:hidden">
+              <BookOpen size={17} /> 학습할 과목 선택하기
+            </button>
+            <p className="mt-5 hidden items-center gap-2 text-[.78rem] font-bold text-brand-dark min-[1024px]:flex"><BookOpen size={16} /> 왼쪽에서 학습할 과목을 선택해 시작하세요.</p>
+          </div>
+
+          <div className="relative mx-auto w-full max-w-[20rem] overflow-hidden rounded-[20px] border border-white/90 bg-white/75 p-2 shadow-[0_20px_38px_rgba(70,47,135,.16)]">
+            <video autoPlay loop muted playsInline disablePictureInPicture preload="metadata" poster="/images/learncraft-logo-animation-poster.webp" aria-label="움직이는 LearnCraft 로고" className="aspect-video w-full rounded-[15px] object-cover motion-reduce:hidden">
+              <source src="/images/learncraft-logo-animation.mp4" type="video/mp4" />
+            </video>
+            <Image src="/images/learncraft-logo-animation-poster.webp" alt="LearnCraft" width={1280} height={720} priority className="hidden aspect-video w-full rounded-[15px] object-cover motion-reduce:block" />
+          </div>
+        </div>
+      </section>
+
+      <ol className="mt-4 grid gap-2.5 sm:grid-cols-3">
+        {steps.map(({ number, title, description, icon: Icon }) => (
+          <li key={number} className="rounded-[16px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
+            <div className="flex items-center justify-between">
+              <span className="grid size-9 place-items-center rounded-[11px] bg-brand-soft text-brand-dark"><Icon size={17} /></span>
+              <span className="figure text-[.68rem] font-bold text-brand/55">STEP {number}</span>
+            </div>
+            <h2 className="font-learning mt-3 text-[.9rem] font-bold text-ink">{title}</h2>
+            <p className="mt-1 text-[.74rem] leading-5 text-ink-4">{description}</p>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-4 flex items-start gap-2 rounded-[14px] border border-brand/10 bg-brand-page px-4 py-3 text-[.76rem] leading-5 text-ink-3">
+        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ok" />
+        <p><strong className="text-ink-2">LearnCraft를 만든 이유:</strong> 모르는 것을 편하게 묻고, 여러 설명을 거쳐 결국 자신의 말로 이해할 수 있게 돕기 위해서예요.</p>
+      </div>
     </div>
   );
 }
