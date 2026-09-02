@@ -208,10 +208,20 @@ function recommendedQuestionsFor(unit: LearningUnit, learningLevel: LearningLeve
   return unit.recommendedQuestions;
 }
 
-type SupportedGrade = 1 | 2;
+type SupportedGrade = 1 | 2 | 3;
+
+const supportedGrades = [1, 2, 3] as const satisfies readonly SupportedGrade[];
+
+function isSupportedGrade(grade: unknown): grade is SupportedGrade {
+  return grade === 1 || grade === 2 || grade === 3;
+}
 
 function supportedGrade(grade: number): SupportedGrade {
-  return grade === 2 ? 2 : 1;
+  return isSupportedGrade(grade) ? grade : 1;
+}
+
+function availableGradesFor(units: LearningUnit[]) {
+  return supportedGrades.filter((grade) => units.some((unit) => unit.grade === grade));
 }
 
 type SavedLearningSession = {
@@ -242,7 +252,7 @@ function isSavedSession(value: unknown): value is SavedLearningSession {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedLearningSession>;
   return typeof candidate.unitId === "string"
-    && (candidate.grade === undefined || candidate.grade === 1 || candidate.grade === 2)
+    && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
     && isLearningLevel(candidate.learningLevel)
     && Array.isArray(candidate.messages);
 }
@@ -258,7 +268,7 @@ function isSavedLearningCache(value: unknown): value is SavedLearningCache {
   const candidate = value as Partial<SavedLearningCache>;
   return candidate.version === 2
     && typeof candidate.activeUnitId === "string"
-    && (candidate.grade === undefined || candidate.grade === 1 || candidate.grade === 2)
+    && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
     && Boolean(candidate.sessions)
     && typeof candidate.sessions === "object"
     && Object.values(candidate.sessions).every(isCachedUnitSession);
@@ -310,10 +320,15 @@ function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorksp
 }
 
 function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName }: LearningWorkspaceProps) {
-  const normalizedInitialGrade = supportedGrade(initialGrade);
-  const initialUnitId = units.find((unit) => unit.recommendedGrades.includes(normalizedInitialGrade) && unit.subjectCode === "MATH")?.id ?? units[0]?.id ?? "";
+  const availableGrades = availableGradesFor(units);
+  const requestedInitialGrade = supportedGrade(initialGrade);
+  const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
+  const initialUnit = units.find((unit) => unit.grade === normalizedInitialGrade && unit.subjectCode === "MATH")
+    ?? units.find((unit) => unit.grade === normalizedInitialGrade)
+    ?? units[0];
+  const initialUnitId = initialUnit?.id ?? "";
   const [grade, setGrade] = useState<SupportedGrade>(normalizedInitialGrade);
-  const [subject, setSubject] = useState<SubjectCode>("MATH");
+  const [subject, setSubject] = useState<SubjectCode>(initialUnit?.subjectCode ?? "MATH");
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
@@ -344,7 +359,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
 
   const filteredUnits = useMemo(
-    () => units.filter((unit) => unit.recommendedGrades.includes(grade) && unit.subjectCode === subject),
+    () => units.filter((unit) => unit.grade === grade && unit.subjectCode === subject),
     [units, grade, subject],
   );
   const selectedUnit = (units.find((unit) => unit.id === selectedUnitId) ?? filteredUnits[0] ?? units[0])!;
@@ -505,8 +520,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   function changeGrade(nextGrade: SupportedGrade) {
     setGrade(nextGrade);
-    const nextUnit = units.find((unit) => unit.recommendedGrades.includes(nextGrade) && unit.subjectCode === subject)
-      ?? units.find((unit) => unit.recommendedGrades.includes(nextGrade));
+    const nextUnit = units.find((unit) => unit.grade === nextGrade && unit.subjectCode === subject)
+      ?? units.find((unit) => unit.grade === nextGrade);
     if (nextUnit) {
       setSubject(nextUnit.subjectCode);
       selectUnit(nextUnit.id);
@@ -515,7 +530,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   function changeSubject(nextSubject: SubjectCode) {
     setSubject(nextSubject);
-    const nextUnit = units.find((unit) => unit.recommendedGrades.includes(grade) && unit.subjectCode === nextSubject);
+    const nextUnit = units.find((unit) => unit.grade === grade && unit.subjectCode === nextSubject);
     if (nextUnit) selectUnit(nextUnit.id);
   }
 
@@ -1005,10 +1020,11 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
   const selectedUnit = units.find((unit) => unit.id === selectedUnitId) ?? units[0];
   const selectedSubject = subjectCatalog.find((item) => item.code === subject) ?? subjectCatalog[0];
   const SelectedSubjectIcon = selectedSubject.icon;
+  const availableGrades = useMemo(() => availableGradesFor(allUnits), [allUnits]);
   const availableSubjects = useMemo(() => {
     const codes = new Set(
       allUnits
-        .filter((unit) => unit.recommendedGrades.includes(grade))
+        .filter((unit) => unit.grade === grade)
         .map((unit) => unit.subjectCode),
     );
     return subjectCatalog.filter((item) => codes.has(item.code));
@@ -1101,8 +1117,8 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
     <div>
       <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
       <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학교 진도에 맞는 학습 주제를 고르세요.</p>
-      <div className="mt-4 grid grid-cols-2 gap-1 rounded-[12px] border border-line bg-surface-3 p-1">
-        {([1, 2] as const).map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97]", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
+      <div className="mt-4 grid gap-1 rounded-[12px] border border-line bg-surface-3 p-1" style={{ gridTemplateColumns: `repeat(${availableGrades.length}, minmax(0, 1fr))` }}>
+        {availableGrades.map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97]", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
       </div>
       <div ref={subjectMenuRef} className="relative mt-2">
         <button
@@ -1249,7 +1265,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedUnitId, onG
                 <div className="mt-1.5 grid gap-1.5 border-l border-line pl-2">
                   {chapter.sections.map((section) => (
                     <div key={`${chapter.order}-${section.order}`}>
-                      {(section.units.length > 1 || section.title !== section.units[0]?.title) && (
+                      {section.title !== chapter.title && (section.units.length > 1 || section.title !== section.units[0]?.title) && (
                         <p className="mb-0.5 px-1 text-[.74rem] font-semibold leading-5 text-ink-5">{section.order}. {section.title}</p>
                       )}
                       <div className="grid gap-0.5">

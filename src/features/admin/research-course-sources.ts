@@ -9,6 +9,7 @@ import {
   type CourseSourceBundle,
   type CourseSourceIdentity,
 } from "@/data/course-generation-sources";
+import { curriculumTitle } from "@/lib/curriculum-title";
 import { env, isGeminiConfigured } from "@/lib/env";
 
 const google = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY });
@@ -39,7 +40,12 @@ function uniqueOrderedEntries(entries: z.infer<typeof tocEntrySchema>[]) {
     a.chapterOrder - b.chapterOrder
     || a.sectionOrder - b.sectionOrder
     || a.topicOrder - b.topicOrder
-  ));
+  )).map((entry) => ({
+    ...entry,
+    chapterTitle: curriculumTitle(entry.chapterTitle),
+    sectionTitle: curriculumTitle(entry.sectionTitle),
+    topicTitle: curriculumTitle(entry.topicTitle),
+  }));
 }
 
 export async function ensureCourseSources(input: CourseSourceIdentity & {

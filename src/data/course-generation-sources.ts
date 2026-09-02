@@ -8,6 +8,7 @@ import {
   courseSourceDocuments,
   courseTocEntries,
 } from "@/db/schema";
+import { curriculumTitle } from "@/lib/curriculum-title";
 
 export type CourseSourceIdentity = {
   academicYear: number;
@@ -93,7 +94,16 @@ export async function getCourseSourceBundle(
       .orderBy(asc(courseAchievementStandards.displayOrder)),
   ]);
   if (tocEntries.length === 0 || achievementStandards.length === 0) return null;
-  return { documents, tocEntries, achievementStandards };
+  return {
+    documents,
+    tocEntries: tocEntries.map((entry) => ({
+      ...entry,
+      chapterTitle: curriculumTitle(entry.chapterTitle),
+      sectionTitle: curriculumTitle(entry.sectionTitle),
+      topicTitle: curriculumTitle(entry.topicTitle),
+    })),
+    achievementStandards,
+  };
 }
 
 export async function replaceCourseSourceBundle(input: {
@@ -127,6 +137,9 @@ export async function replaceCourseSourceBundle(input: {
       offeringId: input.offeringId,
       sourceDocumentId: tocSourceId,
       ...entry,
+      chapterTitle: curriculumTitle(entry.chapterTitle),
+      sectionTitle: curriculumTitle(entry.sectionTitle),
+      topicTitle: curriculumTitle(entry.topicTitle),
     }))),
     db.insert(courseAchievementStandards).values(input.bundle.achievementStandards.map((standard) => ({
       offeringId: input.offeringId,

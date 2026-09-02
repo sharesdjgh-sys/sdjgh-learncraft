@@ -24,6 +24,7 @@ import {
   schoolCourseCatalog,
 } from "@/data/school-course-catalog";
 import { findContentCourseCode } from "@/lib/course-content-match";
+import { curriculumTitle } from "@/lib/curriculum-title";
 import type {
   CurriculumManagementState,
   CurriculumOffering,
@@ -688,6 +689,9 @@ export async function getSchoolLearningUnits(schoolId: string) {
         ));
       generatedUnits = generatedRows.map((row) => ({
         ...row,
+        title: curriculumTitle(row.title),
+        chapterTitle: curriculumTitle(row.chapterTitle),
+        sectionTitle: curriculumTitle(row.sectionTitle),
         subjectCode: row.subjectCode as typeof learningUnits[number]["subjectCode"],
         courseCategory: "GENERAL" as const,
         grade: row.grade as 1 | 2 | 3,

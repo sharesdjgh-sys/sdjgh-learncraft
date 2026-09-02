@@ -16,6 +16,7 @@ import {
   users,
 } from "@/db/schema";
 import type { GeneratedCourseDraft } from "@/features/admin/generate-course-content";
+import { curriculumTitle } from "@/lib/curriculum-title";
 import type { LearningUnit, SubjectCode } from "@/types";
 
 function stableUuid(seed: string) {
@@ -280,7 +281,17 @@ export async function getGeneratedCourseContent(schoolId: string, offeringId: st
     title: courseSourceDocuments.title,
     url: courseSourceDocuments.url,
   }).from(courseSourceDocuments).where(eq(courseSourceDocuments.offeringId, offeringId));
-  return { ...content, sources, updatedAt: content.updatedAt.toISOString() };
+  return {
+    ...content,
+    units: content.units.map((unit) => ({
+      ...unit,
+      title: curriculumTitle(unit.title),
+      chapterTitle: curriculumTitle(unit.chapterTitle),
+      sectionTitle: curriculumTitle(unit.sectionTitle),
+    })),
+    sources,
+    updatedAt: content.updatedAt.toISOString(),
+  };
 }
 
 export async function publishGeneratedCourseContent(schoolId: string, adminId: string, offeringId: string) {
