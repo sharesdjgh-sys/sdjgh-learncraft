@@ -37,6 +37,11 @@ type GeneratedContentDetail = {
   status: "DRAFT" | "DEVELOPER_REVIEWED" | "TEACHER_REVIEWED" | "PUBLISHED";
   sourceModel: string | null;
   units: LearningUnit[];
+  sources: Array<{
+    kind: "NATIONAL_CURRICULUM" | "PUBLISHER_TOC";
+    title: string;
+    url: string;
+  }>;
   updatedAt: string;
   courseTitle: string;
   subjectTitle: string;
@@ -296,7 +301,7 @@ export function AdminCurriculum() {
     }
   }
 
-  async function generateContent(item: CurriculumOffering) {
+  async function generateContent(item: CurriculumOffering, refreshSources = false) {
     if (!item.id || !selectedVersion || !editable) return;
     setGenerationTarget(null);
     setGeneratingOfferingId(item.id);
@@ -305,7 +310,11 @@ export function AdminCurriculum() {
       if (dirty && !(await saveDraft(false))) return;
       const response = await fetch(
         `/api/admin/curriculum/content/${encodeURIComponent(item.id)}/generate`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshSources }),
+        },
       );
       const data = await response.json() as GeneratedContentDetail;
       if (!response.ok) throw new Error(data.error?.message ?? "AI 콘텐츠를 만들지 못했습니다.");
@@ -317,6 +326,19 @@ export function AdminCurriculum() {
     } finally {
       setGeneratingOfferingId(null);
     }
+  }
+
+  async function regenerateContent() {
+    if (!contentDetail || !editable) return;
+    const item = items.find((entry) => entry.id === contentDetail.offeringId);
+    if (!item) {
+      setError("재생성할 과목 정보를 찾지 못했습니다.");
+      return;
+    }
+    if (!window.confirm(
+      `'${contentDetail.courseTitle}'의 기존 목차와 초안을 교체할까요?\n\n공식 출처를 웹에서 다시 검색한 뒤 전체 단원 콘텐츠를 재생성합니다.`,
+    )) return;
+    await generateContent(item, true);
   }
 
   async function publishContent() {
@@ -525,8 +547,11 @@ export function AdminCurriculum() {
                       <GeneratedContentReview
                         content={contentDetail}
                         publishing={contentPublishing}
+                        regenerating={generatingOfferingId === contentDetail.offeringId}
+                        canRegenerate={editable}
                         onClose={() => setContentDetail(null)}
                         onPublish={() => void publishContent()}
+                        onRegenerate={() => void regenerateContent()}
                       />
                     )}
                   </div>
@@ -624,11 +649,22 @@ function WorkflowStep({ number, title, value, note, complete = false, active = f
   );
 }
 
-function GeneratedContentReview({ content, publishing, onClose, onPublish }: {
+function GeneratedContentReview({
+  content,
+  publishing,
+  regenerating,
+  canRegenerate,
+  onClose,
+  onPublish,
+  onRegenerate,
+}: {
   content: GeneratedContentDetail;
   publishing: boolean;
+  regenerating: boolean;
+  canRegenerate: boolean;
   onClose: () => void;
   onPublish: () => void;
+  onRegenerate: () => void;
 }) {
   const published = content.status === "PUBLISHED";
   return (
@@ -640,6 +676,20 @@ function GeneratedContentReview({ content, publishing, onClose, onPublish }: {
           <p className="mt-1 text-[.72rem] text-ink-4">{content.units.length}개 단원 · {content.sourceModel ?? "AI 모델"} · {published ? "콘텐츠 공개됨" : "관리자 검토 대기"}</p>
         </div>
         <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-[9px] text-ink-4 hover:bg-surface-2" aria-label="콘텐츠 검토 닫기"><X size={17} /></button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-[.72rem]">
+        <span className="font-bold text-ink-3">생성 근거</span>
+        {content.sources.map((source) => (
+          <a
+            key={`${source.kind}:${source.url}`}
+            href={source.url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-line bg-surface-2 px-2.5 py-1 font-semibold text-brand hover:border-brand/30"
+          >
+            {source.kind === "PUBLISHER_TOC" ? "교과서 목차" : "국가 교육과정"} · {source.title}
+          </a>
+        ))}
       </div>
       <div className="mt-4 space-y-2">
         {content.units.map((unit) => (
@@ -666,7 +716,15 @@ function GeneratedContentReview({ content, publishing, onClose, onPublish }: {
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <p className="text-[.72rem] leading-5 text-ink-4">콘텐츠를 공개한 뒤 교육과정까지 공개해야 학생 화면에 나타납니다.</p>
-        {!published && <Button onClick={onPublish} disabled={publishing}>{publishing ? <LoaderCircle size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}{publishing ? "콘텐츠 공개 중" : "검토 완료 · 콘텐츠 공개"}</Button>}
+        <div className="flex flex-wrap gap-2">
+          {canRegenerate && (
+            <Button variant="secondary" onClick={onRegenerate} disabled={publishing || regenerating}>
+              {regenerating ? <LoaderCircle size={15} className="animate-spin" /> : <WandSparkles size={15} />}
+              {regenerating ? "공식 자료 다시 검색 중" : "목차 다시 검색 · 재생성"}
+            </Button>
+          )}
+          {!published && <Button onClick={onPublish} disabled={publishing || regenerating}>{publishing ? <LoaderCircle size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}{publishing ? "콘텐츠 공개 중" : "검토 완료 · 콘텐츠 공개"}</Button>}
+        </div>
       </div>
     </section>
   );

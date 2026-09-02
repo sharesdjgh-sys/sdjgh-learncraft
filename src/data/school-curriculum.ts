@@ -3,11 +3,19 @@ import "server-only";
 import { and, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  courses,
+  courseAchievementStandards,
+  courseSourceDocuments,
+  courseTocEntries,
   curriculumImports,
+  curriculumVersions,
   generatedCourseContents,
   schoolCourseOfferings,
   schoolCourseSelections,
   schoolCurriculumVersions,
+  subjects,
+  unitContents,
+  units,
   users,
 } from "@/db/schema";
 import { learningUnits } from "@/data/curriculum";
@@ -447,9 +455,69 @@ export async function createReviewDraftFromVersion(
       displayOrder: item.displayOrder,
     }))).returning({ id: schoolCourseOfferings.id, rowKey: schoolCourseOfferings.rowKey });
     const copiedByKey = new Map(copiedRows.map((item) => [item.rowKey, item.id]));
+    const sourceById = new Map(sourceRows.map((item) => [item.id, item]));
+    const sourceDocuments = await db.select().from(courseSourceDocuments)
+      .where(inArray(courseSourceDocuments.offeringId, sourceRows.map((item) => item.id)));
+    if (sourceDocuments.length > 0) {
+      const copiedDocumentIds = new Map<string, string>();
+      for (const document of sourceDocuments) {
+        const sourceOffering = sourceById.get(document.offeringId);
+        const offeringId = sourceOffering ? copiedByKey.get(sourceOffering.rowKey) : undefined;
+        if (!offeringId) continue;
+        const [copiedDocument] = await db.insert(courseSourceDocuments).values({
+          offeringId,
+          kind: document.kind,
+          title: document.title,
+          url: document.url,
+          publisherName: document.publisherName,
+          excerpt: document.excerpt,
+          sourceFingerprint: document.sourceFingerprint,
+          sourceModel: document.sourceModel,
+          retrievedAt: document.retrievedAt,
+        }).returning({ id: courseSourceDocuments.id });
+        if (copiedDocument) copiedDocumentIds.set(document.id, copiedDocument.id);
+      }
+      const sourceDocumentIds = sourceDocuments.map((document) => document.id);
+      const [tocRows, standardRows] = await Promise.all([
+        db.select().from(courseTocEntries)
+          .where(inArray(courseTocEntries.sourceDocumentId, sourceDocumentIds)),
+        db.select().from(courseAchievementStandards)
+          .where(inArray(courseAchievementStandards.sourceDocumentId, sourceDocumentIds)),
+      ]);
+      if (tocRows.length > 0) {
+        await db.insert(courseTocEntries).values(tocRows.flatMap((entry) => {
+          const sourceDocumentId = copiedDocumentIds.get(entry.sourceDocumentId);
+          const sourceOffering = sourceById.get(entry.offeringId);
+          const offeringId = sourceOffering ? copiedByKey.get(sourceOffering.rowKey) : undefined;
+          return sourceDocumentId && offeringId ? [{
+            offeringId,
+            sourceDocumentId,
+            chapterTitle: entry.chapterTitle,
+            chapterOrder: entry.chapterOrder,
+            sectionTitle: entry.sectionTitle,
+            sectionOrder: entry.sectionOrder,
+            topicTitle: entry.topicTitle,
+            topicOrder: entry.topicOrder,
+          }] : [];
+        }));
+      }
+      if (standardRows.length > 0) {
+        await db.insert(courseAchievementStandards).values(standardRows.flatMap((standard) => {
+          const sourceDocumentId = copiedDocumentIds.get(standard.sourceDocumentId);
+          const sourceOffering = sourceById.get(standard.offeringId);
+          const offeringId = sourceOffering ? copiedByKey.get(sourceOffering.rowKey) : undefined;
+          return sourceDocumentId && offeringId ? [{
+            offeringId,
+            sourceDocumentId,
+            code: standard.code,
+            content: standard.content,
+            displayOrder: standard.displayOrder,
+          }] : [];
+        }));
+      }
+    }
     const generatedRows = await db.select().from(generatedCourseContents)
       .where(inArray(generatedCourseContents.offeringId, sourceRows.map((item) => item.id)));
-    const sourceById = new Map(sourceRows.map((item) => [item.id, item]));
     if (generatedRows.length > 0) {
       await db.insert(generatedCourseContents).values(generatedRows.flatMap((content) => {
         const sourceOffering = sourceById.get(content.offeringId);
@@ -567,19 +635,69 @@ export async function getSchoolLearningUnits(schoolId: string) {
       enabledCourseCodes = new Set(rows
         .map((row) => row.contentCourseCode)
         .filter((code): code is string => Boolean(code)));
-      const generatedRows = await db.select({ units: generatedCourseContents.unitsJson })
+      const generatedRows = await db.select({
+        id: units.id,
+        code: units.code,
+        title: units.title,
+        chapterTitle: units.chapterTitle,
+        chapterOrder: units.chapterOrder,
+        sectionTitle: units.sectionTitle,
+        sectionOrder: units.sectionOrder,
+        topicOrder: units.topicOrder,
+        courseCode: courses.code,
+        courseTitle: courses.title,
+        courseOrder: courses.displayOrder,
+        grade: courses.grade,
+        curriculum: curriculumVersions.title,
+        subjectCode: subjects.code,
+        subjectTitle: subjects.title,
+        publisherName: courses.publisherName,
+        sourceUrl: units.sourceUrl,
+        summary: unitContents.summaryMarkdown,
+        keyPoints: unitContents.keyPoints,
+        formulas: unitContents.formulas,
+        examples: unitContents.examples,
+        recommendedQuestions: units.recommendedQuestions,
+        keywords: units.keywords,
+        prerequisites: units.prerequisites,
+        commonMistakes: units.commonMistakes,
+        scopeExcluded: units.scopeExcluded,
+        assessmentTags: units.assessmentTags,
+        tutorInstructions: units.tutorPrompt,
+      })
         .from(generatedCourseContents)
         .innerJoin(
           schoolCourseOfferings,
           eq(schoolCourseOfferings.id, generatedCourseContents.offeringId),
         )
+        .innerJoin(courses, eq(courses.id, generatedCourseContents.courseId))
+        .innerJoin(subjects, eq(subjects.id, courses.subjectId))
+        .innerJoin(curriculumVersions, eq(curriculumVersions.id, courses.curriculumVersionId))
+        .innerJoin(units, eq(units.courseId, courses.id))
+        .innerJoin(unitContents, and(
+          eq(unitContents.unitId, units.id),
+          eq(unitContents.version, 1),
+        ))
         .where(and(
           eq(generatedCourseContents.schoolId, schoolId),
           eq(generatedCourseContents.status, "PUBLISHED"),
           eq(schoolCourseOfferings.versionId, active.id),
           eq(schoolCourseOfferings.enabled, true),
+          eq(units.status, "PUBLISHED"),
+          eq(unitContents.status, "PUBLISHED"),
         ));
-      generatedUnits = generatedRows.flatMap((row) => row.units);
+      generatedUnits = generatedRows.map((row) => ({
+        ...row,
+        subjectCode: row.subjectCode as typeof learningUnits[number]["subjectCode"],
+        courseCategory: "GENERAL" as const,
+        grade: row.grade as 1 | 2 | 3,
+        recommendedGrades: [row.grade as 1 | 2 | 3],
+        publisherCode: "GENERIC" as const,
+        publisherName: row.publisherName || "학교 교육과정",
+        schoolAdopted: true,
+        schoolPublisherName: row.publisherName || undefined,
+        sourceUrl: row.sourceUrl || undefined,
+      }));
     }
   }
   const staticUnits = learningUnits.filter((unit) => enabledCourseCodes.has(unit.courseCode));

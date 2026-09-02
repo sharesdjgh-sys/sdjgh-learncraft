@@ -3,20 +3,21 @@ import "server-only";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { ensureCourseSources } from "@/features/admin/research-course-sources";
 import { env, isGeminiConfigured } from "@/lib/env";
 
 const google = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY });
 
 const generatedUnitSchema = z.object({
   code: z.string().min(1).max(40),
-  title: z.string().min(1).max(100),
-  chapterTitle: z.string().min(1).max(100),
-  chapterOrder: z.number().int().min(1).max(30),
-  sectionTitle: z.string().min(1).max(100),
-  sectionOrder: z.number().int().min(1).max(30),
-  topicOrder: z.number().int().min(1).max(50),
-  summary: z.string().min(80).max(5000),
-  keyPoints: z.array(z.string().min(1).max(300)).min(3).max(8),
+  title: z.string().min(1).max(200),
+  chapterTitle: z.string().min(1).max(200),
+  chapterOrder: z.number().int().min(1).max(100),
+  sectionTitle: z.string().min(1).max(200),
+  sectionOrder: z.number().int().min(1).max(100),
+  topicOrder: z.number().int().min(1).max(200),
+  summary: z.string().min(1).max(5000),
+  keyPoints: z.array(z.string().min(1).max(300)).min(1).max(8),
   formulas: z.array(z.object({
     name: z.string().min(1).max(100),
     expression: z.string().min(1).max(500),
@@ -26,47 +27,106 @@ const generatedUnitSchema = z.object({
     title: z.string().min(1).max(100),
     body: z.string().min(1).max(1500),
   })).min(1).max(4),
-  recommendedQuestions: z.array(z.string().min(1).max(200)).min(3).max(6),
-  keywords: z.array(z.string().min(1).max(80)).min(3).max(12),
+  recommendedQuestions: z.array(z.string().min(1).max(200)).min(1).max(6),
+  keywords: z.array(z.string().min(1).max(80)).min(1).max(12),
   prerequisites: z.array(z.string().min(1).max(200)).max(8),
   commonMistakes: z.array(z.string().min(1).max(250)).max(8),
   scopeExcluded: z.array(z.string().min(1).max(250)).max(8),
   assessmentTags: z.array(z.string().min(1).max(80)).max(10),
-  tutorInstructions: z.string().min(100).max(2500),
+  tutorInstructions: z.string().min(1).max(2500),
+  sourceUrl: z.string().url(),
 });
 
 const generatedCourseSchema = z.object({
-  courseOverview: z.string().min(80).max(2000),
-  units: z.array(generatedUnitSchema).min(4).max(12),
+  courseOverview: z.string().min(1).max(2000),
+  units: z.array(generatedUnitSchema).min(1).max(100),
+});
+
+const generatedUnitContentSchema = generatedUnitSchema.omit({
+  code: true,
+  title: true,
+  chapterTitle: true,
+  chapterOrder: true,
+  sectionTitle: true,
+  sectionOrder: true,
+  topicOrder: true,
+  sourceUrl: true,
+}).extend({
+  sourceIndex: z.number().int().min(1).max(100),
+});
+
+const generatedBatchSchema = z.object({
+  courseOverview: z.string().min(1).max(2000),
+  units: z.array(generatedUnitContentSchema).min(1).max(6),
 });
 
 export type GeneratedCourseDraft = z.infer<typeof generatedCourseSchema>;
 
+type TocBatchEntry = {
+  sourceIndex: number;
+  chapterTitle: string;
+  chapterOrder: number;
+  sectionTitle: string;
+  sectionOrder: number;
+  topicTitle: string;
+  topicOrder: number;
+};
+
 export async function generateCourseContent(input: {
+  id: string;
   academicYear: number;
   grade: number;
   subjectTitle: string;
   courseTitle: string;
   publisherName: string;
-}) {
+  textbookTitle: string | null;
+}, options: { refreshSources?: boolean } = {}) {
   if (!isGeminiConfigured) throw new Error("GEMINI_API_KEY가 설정되어야 AI 콘텐츠를 만들 수 있습니다.");
 
-  const prompt = [
+  const researched = await ensureCourseSources({
+    offeringId: input.id,
+    academicYear: input.academicYear,
+    grade: input.grade,
+    subjectTitle: input.subjectTitle,
+    courseTitle: input.courseTitle,
+    publisherName: input.publisherName,
+    textbookTitle: input.textbookTitle,
+    refreshSources: options.refreshSources,
+  });
+  const tocSource = researched.bundle.documents.find((document) => document.kind === "PUBLISHER_TOC");
+  const curriculumSource = researched.bundle.documents.find((document) => document.kind === "NATIONAL_CURRICULUM");
+  if (!tocSource || !curriculumSource) {
+    throw new Error("공식 교과서 목차와 국가 교육과정 자료가 모두 필요합니다.");
+  }
+
+  const standards = researched.bundle.achievementStandards.slice(0, 40).map((standard) => (
+    `${standard.code}: ${standard.content}`
+  )).join("\n").slice(0, 20_000);
+  const commonPrompt = [
     input.academicYear + "학년도 고등학교 " + input.grade + "학년 '" + input.subjectTitle + " - " + input.courseTitle + "' 과목의 AI 학습용 콘텐츠 초안을 작성하세요.",
-    input.publisherName ? "학교 채택 출판사는 '" + input.publisherName + "'입니다." : "",
-    "2022 개정 교육과정의 과목 성격과 일반적인 성취기준 범위를 우선하여 단원 순서를 구성하세요.",
-    "교과서의 실제 페이지, 저자 고유 표현, 확인되지 않은 출판사 세부 목차는 지어내지 마세요.",
-    "각 항목은 관리자가 검토할 초안이며, 학생이 개념을 질문했을 때 정확하고 친근하게 설명할 수 있을 정도로 구체적으로 작성하세요.",
+    "학교 채택 출판사는 '" + input.publisherName + "'입니다.",
+    input.textbookTitle ? "확인된 교과서명은 '" + input.textbookTitle + "'입니다." : "",
+    `교과서 목차 공식 출처: ${tocSource.title} (${tocSource.url})`,
+    `국가 교육과정 공식 출처: ${curriculumSource.title} (${curriculumSource.url})`,
+    "제공된 실제 교과서 목차의 제목과 순서를 변경하지 마세요. 구조 정보는 시스템이 별도로 고정합니다.",
+    "제공된 성취기준을 학습 범위의 근거로 사용하세요. 근거에 없는 교과서 본문·문제·페이지를 지어내지 마세요.",
+    "각 항목은 관리자가 검토할 초안이며, 학생이 질문했을 때 정확하고 친근하게 설명할 수 있을 정도로 구체적으로 작성하세요.",
     "수식은 LaTeX 문법을 사용하고, 일반 문장과 수식을 명확히 분리하세요.",
-    "단원 코드는 영문 대문자와 숫자, 하이픈만 사용하세요.",
+    "각 단원에는 핵심 포인트 3~8개, 예시 1~4개, 추천 질문 3~6개, 키워드 3~12개를 포함하세요.",
+    "과목 개요와 각 단원 요약은 최소 2문장, 튜터 지침은 최소 3문장으로 충분히 구체적으로 작성하세요.",
+    "[공식 성취기준]",
+    standards,
   ].filter(Boolean).join("\n");
 
-  const run = async (modelId: string) => {
+  const runBatch = async (modelId: string, batch: TocBatchEntry[]) => {
+    const outline = batch.map((entry) => (
+      `${entry.sourceIndex}. ${entry.chapterTitle} > ${entry.sectionTitle} > ${entry.topicTitle}`
+    )).join("\n");
     const result = await generateText({
       model: google(modelId),
-      output: Output.object({ schema: generatedCourseSchema }),
-      system: "당신은 대한민국 고등학교 교육과정과 교과 콘텐츠를 설계하는 교육 전문가입니다. 결과는 검토 가능한 구조화 데이터로만 작성합니다.",
-      prompt,
+      output: Output.object({ schema: generatedBatchSchema }),
+      system: "당신은 공식 교육과정과 실제 교과서 목차를 근거로 학습 콘텐츠를 작성하는 대한민국 고등학교 교육 전문가입니다. 제공된 목차의 제목과 순서를 바꾸거나 새 단원을 추가하지 않습니다.",
+      prompt: `${commonPrompt}\n\n[이번 생성 묶음]\n${outline}\n\n각 항목을 sourceIndex로 정확히 한 번씩 반환하세요.`,
       maxOutputTokens: 12000,
       providerOptions: {
         google: {
@@ -79,7 +139,7 @@ export async function generateCourseContent(input: {
     });
     if (!result.output) throw new Error("AI가 구조화된 콘텐츠를 반환하지 않았습니다.");
     return {
-      draft: result.output,
+      output: result.output,
       modelId,
       usage: {
         inputTokens: result.usage.inputTokens ?? 0,
@@ -88,13 +148,62 @@ export async function generateCourseContent(input: {
     };
   };
 
-  try {
-    return await run(env.GEMINI_PRIMARY_MODEL_ID);
-  } catch (primaryError) {
-    if (!env.GEMINI_FALLBACK_MODEL_ID || env.GEMINI_FALLBACK_MODEL_ID === env.GEMINI_PRIMARY_MODEL_ID) {
-      throw primaryError;
-    }
-    return run(env.GEMINI_FALLBACK_MODEL_ID);
+  const batches = Array.from(
+    { length: Math.ceil(researched.bundle.tocEntries.length / 6) },
+    (_, batchIndex) => researched.bundle.tocEntries
+      .slice(batchIndex * 6, batchIndex * 6 + 6)
+      .map((entry, index) => ({ ...entry, sourceIndex: batchIndex * 6 + index + 1 })),
+  );
+  const results: Awaited<ReturnType<typeof runBatch>>[] = [];
+  for (let index = 0; index < batches.length; index += 2) {
+    const group = batches.slice(index, index + 2);
+    results.push(...await Promise.all(group.map(async (batch) => {
+      try {
+        return await runBatch(env.GEMINI_PRIMARY_MODEL_ID, batch);
+      } catch (primaryError) {
+        if (!env.GEMINI_FALLBACK_MODEL_ID || env.GEMINI_FALLBACK_MODEL_ID === env.GEMINI_PRIMARY_MODEL_ID) {
+          throw primaryError;
+        }
+        return runBatch(env.GEMINI_FALLBACK_MODEL_ID, batch);
+      }
+    })));
   }
-}
 
+  const generatedByIndex = new Map(results.flatMap((result) => result.output.units)
+    .map((unit) => [unit.sourceIndex, unit]));
+  if (generatedByIndex.size !== researched.bundle.tocEntries.length) {
+    throw new Error("AI가 공식 목차의 일부 단원을 누락했습니다.");
+  }
+  const draft = generatedCourseSchema.parse({
+    courseOverview: results[0]?.output.courseOverview ?? `${input.courseTitle} 학습 콘텐츠`,
+    units: researched.bundle.tocEntries.map((entry, index) => {
+      const generated = generatedByIndex.get(index + 1);
+      if (!generated) throw new Error(`공식 목차 ${index + 1}번 단원의 콘텐츠가 누락되었습니다.`);
+      const { sourceIndex: _sourceIndex, ...content } = generated;
+      void _sourceIndex;
+      return {
+        ...content,
+        code: `TOC-${String(index + 1).padStart(3, "0")}`,
+        title: entry.topicTitle,
+        chapterTitle: entry.chapterTitle,
+        chapterOrder: entry.chapterOrder,
+        sectionTitle: entry.sectionTitle,
+        sectionOrder: entry.sectionOrder,
+        topicOrder: entry.topicOrder,
+        sourceUrl: tocSource.url,
+      };
+    }),
+  });
+  const contentUsage = results.reduce((usage, result) => ({
+    inputTokens: usage.inputTokens + result.usage.inputTokens,
+    outputTokens: usage.outputTokens + result.usage.outputTokens,
+  }), { inputTokens: 0, outputTokens: 0 });
+  return {
+    draft,
+    modelId: [...new Set(results.map((result) => result.modelId))].join(","),
+    usage: {
+      inputTokens: researched.usage.inputTokens + contentUsage.inputTokens,
+      outputTokens: researched.usage.outputTokens + contentUsage.outputTokens,
+    },
+  };
+}

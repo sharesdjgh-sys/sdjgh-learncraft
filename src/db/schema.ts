@@ -109,6 +109,9 @@ export const courses = pgTable(
     grade: integer("grade").notNull(),
     code: text("code").notNull(),
     title: text("title").notNull(),
+    overview: text("overview").default("").notNull(),
+    publisherName: text("publisher_name").default("").notNull(),
+    sourceUrl: text("source_url"),
     displayOrder: integer("display_order").default(0).notNull(),
     active: boolean("active").default(true).notNull(),
   },
@@ -198,6 +201,80 @@ export const schoolCourseOfferings = pgTable(
   (table) => [uniqueIndex("school_course_offering_idx").on(table.versionId, table.rowKey)],
 );
 
+export const courseSourceDocuments = pgTable(
+  "course_source_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    offeringId: uuid("offering_id")
+      .references(() => schoolCourseOfferings.id, { onDelete: "cascade" })
+      .notNull(),
+    kind: text("kind").$type<"NATIONAL_CURRICULUM" | "PUBLISHER_TOC">().notNull(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    publisherName: text("publisher_name"),
+    excerpt: text("excerpt").notNull(),
+    sourceFingerprint: text("source_fingerprint").notNull(),
+    sourceModel: text("source_model"),
+    retrievedAt: timestamp("retrieved_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("course_source_document_offering_kind_url_idx").on(
+      table.offeringId,
+      table.kind,
+      table.url,
+    ),
+  ],
+);
+
+export const courseTocEntries = pgTable(
+  "course_toc_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    offeringId: uuid("offering_id")
+      .references(() => schoolCourseOfferings.id, { onDelete: "cascade" })
+      .notNull(),
+    sourceDocumentId: uuid("source_document_id")
+      .references(() => courseSourceDocuments.id, { onDelete: "cascade" })
+      .notNull(),
+    chapterTitle: text("chapter_title").notNull(),
+    chapterOrder: integer("chapter_order").notNull(),
+    sectionTitle: text("section_title").notNull(),
+    sectionOrder: integer("section_order").notNull(),
+    topicTitle: text("topic_title").notNull(),
+    topicOrder: integer("topic_order").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("course_toc_entry_offering_order_idx").on(
+      table.offeringId,
+      table.chapterOrder,
+      table.sectionOrder,
+      table.topicOrder,
+    ),
+  ],
+);
+
+export const courseAchievementStandards = pgTable(
+  "course_achievement_standards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    offeringId: uuid("offering_id")
+      .references(() => schoolCourseOfferings.id, { onDelete: "cascade" })
+      .notNull(),
+    sourceDocumentId: uuid("source_document_id")
+      .references(() => courseSourceDocuments.id, { onDelete: "cascade" })
+      .notNull(),
+    code: text("code").notNull(),
+    content: text("content").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("course_achievement_standard_offering_code_idx").on(table.offeringId, table.code),
+  ],
+);
+
 export const generatedCourseContents = pgTable(
   "generated_course_contents",
   {
@@ -230,10 +307,20 @@ export const units = pgTable(
     parentUnitId: uuid("parent_unit_id"),
     code: text("code").notNull(),
     title: text("title").notNull(),
+    chapterTitle: text("chapter_title").default("").notNull(),
+    chapterOrder: integer("chapter_order").default(0).notNull(),
+    sectionTitle: text("section_title").default("").notNull(),
+    sectionOrder: integer("section_order").default(0).notNull(),
+    topicOrder: integer("topic_order").default(0).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     scopeIncluded: jsonb("scope_included").$type<string[]>().default([]).notNull(),
     scopeExcluded: jsonb("scope_excluded").$type<string[]>().default([]).notNull(),
     prerequisites: jsonb("prerequisites").$type<string[]>().default([]).notNull(),
+    recommendedQuestions: jsonb("recommended_questions").$type<string[]>().default([]).notNull(),
+    keywords: jsonb("keywords").$type<string[]>().default([]).notNull(),
+    commonMistakes: jsonb("common_mistakes").$type<string[]>().default([]).notNull(),
+    assessmentTags: jsonb("assessment_tags").$type<string[]>().default([]).notNull(),
+    sourceUrl: text("source_url"),
     tutorPrompt: text("tutor_prompt").notNull(),
     promptVersion: integer("prompt_version").default(1).notNull(),
     status: contentStatus("status").default("DRAFT").notNull(),

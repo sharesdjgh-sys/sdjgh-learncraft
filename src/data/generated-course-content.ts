@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   courses,
+  courseSourceDocuments,
   curriculumVersions,
   generatedCourseContents,
   schoolCourseOfferings,
@@ -44,6 +45,7 @@ export async function getOfferingForGeneration(schoolId: string, offeringId: str
     subjectTitle: schoolCourseOfferings.subjectTitle,
     courseTitle: schoolCourseOfferings.courseTitle,
     publisherName: schoolCourseOfferings.publisherName,
+    textbookTitle: schoolCourseOfferings.textbookTitle,
     enabled: schoolCourseOfferings.enabled,
   }).from(schoolCourseOfferings)
     .innerJoin(schoolCurriculumVersions, eq(schoolCurriculumVersions.id, schoolCourseOfferings.versionId))
@@ -93,6 +95,9 @@ export async function saveGeneratedCourseDraft(input: {
     grade: input.offering.grade,
     code: courseCode,
     title: input.offering.courseTitle,
+    overview: input.draft.courseOverview,
+    publisherName: input.offering.publisherName,
+    sourceUrl: input.draft.units[0]?.sourceUrl ?? null,
     displayOrder: 100,
     active: false,
   }).onConflictDoUpdate({
@@ -101,6 +106,9 @@ export async function saveGeneratedCourseDraft(input: {
       subjectId: subject.id,
       grade: input.offering.grade,
       title: input.offering.courseTitle,
+      overview: input.draft.courseOverview,
+      publisherName: input.offering.publisherName,
+      sourceUrl: input.draft.units[0]?.sourceUrl ?? null,
       active: false,
     },
   }).returning({ id: courses.id });
@@ -116,10 +124,20 @@ export async function saveGeneratedCourseDraft(input: {
       courseId: course.id,
       code: unitCode,
       title: unit.title,
+      chapterTitle: unit.chapterTitle,
+      chapterOrder: unit.chapterOrder,
+      sectionTitle: unit.sectionTitle,
+      sectionOrder: unit.sectionOrder,
+      topicOrder: unit.topicOrder,
       displayOrder: index + 1,
       scopeIncluded: unit.keyPoints,
       scopeExcluded: unit.scopeExcluded,
       prerequisites: unit.prerequisites,
+      recommendedQuestions: unit.recommendedQuestions,
+      keywords: unit.keywords,
+      commonMistakes: unit.commonMistakes,
+      assessmentTags: unit.assessmentTags,
+      sourceUrl: unit.sourceUrl,
       tutorPrompt: unit.tutorInstructions,
       promptVersion: 1,
       status: "DRAFT",
@@ -129,10 +147,20 @@ export async function saveGeneratedCourseDraft(input: {
         courseId: course.id,
         code: unitCode,
         title: unit.title,
+        chapterTitle: unit.chapterTitle,
+        chapterOrder: unit.chapterOrder,
+        sectionTitle: unit.sectionTitle,
+        sectionOrder: unit.sectionOrder,
+        topicOrder: unit.topicOrder,
         displayOrder: index + 1,
         scopeIncluded: unit.keyPoints,
         scopeExcluded: unit.scopeExcluded,
         prerequisites: unit.prerequisites,
+        recommendedQuestions: unit.recommendedQuestions,
+        keywords: unit.keywords,
+        commonMistakes: unit.commonMistakes,
+        assessmentTags: unit.assessmentTags,
+        sourceUrl: unit.sourceUrl,
         tutorPrompt: unit.tutorInstructions,
         status: "DRAFT",
         updatedAt: new Date(),
@@ -181,6 +209,7 @@ export async function saveGeneratedCourseDraft(input: {
       publisherName: input.offering.publisherName || "학교 교육과정",
       schoolAdopted: true,
       schoolPublisherName: input.offering.publisherName || undefined,
+      sourceUrl: unit.sourceUrl,
       summary: unit.summary,
       keyPoints: unit.keyPoints,
       formulas: unit.formulas,
@@ -246,7 +275,12 @@ export async function getGeneratedCourseContent(schoolId: string, offeringId: st
       eq(generatedCourseContents.offeringId, offeringId),
     )).limit(1);
   if (!content) throw new Error("생성된 콘텐츠를 찾지 못했습니다.");
-  return { ...content, updatedAt: content.updatedAt.toISOString() };
+  const sources = await db.select({
+    kind: courseSourceDocuments.kind,
+    title: courseSourceDocuments.title,
+    url: courseSourceDocuments.url,
+  }).from(courseSourceDocuments).where(eq(courseSourceDocuments.offeringId, offeringId));
+  return { ...content, sources, updatedAt: content.updatedAt.toISOString() };
 }
 
 export async function publishGeneratedCourseContent(schoolId: string, adminId: string, offeringId: string) {

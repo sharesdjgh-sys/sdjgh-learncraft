@@ -29,6 +29,8 @@ GEMINI_CACHED_INPUT_USD_PER_MILLION=공식_캐시_입력_단가
 
 키는 서버에서만 읽으며 브라우저로 전달하지 않습니다. 키가 없으면 교육 흐름을 확인할 수 있는 데모 답변을 사용합니다.
 
+관리자에서 과목 콘텐츠를 처음 생성하면 Gemini의 Google Search grounding으로 해당 출판사의 공식 교과서 목차와 2022 개정 국가 교육과정 성취기준을 조사합니다. 조사 결과는 출처 URL과 함께 PostgreSQL의 `course_source_documents`, `course_toc_entries`, `course_achievement_standards`에 저장되며, 이후 생성에서는 저장된 목차를 재사용합니다. 공식 목차와 국가 교육과정 출처를 모두 확인하지 못한 과목은 추측해서 생성하지 않습니다.
+
 ## Neon 연결
 
 Neon의 PostgreSQL 연결 문자열을 설정한 다음 migration과 seed를 실행합니다.

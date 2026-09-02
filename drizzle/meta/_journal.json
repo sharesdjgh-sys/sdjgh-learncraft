@@ -36,6 +36,20 @@
       "when": 1788270534119,
       "tag": "0004_serious_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788311820215,
+      "tag": "0005_freezing_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788312252080,
+      "tag": "0006_backfill_generated_unit_metadata",
+      "breakpoints": true
     }
   ]
 }
