@@ -1188,6 +1188,15 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
 
   return (
     <div>
+      <div className="mb-4 border-b border-line px-1 pb-4">
+        <Image
+          src="/images/sdj-school-logo.webp"
+          alt="서대전여자고등학교"
+          width={1415}
+          height={224}
+          className="h-auto w-full max-w-[16.5rem]"
+        />
+      </div>
       <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
       <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학교 진도에 맞는 학습 주제를 고르세요.</p>
       <div className="mt-4 grid gap-1 rounded-[12px] border border-line bg-surface-3 p-1" style={{ gridTemplateColumns: `repeat(${availableGrades.length}, minmax(0, 1fr))` }}>
