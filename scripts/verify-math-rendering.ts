@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import katex from "katex";
-import { Markdown, normalizeMathDelimiters } from "../src/components/ui/markdown";
+import { InlineMarkdown, Markdown, normalizeMathDelimiters } from "../src/components/ui/markdown";
 import { mathLearningUnits } from "../src/data/math-curriculum";
 import { compactMathScripts, displayMathMarkdown } from "../src/lib/math-notation";
 
@@ -44,6 +44,13 @@ for (const formula of generatedFormulaCases) {
     );
   }
 }
+
+const inlineSubjectContent = "센서(Sensors): 사람의 **눈·귀·피부(오감)**처럼 주변 환경의 정보를 감지하고 받아들여요.";
+const inlineSubjectHtml = renderToStaticMarkup(createElement(InlineMarkdown, {
+  children: inlineSubjectContent,
+}));
+assert.match(inlineSubjectHtml, /<strong[^>]*>눈·귀·피부\(오감\)<\/strong>/, "강조 문법이 렌더링되지 않았습니다.");
+assert.doesNotMatch(inlineSubjectHtml, /\*\*/, "마크다운 강조 기호가 화면에 남았습니다.");
 
 const normalizationCases = [
   ["x², aₙ, v⃗", String.raw`$x^{\scriptscriptstyle 2}$, $a_{\scriptscriptstyle n}$, $\vec{v}$`],

@@ -36,7 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Markdown } from "@/components/ui/markdown";
+import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
@@ -1287,7 +1287,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
     <div className="flex flex-1 flex-col py-2 sm:py-4">
       <div className="max-w-[44rem]">
         <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.chapterTitle} · {unit.sectionTitle}</p>
-        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark">{unit.title}</span></h2>
+        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark"><InlineMarkdown>{unit.title}</InlineMarkdown></span></h2>
         <p className="mt-4 text-[.78rem] font-semibold text-ink-4">이번 단원 학습 목표</p>
         <div className="font-learning mt-1 max-w-[40rem] text-[1rem] text-ink-2 sm:text-[1.08rem]"><Markdown>{unit.summary}</Markdown></div>
 
@@ -1308,7 +1308,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
                     className="group flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] bg-surface-2 px-3 py-2 text-left transition-all duration-200 hover:bg-brand-soft active:scale-[.985]"
                   >
                     <span className="grid size-5 shrink-0 place-items-center rounded-full border border-brand/25 text-[.68rem] font-bold text-brand">✓</span>
-                    <span className="min-w-0 flex-1 font-learning text-[.84rem] font-semibold leading-5 text-ink-2">{item}</span>
+                    <span className="min-w-0 flex-1 font-learning text-[.84rem] font-semibold leading-5 text-ink-2"><InlineMarkdown>{item}</InlineMarkdown></span>
                     <span className="shrink-0 text-[.72rem] font-semibold text-ink-5 transition-colors group-hover:text-brand">복습하기</span>
                   </button>
                 ))}
@@ -1317,7 +1317,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
           ) : (
             <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-l-2 border-brand/25 pl-3">
               <span className="text-[.75rem] font-bold text-ink-4">먼저 확인할 개념</span>
-              <span className="font-learning text-[.86rem] font-semibold leading-6 text-ink-2">{unit.prerequisites.slice(0, 2).join(" · ")}</span>
+              <span className="font-learning text-[.86rem] font-semibold leading-6 text-ink-2"><InlineMarkdown>{unit.prerequisites.slice(0, 2).join(" · ")}</InlineMarkdown></span>
             </div>
           )
         )}
@@ -1339,7 +1339,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
           {suggestedQuestions.map((question, index) => (
             <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group grid min-h-[4.25rem] cursor-pointer grid-cols-[2rem_1fr_1.25rem] items-center gap-3 rounded-[13px] border border-transparent bg-surface-2 px-4 py-3 text-left transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:border-line hover:bg-surface active:scale-[.985]">
               <span className="figure text-[1.02rem] text-brand">0{index + 1}</span>
-              <span className="font-learning text-[.96rem] font-semibold leading-6 text-ink">{question}</span>
+              <span className="font-learning text-[.96rem] font-semibold leading-6 text-ink"><InlineMarkdown>{question}</InlineMarkdown></span>
               <span className="text-lg text-ink-5 transition-transform group-hover:translate-x-0.5">→</span>
             </button>
           ))}
@@ -1365,7 +1365,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
     <div className="pb-10">
       <div className="rounded-[18px] border border-brand/15 bg-brand-page p-5">
         <p className="flex items-center gap-2 text-[.78rem] font-bold text-brand"><BookOpenCheck size={16} /> {unit.courseTitle} · {unit.chapterOrder}.{unit.sectionOrder}</p>
-        <h3 className="font-learning mt-3 text-[1.35rem] font-bold leading-8 tracking-[-0.035em] text-ink">{unit.title}</h3>
+        <h3 className="font-learning mt-3 text-[1.35rem] font-bold leading-8 tracking-[-0.035em] text-ink"><InlineMarkdown>{unit.title}</InlineMarkdown></h3>
         <p className="mt-2 text-[.78rem] font-semibold leading-5 text-ink-4">{unit.chapterTitle} · {unit.sectionTitle}</p>
         <div className="mt-4 border-t border-brand/10 pt-4">
           <p className="text-[.75rem] font-bold uppercase tracking-[.08em] text-brand/75">학습 목표</p>
@@ -1378,7 +1378,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
           <p className="text-[.82rem] font-bold text-ink">준비 · 먼저 확인할 선수 개념</p>
           <p className="mt-1.5 text-[.8rem] leading-5 text-ink-4">아래 개념이 낯설다면 먼저 뜻과 기본 성질을 짚고 시작하세요.</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {unit.prerequisites.map((item) => <span key={item} className="rounded-[12px] bg-surface-3 px-2.5 py-1.5 text-[.8rem] font-semibold text-ink-3">{item}</span>)}
+            {unit.prerequisites.map((item) => <span key={item} className="rounded-[12px] bg-surface-3 px-2.5 py-1.5 text-[.8rem] font-semibold text-ink-3"><InlineMarkdown>{item}</InlineMarkdown></span>)}
           </div>
         </section>
       )}
@@ -1402,7 +1402,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-6 rounded-[14px] bg-surface-2 p-4">
           <p className="text-[.78rem] font-bold text-ink-4">핵심 키워드</p>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {unit.keywords.slice(0, 10).map((keyword) => <span key={keyword} className="rounded-full border border-line bg-surface px-2.5 py-1 text-[.76rem] font-semibold text-ink-3">#{keyword}</span>)}
+            {unit.keywords.slice(0, 10).map((keyword) => <span key={keyword} className="rounded-full border border-line bg-surface px-2.5 py-1 text-[.76rem] font-semibold text-ink-3">#<InlineMarkdown>{keyword}</InlineMarkdown></span>)}
           </div>
         </section>
       )}
@@ -1411,7 +1411,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7">
           <p className="text-[.82rem] font-bold text-ink">공식 · 원리와 쓰임</p>
           <div className="mt-3 space-y-2.5">
-            {unit.formulas.map((formula) => <div key={formula.name} className="rounded-[14px] border border-line bg-surface-2 p-4"><p className="text-[.8rem] font-bold text-brand">{formula.name}</p><div className="mt-2 overflow-x-auto text-[.82rem]"><Markdown>{displayMathMarkdown(formula.expression)}</Markdown></div><div className="mt-2 text-[.82rem] text-ink-3"><Markdown>{formula.explanation}</Markdown></div></div>)}
+            {unit.formulas.map((formula) => <div key={formula.name} className="rounded-[14px] border border-line bg-surface-2 p-4"><p className="text-[.8rem] font-bold text-brand"><InlineMarkdown>{formula.name}</InlineMarkdown></p><div className="mt-2 overflow-x-auto text-[.82rem]"><Markdown>{displayMathMarkdown(formula.expression)}</Markdown></div><div className="mt-2 text-[.82rem] text-ink-3"><Markdown>{formula.explanation}</Markdown></div></div>)}
           </div>
         </section>
       )}
@@ -1420,7 +1420,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7">
           <p className="text-[.82rem] font-bold text-ink">적용 · 예시로 연결하기</p>
           <div className="mt-3 grid gap-2.5">
-            {unit.examples.map((example) => <div key={`${example.title}-${example.body}`} className="rounded-[14px] bg-[var(--ok-page)] p-4"><p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ok"><Lightbulb size={15} />{example.title}</p><div className="mt-2 text-[.84rem] text-[#376f63]"><Markdown>{example.body}</Markdown></div></div>)}
+            {unit.examples.map((example) => <div key={`${example.title}-${example.body}`} className="rounded-[14px] bg-[var(--ok-page)] p-4"><p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ok"><Lightbulb size={15} /><InlineMarkdown>{example.title}</InlineMarkdown></p><div className="mt-2 text-[.84rem] text-[#376f63]"><Markdown>{example.body}</Markdown></div></div>)}
           </div>
         </section>
       )}
@@ -1429,7 +1429,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7 rounded-[14px] bg-[var(--warn-page)] p-4">
           <p className="flex items-center gap-1.5 text-[.82rem] font-bold text-warn"><TriangleAlert size={15} /> 자주 틀리는 지점과 확인법</p>
           <ul className="mt-3 grid gap-3 text-[.82rem] leading-5 text-warn">
-            {unit.commonMistakes.map((mistake, index) => <li key={mistake} className="grid grid-cols-[1.4rem_1fr] gap-2"><span className="figure text-[.72rem] font-bold text-danger/75">{index + 1}</span><span><strong className="font-semibold">{mistake}</strong><span className="mt-0.5 block text-[.76rem] opacity-75">조건을 표시한 식과 마지막 결과를 한 줄씩 대조해 확인하세요.</span></span></li>)}
+            {unit.commonMistakes.map((mistake, index) => <li key={mistake} className="grid grid-cols-[1.4rem_1fr] gap-2"><span className="figure text-[.72rem] font-bold text-danger/75">{index + 1}</span><span><span className="font-semibold"><InlineMarkdown>{mistake}</InlineMarkdown></span><span className="mt-0.5 block text-[.76rem] opacity-75">조건을 표시한 식과 마지막 결과를 한 줄씩 대조해 확인하세요.</span></span></li>)}
           </ul>
         </section>
       )}
@@ -1438,15 +1438,15 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
         <section className="mt-7">
           <p className="flex items-center gap-1.5 text-[.82rem] font-bold text-ink"><CircleHelp size={15} className="text-brand" /> 스스로 점검하기</p>
           <ul className="mt-3 grid gap-2">
-            {unit.recommendedQuestions.map((question) => <li key={question} className="flex gap-2.5 rounded-[12px] border border-line px-3 py-2.5 text-[.82rem] leading-5 text-ink-2"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-brand" />{question}</li>)}
+            {unit.recommendedQuestions.map((question) => <li key={question} className="flex gap-2.5 rounded-[12px] border border-line px-3 py-2.5 text-[.82rem] leading-5 text-ink-2"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-brand" /><InlineMarkdown>{question}</InlineMarkdown></li>)}
           </ul>
         </section>
       )}
 
       {(unit.assessmentTags.length > 0 || unit.scopeExcluded.length > 0) && (
         <section className="mt-7 grid gap-3 rounded-[14px] border border-line bg-surface-2 p-4">
-          {unit.assessmentTags.length > 0 && <div><p className="text-[.78rem] font-bold text-ink-4">평가 포인트</p><p className="mt-1.5 text-[.8rem] leading-5 text-ink-2">{unit.assessmentTags.join(" · ")}</p></div>}
-          {unit.scopeExcluded.length > 0 && <div><p className="text-[.78rem] font-bold text-ink-4">이 단원에서 다루지 않는 범위</p><p className="mt-1.5 text-[.8rem] leading-5 text-ink-3">{unit.scopeExcluded.join(" · ")}</p></div>}
+          {unit.assessmentTags.length > 0 && <div><p className="text-[.78rem] font-bold text-ink-4">평가 포인트</p><p className="mt-1.5 text-[.8rem] leading-5 text-ink-2"><InlineMarkdown>{unit.assessmentTags.join(" · ")}</InlineMarkdown></p></div>}
+          {unit.scopeExcluded.length > 0 && <div><p className="text-[.78rem] font-bold text-ink-4">이 단원에서 다루지 않는 범위</p><p className="mt-1.5 text-[.8rem] leading-5 text-ink-3"><InlineMarkdown>{unit.scopeExcluded.join(" · ")}</InlineMarkdown></p></div>}
         </section>
       )}
 
@@ -1463,11 +1463,13 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
 function Sheet({ id, title, open = true, onClose, side = "bottom", children }: { id?: string; title: string; open?: boolean; onClose: () => void; side?: "bottom" | "right"; children: React.ReactNode }) {
   const [visible, setVisible] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setVisible(open);
       if (open) {
+        scrollContainerRef.current?.scrollTo({ top: 0, left: 0 });
         closeButtonRef.current?.focus();
       }
     });
@@ -1491,7 +1493,7 @@ function Sheet({ id, title, open = true, onClose, side = "bottom", children }: {
   return (
     <div id={id} inert={!visible} className={cn("fixed inset-0 z-50 overflow-hidden transition-[visibility] duration-300", visible ? "visible pointer-events-auto" : "invisible pointer-events-none")} role="dialog" aria-modal="true" aria-label={title} aria-hidden={!visible}>
       <button tabIndex={visible ? 0 : -1} className={cn("absolute inset-0 cursor-default bg-[#ded9d0]/72 backdrop-blur-[3px] transition-opacity duration-300", visible ? "opacity-100" : "opacity-0")} onClick={onClose} aria-label={`${title} 닫기`} />
-      <div className={cn("absolute overflow-y-auto border-line bg-surface shadow-[0_0_60px_rgba(42,35,31,.18)] transition-transform duration-300 ease-[cubic-bezier(.16,1,.3,1)]", side === "right" ? "scrollbar-hidden inset-y-0 right-0 w-[min(34rem,100vw)] border-l px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-7" : "scrollbar-subtle inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[1.35rem] border-t px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-[25rem] sm:rounded-none sm:border-l sm:border-t-0", visible ? (side === "right" ? "translate-x-0" : "translate-y-0 sm:translate-x-0") : (side === "right" ? "translate-x-full" : "translate-y-full sm:translate-x-full sm:translate-y-0"))}>
+      <div ref={scrollContainerRef} className={cn("absolute overflow-y-auto border-line bg-surface shadow-[0_0_60px_rgba(42,35,31,.18)] transition-transform duration-300 ease-[cubic-bezier(.16,1,.3,1)]", side === "right" ? "scrollbar-hidden inset-y-0 right-0 w-[min(34rem,100vw)] border-l px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-7" : "scrollbar-subtle inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[1.35rem] border-t px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-[25rem] sm:rounded-none sm:border-l sm:border-t-0", visible ? (side === "right" ? "translate-x-0" : "translate-y-0 sm:translate-x-0") : (side === "right" ? "translate-x-full" : "translate-y-full sm:translate-x-full sm:translate-y-0"))}>
         <div className="sticky top-0 z-10 -mx-5 mb-5 flex items-center justify-between border-b border-line bg-surface/95 px-5 py-4 backdrop-blur-md sm:-mx-7 sm:px-7"><h2 className="text-lg font-bold tracking-[-0.02em]">{title}</h2><button ref={closeButtonRef} type="button" onClick={onClose} aria-label={`${title} 닫기`} className="grid size-11 cursor-pointer place-items-center rounded-[11px] text-ink-3 transition-all duration-300 hover:bg-surface-3 hover:text-ink active:scale-[.98]"><X size={20} /></button></div>
         {children}
       </div>

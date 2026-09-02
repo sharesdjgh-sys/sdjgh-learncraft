@@ -121,6 +121,19 @@ const markdownComponents: Components = {
   ),
 };
 
+const inlineMarkdownComponents: Components = {
+  ...markdownComponents,
+  h1: ({ children }) => <>{children}</>,
+  h2: ({ children }) => <>{children}</>,
+  h3: ({ children }) => <>{children}</>,
+  h4: ({ children }) => <>{children}</>,
+  p: ({ children }) => <>{children}</>,
+  ul: ({ children }) => <>{children}</>,
+  ol: ({ children }) => <>{children}</>,
+  li: ({ children }) => <>{children}</>,
+  blockquote: ({ children }) => <>{children}</>,
+};
+
 /**
  * Gemini and GPT models frequently use TeX's \(...\) and \[...\] delimiters.
  * remark-math expects dollar delimiters, so translate them without touching
@@ -608,5 +621,23 @@ export function Markdown({ children }: { children: string }) {
         {normalizedMarkdown}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/** Render short generated labels without exposing Markdown syntax or adding block spacing. */
+export function InlineMarkdown({ children }: { children: string }) {
+  const normalizedMarkdown = useMemo(() => normalizeMathDelimiters(children), [children]);
+
+  return (
+    <span className="learncraft-markdown">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={inlineMarkdownComponents}
+        skipHtml
+      >
+        {normalizedMarkdown}
+      </ReactMarkdown>
+    </span>
   );
 }
