@@ -158,22 +158,19 @@ export function NotebookView() {
 
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
   const outline = useMemo(() => buildBookmarkOutline(items, unitById), [items, unitById]);
+  const activeScope = scope === ALL_SCOPE || items.some((item) => bookmarkMatchesScope(item, scope, unitById))
+    ? scope
+    : ALL_SCOPE;
   const filtered = useMemo(() => items.filter((item) => {
     const needle = query.toLowerCase();
-    return bookmarkMatchesScope(item, scope, unitById)
+    return bookmarkMatchesScope(item, activeScope, unitById)
       && (!needle
         || item.title.toLowerCase().includes(needle)
         || item.unitTitle.toLowerCase().includes(needle)
         || item.answerMarkdown.toLowerCase().includes(needle));
-  }), [items, query, scope, unitById]);
+  }), [activeScope, items, query, unitById]);
 
   const selectedItem = filtered.find((item) => item.id === selectedId) ?? null;
-
-  useEffect(() => {
-    if (scope !== ALL_SCOPE && !items.some((item) => bookmarkMatchesScope(item, scope, unitById))) {
-      setScope(ALL_SCOPE);
-    }
-  }, [items, scope, unitById]);
 
   async function remove(id: string) {
     const response = await fetch(`/api/bookmarks/${id}`, { method: "DELETE" });
@@ -200,7 +197,7 @@ export function NotebookView() {
     <>
       <div className="grid h-[calc(100dvh-8.8rem-env(safe-area-inset-bottom))] min-h-0 overflow-hidden min-[1024px]:h-[calc(100dvh-4rem)] min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
         <aside className="scrollbar-subtle hidden h-full min-h-0 overflow-y-scroll border-r border-line bg-surface/55 px-4 py-5 [scrollbar-gutter:stable] min-[1024px]:block">
-          <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={scope} onSelect={selectScope} />
+          <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={activeScope} onSelect={selectScope} />
         </aside>
 
         <main className="scrollbar-subtle h-full min-h-0 min-w-0 overflow-y-scroll [scrollbar-gutter:stable]">
@@ -223,7 +220,7 @@ export function NotebookView() {
               <Button type="button" variant="secondary" onClick={() => setMobileOutlineOpen(true)} className="shrink-0 min-[1024px]:hidden"><ListTree size={16} />목차</Button>
             </div>
 
-            {scope !== ALL_SCOPE && (
+            {activeScope !== ALL_SCOPE && (
               <div className="mt-3 flex items-center justify-between gap-3 rounded-[11px] border border-brand/10 bg-brand-page px-3.5 py-2.5">
                 <p className="text-[.76rem] font-semibold text-brand-dark">선택한 목차에서 북마크 {filtered.length}개를 보고 있어요.</p>
                 <button type="button" onClick={() => selectScope(ALL_SCOPE)} className="shrink-0 text-[.72rem] font-bold text-brand hover:underline">전체 보기</button>
@@ -302,7 +299,7 @@ export function NotebookView() {
         <div className="fixed inset-0 z-50 min-[1024px]:hidden" role="dialog" aria-modal="true" aria-label="북마크 목차">
           <button type="button" className="absolute inset-0 cursor-default bg-[#e4e3f1]/72 backdrop-blur-[3px]" onClick={() => setMobileOutlineOpen(false)} aria-label="북마크 목차 닫기" />
           <aside className="scrollbar-subtle absolute inset-y-0 left-0 w-[min(22rem,88vw)] overflow-y-scroll border-r border-line bg-surface px-5 py-5 shadow-[0_0_60px_rgba(46,43,90,.2)] [scrollbar-gutter:stable]">
-            <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={scope} onSelect={selectScope} onClose={() => setMobileOutlineOpen(false)} />
+            <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={activeScope} onSelect={selectScope} onClose={() => setMobileOutlineOpen(false)} />
           </aside>
         </div>
       )}

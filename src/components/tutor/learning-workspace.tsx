@@ -838,7 +838,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </div>
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
-          <div className={cn("mx-auto flex min-h-full w-full flex-col px-4 py-6 sm:px-7 sm:py-9", homeOpen ? "max-w-[72rem]" : "max-w-[45rem]")}>
+          <div className={cn(
+            "mx-auto flex min-h-full w-full flex-col px-4 sm:px-7",
+            homeOpen ? "max-w-[72rem] py-3 sm:py-5" : "max-w-[45rem] py-6 sm:py-9",
+          )}>
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={() => setDrawerOpen(true)} />
             ) : courseOverviewOpen ? (
@@ -1408,8 +1411,8 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
   ] as const;
 
   return (
-    <div className="relative flex flex-1 flex-col py-2 sm:py-4">
-      <section className="relative grid min-h-[30rem] items-center gap-9 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+    <div className="relative flex flex-1 flex-col py-1 sm:py-2">
+      <section className="relative grid min-h-[26rem] items-center gap-9 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
         <div className="max-w-[38rem]">
           <p className="flex items-center gap-2 text-[.72rem] font-extrabold tracking-[.12em] text-brand"><Sparkles size={15} /> LEARNCRAFT</p>
           <p className="mt-6 text-[.86rem] font-semibold text-ink-3">안녕하세요, {studentName}님.</p>
