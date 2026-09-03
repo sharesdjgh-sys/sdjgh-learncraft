@@ -31,7 +31,17 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
           {studentNavItems.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
-              <Link key={href} href={href} className={cn("flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-all duration-300", active ? "border-brand text-ink" : "border-transparent text-ink-4 hover:border-[var(--line-2)] hover:text-ink")}>
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
+                  active
+                    ? "border-[#3217c9] text-[#3217c9]"
+                    : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
+                )}
+              >
                 <Icon size={17} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />
                 {label}
               </Link>
@@ -63,7 +73,17 @@ export function StudentBottomNavigation() {
       {studentNavItems.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (
-          <Link key={href} href={href} className={cn("flex min-h-13 flex-col items-center justify-center gap-1 rounded-[10px] border-t-2 text-[.78rem] font-semibold transition active:scale-[.98]", active ? "border-brand bg-brand-page text-brand-dark" : "border-transparent text-ink-4")}>
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.78rem] font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
+              active
+                ? "border-[#3217c9] text-[#3217c9]"
+                : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
+            )}
+          >
             <Icon size={18} strokeWidth={active ? 2.25 : 1.8} />
             {label}
           </Link>
