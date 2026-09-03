@@ -805,7 +805,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </>
       )} />
       <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
-      <aside className="scrollbar-subtle hidden overflow-y-auto border-r border-line bg-surface/55 px-4 py-5 min-[1024px]:block">
+      <aside className="scrollbar-subtle hidden overflow-y-scroll border-r border-line bg-surface/55 px-4 py-5 [scrollbar-gutter:stable] min-[1024px]:block">
         <CurriculumPicker
           grade={grade}
           subject={subject}
