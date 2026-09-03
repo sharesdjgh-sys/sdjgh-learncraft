@@ -13,10 +13,10 @@ export function Logo({ compact = false, className }: { compact?: boolean; classN
       ) : (
         <span className="relative block h-9 w-40 overflow-hidden sm:h-10 sm:w-[11.125rem]" aria-hidden="true">
           <Image
-            src="/learncraft-logo-header-theme-v2.png"
+            src="/learncraft-logo-horizontal-header.png"
             alt=""
-            width={1956}
-            height={804}
+            width={1961}
+            height={802}
             loading="eager"
             className="absolute max-w-none"
             style={{ width: "108.25%", height: "198.52%", left: "-4.98%", top: "-46.42%" }}
