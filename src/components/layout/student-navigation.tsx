@@ -24,7 +24,7 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
   }
 
   return (
-    <header className="veil z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
+    <header className="veil sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-7">
         <Logo />
         <nav className="hidden items-center gap-1 min-[1024px]:flex" aria-label="학생 메뉴">
