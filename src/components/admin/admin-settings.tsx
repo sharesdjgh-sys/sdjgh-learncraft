@@ -40,7 +40,7 @@ export function AdminSettings() {
           </div>
           <div className="mt-8 rounded-[13px] border border-line bg-surface-2 p-5 sm:p-6">
             <div className="flex items-end justify-between gap-4"><label htmlFor="daily-limit" className="text-[.9rem] font-bold">하루 최대 횟수</label><div className="figure flex items-baseline gap-1"><span className="text-4xl font-semibold text-brand">{limit}</span><span className="text-sm text-ink-4">회</span></div></div>
-            <input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-7 w-full accent-[#765f82]" />
+            <input id="daily-limit" type="range" min="5" max="100" step="5" value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="mt-7 w-full accent-brand" />
             <div className="figure mt-2 flex justify-between text-[.76rem] text-ink-5"><span>5회</span><span>100회</span></div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4"><p className="flex items-center gap-1.5 text-[.82rem] text-ink-3"><TriangleAlert size={15} className="text-warn" /> 변경 즉시 모든 학생에게 적용됩니다.</p><Button onClick={save} disabled={saving || limit === savedLimit}>{saving ? <LoaderCircle className="animate-spin" size={17} /> : saved ? <Check size={17} /> : null}{saved ? "저장됨" : "변경 저장"}</Button></div>

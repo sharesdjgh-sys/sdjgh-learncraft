@@ -19,7 +19,7 @@ const mathSerif = Source_Serif_4({
 
 export const viewport: Viewport = {
   colorScheme: "light",
-  themeColor: "#f3f1ec",
+  themeColor: "#f7f8ff",
 };
 
 export async function generateMetadata(): Promise<Metadata> {

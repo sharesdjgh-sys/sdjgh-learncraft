@@ -30,7 +30,7 @@ type JsonRecord = Record<string, unknown>;
 const WIDTH = 720;
 const HEIGHT = 420;
 const PLOT = { left: 58, right: 22, top: 22, bottom: 48 };
-const CURVE_COLORS = ["#765f82", "#9a6d64", "#56786f", "#8a7a61"];
+const CURVE_COLORS = ["#6847e8", "#e0783f", "#1886bd", "#2c8a70"];
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -107,7 +107,7 @@ function parseGraphSpec(source: string): GraphSpec {
       x,
       y,
       label: text(item.label, 48) || undefined,
-      color: safeColor(item.color, "#51435a"),
+      color: safeColor(item.color, "#4a31bb"),
     }];
   });
 
