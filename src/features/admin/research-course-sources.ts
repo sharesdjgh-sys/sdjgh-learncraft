@@ -9,6 +9,13 @@ import {
   type CourseSourceBundle,
   type CourseSourceIdentity,
 } from "@/data/course-generation-sources";
+import {
+  curriculumAuthorityResearchGuide,
+  isCurriculumAuthorityUrl,
+  isPublisherOfficialUrl,
+  publisherResearchGuide,
+  resolvePublisherSourceGuide,
+} from "@/data/publisher-sources";
 import { curriculumTitle } from "@/lib/curriculum-title";
 import { env, isGeminiConfigured } from "@/lib/env";
 
@@ -64,6 +71,10 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
   }
 
   const modelId = env.GEMINI_PRIMARY_MODEL_ID;
+  const publisherGuide = resolvePublisherSourceGuide(input.publisherName);
+  if (!publisherGuide) {
+    throw new Error(`'${input.publisherName}' 출판사의 공식 출처가 아직 등록되지 않았습니다. 출판사 공식 사이트를 먼저 검토해 주세요.`);
+  }
   const research = await generateText({
     model: google(modelId),
     tools: {
@@ -72,6 +83,7 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
     system: [
       "당신은 대한민국 고등학교 교육과정과 검정 교과서 자료를 조사하는 사서입니다.",
       "검색 결과 중 교육부·국가교육과정정보센터·교육청 또는 해당 출판사의 공식 웹사이트와 공식 PDF만 근거로 사용합니다.",
+      "아래에 제공된 출판사 공식 사이트를 먼저 검색하고, 같은 이름의 쇼핑몰·블로그·무단 전자책 사이트와 혼동하지 않습니다.",
       "블로그, 카페, 위키, 쇼핑몰, 서점, 무단 공유 자료는 사용하지 않습니다.",
       "확인되지 않은 목차나 성취기준은 절대로 추측하지 않습니다.",
     ].join("\n"),
@@ -79,14 +91,23 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
       `${input.academicYear}학년도 고등학교 ${input.grade}학년 '${input.subjectTitle} - ${input.courseTitle}' 과목을 조사하세요.`,
       `채택 출판사는 '${input.publisherName}'입니다.`,
       input.textbookTitle ? `교과서명은 '${input.textbookTitle}'입니다.` : "교과서명이 없으므로 과목·학년·출판사·2022 개정 교육과정이 모두 일치하는 공식 교과서를 식별하세요.",
+      "[출판사 공식 출처 안내]",
+      publisherResearchGuide(input.publisherName),
+      "[국가 교육과정 공식 출처 안내]",
+      curriculumAuthorityResearchGuide(),
       "1) 해당 출판사 공식 자료에서 교과서의 대단원·중단원·소단원 목차와 순서를 빠짐없이 확인하세요.",
       "2) 교육부 또는 국가교육과정정보센터 공식 자료에서 이 과목의 2022 개정 교육과정 성취기준 코드와 원문을 확인하세요.",
-      "3) 사용한 공식 자료의 제목과 근거를 명시하세요.",
+      "3) 출판사명과 저자명이 함께 제공되면 둘 다 일치하는 교과서인지 확인하세요.",
+      "4) 사용한 공식 자료의 제목과 근거를 명시하세요.",
       "공식 목차와 공식 성취기준을 모두 찾지 못하면 무엇이 부족한지 분명히 말하고 내용을 만들어내지 마세요.",
     ].join("\n"),
     maxOutputTokens: 12_000,
   });
-  const urlSources = research.sources.filter((source) => source.sourceType === "url");
+  const discoveredUrlSources = research.sources.filter((source) => source.sourceType === "url");
+  const urlSources = discoveredUrlSources.filter((source) => (
+    isPublisherOfficialUrl(source.url, publisherGuide)
+    || isCurriculumAuthorityUrl(source.url)
+  ));
   if (urlSources.length < 2) {
     throw new Error("공식 출판사 목차와 국가 교육과정 출처를 모두 확인하지 못했습니다.");
   }
@@ -125,6 +146,8 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
     !tocSource
     || !curriculumSource
     || tocSource.url === curriculumSource.url
+    || !isPublisherOfficialUrl(tocSource.url, publisherGuide)
+    || !isCurriculumAuthorityUrl(curriculumSource.url)
     || tocEntries.length === 0
   ) {
     throw new Error("공식 목차와 교육과정 출처를 확정하지 못했습니다.");

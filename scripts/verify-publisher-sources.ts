@@ -1,0 +1,41 @@
+import { publisherSourceGuides, resolvePublisherSourceGuide } from "../src/data/publisher-sources";
+import { schoolCourseCatalog } from "../src/data/school-course-catalog";
+
+const unmatchedPublishers = [...new Set(
+  schoolCourseCatalog
+    .filter((course) => !resolvePublisherSourceGuide(course.publisherName))
+    .map((course) => course.publisherName),
+)];
+
+if (unmatchedPublishers.length > 0) {
+  throw new Error(`공식 출처 레지스트리에 없는 출판사: ${unmatchedPublishers.join(", ")}`);
+}
+
+const aliasCases = [
+  ["비상교육(강호영)", "VISANG"],
+  ["㈜미래엔", "MIRAEN"],
+  ["(주)천재교육", "CHUNJAE"],
+  ["와이비엠", "YBM"],
+  ["㈜엔이능률", "NEUNGYULE"],
+] as const;
+
+for (const [publisherName, expectedKey] of aliasCases) {
+  const resolved = resolvePublisherSourceGuide(publisherName);
+  if (resolved?.key !== expectedKey) {
+    throw new Error(`${publisherName} 별칭을 ${expectedKey}로 인식하지 못했습니다.`);
+  }
+}
+
+for (const guide of publisherSourceGuides) {
+  if (guide.sites.length === 0 || guide.allowedDomains.length === 0) {
+    throw new Error(`${guide.canonicalName}의 공식 사이트 또는 허용 도메인이 비어 있습니다.`);
+  }
+  for (const site of guide.sites) {
+    const url = new URL(site.url);
+    if (url.protocol !== "https:") throw new Error(`${site.label}은 HTTPS URL이어야 합니다.`);
+  }
+}
+
+console.log(
+  `출판사 공식 출처 검증 완료: ${publisherSourceGuides.length}개 출판사 그룹, 학교 카탈로그 ${schoolCourseCatalog.length}개 과목 100% 연결`,
+);
