@@ -21,9 +21,11 @@ export default async function LoginPage() {
         <section className="login-story relative hidden min-h-[700px] flex-col justify-between overflow-hidden border-r border-line p-12 lg:flex">
           <div className="login-story-mark" aria-hidden="true"><Route size={190} /></div>
           <div>
-            <Logo />
-            <p className="mt-20 text-[.74rem] font-extrabold tracking-[.14em] text-brand">LEARNCRAFT SCHOOL</p>
-            <h1 className="font-learning mt-5 text-[2.55rem] font-bold leading-[1.38] tracking-[-0.055em] text-ink text-balance">
+            <div className="flex flex-col items-start gap-5">
+              <Logo />
+              <p className="flex items-center gap-2 text-[.74rem] font-extrabold tracking-[.14em] text-brand"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
+            </div>
+            <h1 className="font-learning mt-7 text-[2.55rem] font-bold leading-[1.38] tracking-[-0.055em] text-ink text-balance">
               궁금한 지점에서 시작해<br />개념의 흐름을 이어가요
             </h1>
             <p className="mt-5 max-w-[23rem] text-[.92rem] leading-7 text-ink-3">
@@ -39,10 +41,13 @@ export default async function LoginPage() {
 
         <section className="login-form-panel min-w-0 min-h-[calc(100dvh-2.5rem)] px-5 py-7 sm:min-h-0 sm:px-10 sm:py-11 lg:flex lg:min-h-[700px] lg:items-center lg:px-14">
           <div className="mx-auto w-full min-w-0 max-w-[31rem]">
-            <div className="lg:hidden"><Logo /></div>
+            <div className="flex flex-col items-start gap-5 lg:hidden">
+              <Logo />
+              <p className="flex items-center gap-2 text-[.75rem] font-extrabold tracking-[.12em] text-brand"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
+            </div>
 
-            <p className="mt-12 flex items-center gap-2 text-[.75rem] font-extrabold tracking-[.12em] text-brand sm:mt-8 lg:mt-0"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
-            <h2 className="font-learning mt-4 text-[2rem] font-bold tracking-[-0.045em] text-ink sm:text-[2.3rem]">학습 공간에 로그인</h2>
+            <p className="hidden items-center gap-2 text-[.75rem] font-extrabold tracking-[.12em] text-brand lg:flex"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
+            <h2 className="font-learning mt-6 text-[2rem] font-bold tracking-[-0.045em] text-ink sm:text-[2.3rem] lg:mt-4">학습 공간에 로그인</h2>
             <p className="mt-2 max-w-[28rem] text-[.9rem] leading-6 text-ink-3">학교에서 받은 학번과 비밀번호를 입력해 주세요. 관리자 계정도 같은 방식으로 로그인합니다.</p>
 
             <LoginForm
