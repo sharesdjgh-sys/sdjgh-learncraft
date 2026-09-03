@@ -1,12 +1,13 @@
 import "server-only";
 
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { generateText, Output } from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
 import { ensureCourseSources } from "@/features/admin/research-course-sources";
 import { env, isGeminiConfigured } from "@/lib/env";
 
 const google = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY });
+const CONTENT_BATCH_SIZE = 6;
 
 const generatedUnitSchema = z.object({
   code: z.string().min(1).max(40),
@@ -54,7 +55,7 @@ const generatedUnitContentSchema = generatedUnitSchema.omit({
   topicOrder: true,
   sourceUrl: true,
 }).extend({
-  sourceIndex: z.number().int().min(1).max(100),
+  sourceIndex: z.number().int().min(0).max(100).optional(),
 });
 
 const generatedBatchSchema = z.object({
@@ -129,37 +130,53 @@ export async function generateCourseContent(input: {
     const outline = batch.map((entry) => (
       `${entry.sourceIndex}. ${entry.chapterTitle} > ${entry.sectionTitle} > ${entry.topicTitle}`
     )).join("\n");
-    const result = await generateText({
-      model: google(modelId),
-      output: Output.object({ schema: generatedBatchSchema }),
-      system: "당신은 공식 교육과정과 실제 교과서 목차를 근거로 학습 콘텐츠를 작성하는 대한민국 고등학교 교육 전문가입니다. 제공된 목차의 제목과 순서를 바꾸거나 새 단원을 추가하지 않습니다.",
-      prompt: `${commonPrompt}\n\n[이번 생성 묶음]\n${outline}\n\n각 항목을 sourceIndex로 정확히 한 번씩 반환하세요.`,
-      maxOutputTokens: 12000,
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            thinkingLevel: "medium",
-            includeThoughts: false,
+    try {
+      const result = await generateText({
+        model: google(modelId),
+        output: Output.object({ schema: generatedBatchSchema }),
+        system: "당신은 공식 교육과정과 실제 교과서 목차를 근거로 학습 콘텐츠를 작성하는 대한민국 고등학교 교육 전문가입니다. 제공된 목차의 제목과 순서를 바꾸거나 새 단원을 추가하지 않습니다.",
+        prompt: `${commonPrompt}\n\n[이번 생성 묶음]\n${outline}\n\n각 항목을 sourceIndex로 정확히 한 번씩 반환하세요.`,
+        maxOutputTokens: 12000,
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              thinkingLevel: "medium",
+              includeThoughts: false,
+            },
           },
         },
-      },
-    });
-    if (!result.output) throw new Error("AI가 구조화된 콘텐츠를 반환하지 않았습니다.");
-    return {
-      output: result.output,
-      modelId,
-      usage: {
-        inputTokens: result.usage.inputTokens ?? 0,
-        outputTokens: result.usage.outputTokens ?? 0,
-      },
-    };
+      });
+      if (!result.output) throw new Error("AI가 구조화된 콘텐츠를 반환하지 않았습니다.");
+      if (result.output.units.length !== batch.length) {
+        throw new Error(`AI가 요청한 ${batch.length}개 목차 중 ${result.output.units.length}개만 반환했습니다.`);
+      }
+      return {
+        output: {
+          ...result.output,
+          units: result.output.units.map((unit, index) => ({
+            ...unit,
+            sourceIndex: batch[index].sourceIndex,
+          })),
+        },
+        modelId,
+        usage: {
+          inputTokens: result.usage.inputTokens ?? 0,
+          outputTokens: result.usage.outputTokens ?? 0,
+        },
+      };
+    } catch (error) {
+      if (NoObjectGeneratedError.isInstance(error)) {
+        throw new Error(`AI 콘텐츠를 형식에 맞게 구조화하지 못했습니다 (${error.finishReason ?? "unknown"}).`);
+      }
+      throw error;
+    }
   };
 
   const batches = Array.from(
-    { length: Math.ceil(researched.bundle.tocEntries.length / 6) },
+    { length: Math.ceil(researched.bundle.tocEntries.length / CONTENT_BATCH_SIZE) },
     (_, batchIndex) => researched.bundle.tocEntries
-      .slice(batchIndex * 6, batchIndex * 6 + 6)
-      .map((entry, index) => ({ ...entry, sourceIndex: batchIndex * 6 + index + 1 })),
+      .slice(batchIndex * CONTENT_BATCH_SIZE, batchIndex * CONTENT_BATCH_SIZE + CONTENT_BATCH_SIZE)
+      .map((entry, index) => ({ ...entry, sourceIndex: batchIndex * CONTENT_BATCH_SIZE + index + 1 })),
   );
   const results: Awaited<ReturnType<typeof runBatch>>[] = [];
   for (let index = 0; index < batches.length; index += 2) {

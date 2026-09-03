@@ -1,4 +1,9 @@
-import { publisherSourceGuides, resolvePublisherSourceGuide } from "../src/data/publisher-sources";
+import {
+  canonicalPublisherOfficialUrl,
+  isPublisherOfficialUrl,
+  publisherSourceGuides,
+  resolvePublisherSourceGuide,
+} from "../src/data/publisher-sources";
 import { schoolCourseCatalog } from "../src/data/school-course-catalog";
 
 const unmatchedPublishers = [...new Set(
@@ -34,6 +39,16 @@ for (const guide of publisherSourceGuides) {
     const url = new URL(site.url);
     if (url.protocol !== "https:") throw new Error(`${site.label}은 HTTPS URL이어야 합니다.`);
   }
+}
+
+const visang = resolvePublisherSourceGuide("비상교육");
+if (!visang) throw new Error("비상교육 공식 출처를 찾지 못했습니다.");
+const redirectedVisangUrl = "http://text.vivasam.com/list/high?subjectCd=DH410&label=career";
+if (!isPublisherOfficialUrl(redirectedVisangUrl, visang)) {
+  throw new Error("비상교육의 HTTP 리디렉션 URL을 공식 출처로 인식하지 못했습니다.");
+}
+if (canonicalPublisherOfficialUrl(redirectedVisangUrl, visang)?.startsWith("https://") !== true) {
+  throw new Error("비상교육 공식 URL을 HTTPS로 정규화하지 못했습니다.");
 }
 
 console.log(

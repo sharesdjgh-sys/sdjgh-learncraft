@@ -198,6 +198,20 @@ function urlMatchesDomains(url: string, domains: readonly string[]) {
   }
 }
 
+function canonicalOfficialUrl(url: string, domains: readonly string[]) {
+  try {
+    const parsed = new URL(url);
+    if (
+      !["http:", "https:"].includes(parsed.protocol)
+      || !domains.some((domain) => hostnameMatches(parsed.hostname, domain))
+    ) return null;
+    parsed.protocol = "https:";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function resolvePublisherSourceGuide(publisherName: string) {
   const normalized = normalizePublisherName(publisherName);
   return publisherSourceGuides.find((guide) => guide.aliases.some((alias) => {
@@ -207,7 +221,11 @@ export function resolvePublisherSourceGuide(publisherName: string) {
 }
 
 export function isPublisherOfficialUrl(url: string, guide: PublisherSourceGuide) {
-  return urlMatchesDomains(url, guide.allowedDomains);
+  return canonicalPublisherOfficialUrl(url, guide) !== null;
+}
+
+export function canonicalPublisherOfficialUrl(url: string, guide: PublisherSourceGuide) {
+  return canonicalOfficialUrl(url, guide.allowedDomains);
 }
 
 export function isCurriculumAuthorityUrl(url: string) {

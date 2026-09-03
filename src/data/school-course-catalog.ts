@@ -8,6 +8,7 @@ export type SchoolCourseCatalogItem = {
   subjectTitle: string;
   courseTitle: string;
   publisherName: string;
+  textbookTitle?: string;
   contentCourseCode?: string;
 };
 
@@ -19,6 +20,7 @@ const course = (
   courseTitle: string,
   publisherName: string,
   contentCourseCode?: string,
+  textbookTitle?: string,
 ): SchoolCourseCatalogItem => ({
   key,
   academicYear: 2026,
@@ -27,6 +29,7 @@ const course = (
   subjectTitle,
   courseTitle,
   publisherName,
+  textbookTitle,
   contentCourseCode,
 });
 
@@ -42,8 +45,8 @@ export const schoolCourseCatalog: SchoolCourseCatalogItem[] = [
   course("2026-g1-integrated-social-2", 1, "SOCIAL", "사회", "통합사회 2", "비상교육"),
   course("2026-g1-korean-history-1", 1, "SOCIAL", "사회", "한국사 1", "비상교육"),
   course("2026-g1-korean-history-2", 1, "SOCIAL", "사회", "한국사 2", "비상교육"),
-  course("2026-g1-geography-atlas", 1, "SOCIAL", "사회", "지리부도", "비상교육"),
-  course("2026-g1-history-atlas", 1, "SOCIAL", "사회", "역사부도", "비상교육"),
+  course("2026-g1-geography-atlas", 1, "SOCIAL", "사회", "지리부도", "비상교육", undefined, "일반 선택 지리 부도 (정성훈)"),
+  course("2026-g1-history-atlas", 1, "SOCIAL", "사회", "역사부도", "비상교육", undefined, "일반 선택 역사 부도 (도면회)"),
   course("2026-g1-integrated-science-1", 1, "SCIENCE", "과학", "통합과학 1", "미래엔"),
   course("2026-g1-integrated-science-2", 1, "SCIENCE", "과학", "통합과학 2", "미래엔"),
   course("2026-g1-science-inquiry-lab-1", 1, "SCIENCE", "과학", "과학탐구실험 1", "비상교육"),
@@ -64,11 +67,11 @@ export const schoolCourseCatalog: SchoolCourseCatalogItem[] = [
   course("2026-g2-geometry", 2, "MATH", "수학", "기하", "동아출판", "GEO"),
   course("2026-g2-english-1", 2, "ENGLISH", "영어", "영어Ⅰ", "지학사", "ENG1"),
   course("2026-g2-english-2", 2, "ENGLISH", "영어", "영어Ⅱ", "지학사", "ENG2"),
-  course("2026-g2-global-citizens-geography", 2, "SOCIAL", "사회", "세계시민과 지리", "비상교육"),
+  course("2026-g2-global-citizens-geography", 2, "SOCIAL", "사회", "세계시민과 지리", "비상교육", undefined, "일반 선택 세계시민과 지리 (박배균)"),
   course("2026-g2-politics", 2, "SOCIAL", "사회", "정치", "미래엔"),
   course("2026-g2-world-history", 2, "SOCIAL", "사회", "세계사", "비상교육"),
   course("2026-g2-modern-society-ethics", 2, "SOCIAL", "사회", "현대사회와 윤리", "비상교육"),
-  course("2026-g2-future-city", 2, "SOCIAL", "사회", "도시의 미래 탐구", "비상교육"),
+  course("2026-g2-future-city", 2, "SOCIAL", "사회", "도시의 미래 탐구", "비상교육", undefined, "진로 선택 도시의 미래 탐구 (최영진)"),
   course("2026-g2-east-asian-history", 2, "SOCIAL", "사회", "동아시아 역사 기행", "비상교육"),
   course("2026-g2-law-society", 2, "SOCIAL", "사회", "법과 사회", "미래엔"),
   course("2026-g2-ethics-thought", 2, "SOCIAL", "사회", "윤리와 사상", "리베르스쿨"),

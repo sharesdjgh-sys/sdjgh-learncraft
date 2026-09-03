@@ -54,7 +54,7 @@ function defaultItems(): CurriculumOffering[] {
     subjectTitle: item.subjectTitle,
     courseTitle: item.courseTitle,
     publisherName: item.publisherName,
-    textbookTitle: null,
+    textbookTitle: item.textbookTitle ?? null,
     contentCourseCode: item.contentCourseCode ?? null,
     enabled: selected.has(item.key),
     confidence: 100,

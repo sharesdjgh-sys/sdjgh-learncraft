@@ -742,10 +742,16 @@ export function AdminCurriculum() {
                           <span className="mb-1 block text-[.66rem] font-bold text-ink-5">과목명</span>
                           <input disabled={!editable} value={item.courseTitle} onChange={(event) => updateItem(item.rowKey, { courseTitle: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.8rem] font-bold text-ink outline-none transition focus:border-brand disabled:bg-transparent" />
                         </label>
-                        <label className="min-w-0">
-                          <span className="mb-1 block text-[.66rem] font-bold text-ink-5">출판사</span>
-                          <input disabled={!editable} value={item.publisherName} onChange={(event) => updateItem(item.rowKey, { publisherName: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.78rem] text-ink-3 outline-none transition focus:border-brand disabled:bg-transparent" />
-                        </label>
+                        <div className="min-w-0 space-y-2">
+                          <label className="block min-w-0">
+                            <span className="mb-1 block text-[.66rem] font-bold text-ink-5">출판사</span>
+                            <input disabled={!editable} value={item.publisherName} onChange={(event) => updateItem(item.rowKey, { publisherName: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.78rem] text-ink-3 outline-none transition focus:border-brand disabled:bg-transparent" />
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="mb-1 block text-[.66rem] font-bold text-ink-5">정식 교과서명 · 대표 저자</span>
+                            <input disabled={!editable} value={item.textbookTitle ?? ""} onChange={(event) => updateItem(item.rowKey, { textbookTitle: event.target.value || null, reviewRequired: true })} placeholder="예: 일반 선택 지리 부도 (정성훈)" className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.75rem] text-ink-3 outline-none transition placeholder:text-ink-5 focus:border-brand disabled:bg-transparent" />
+                          </label>
+                        </div>
                         <div className="flex flex-wrap items-end justify-between gap-2 sm:justify-end">
                           {item.reviewRequired && <span className="mb-2 inline-flex items-center gap-1 whitespace-nowrap text-[.66rem] font-bold text-warn"><TriangleAlert size={12} />확인 필요</span>}
                           {item.contentCourseCode && item.generatedContent && item.id ? (
