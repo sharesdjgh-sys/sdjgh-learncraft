@@ -28,9 +28,9 @@ export default async function ProfilePage() {
           </div>
           <dl className="divide-y divide-line">
             {details.map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex items-center justify-between gap-4 py-4.5">
-                <dt className="flex items-center gap-2.5 text-[.9rem] text-ink-3"><Icon size={17} className="text-brand" strokeWidth={1.8} />{label}</dt>
-                <dd className="text-right text-[.9rem] font-bold text-ink">{value}</dd>
+              <div key={label} className="flex min-w-0 flex-col gap-2 py-4.5 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between min-[420px]:gap-4">
+                <dt className="flex shrink-0 items-center gap-2.5 text-[.9rem] text-ink-3"><Icon size={17} className="text-brand" strokeWidth={1.8} />{label}</dt>
+                <dd className="min-w-0 break-words text-[.9rem] font-bold text-ink min-[420px]:text-right">{value}</dd>
               </div>
             ))}
           </dl>

@@ -4,14 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BookOpenText, LogOut, NotebookTabs } from "lucide-react";
+import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
+import { MobileUsageSummary } from "@/components/usage/mobile-usage-summary";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
 
-export const studentNavItems = [
+const studentPrimaryNavItems = [
   { href: "/learn", label: "학습", icon: BookOpenText },
   { href: "/notebook", label: "학습 북마크", icon: NotebookTabs },
 ] as const;
+
+export const studentNavItems = studentPrimaryNavItems;
 
 export function StudentTopNavigation({ actions, user }: { actions?: React.ReactNode; user: Pick<SessionUser, "name" | "schoolName"> }) {
   const pathname = usePathname();
@@ -25,11 +29,11 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
   }
 
   return (
-    <header className="veil sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
+    <header className="veil sticky top-0 z-40 flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center justify-between gap-3 border-b border-line px-3 pt-[env(safe-area-inset-top)] sm:px-6">
       <div className="flex min-w-0 items-center gap-7">
-        <Logo />
+        <Logo className="max-[420px]:[&>span]:w-28" />
         <nav className="hidden items-center gap-1 min-[1024px]:flex" aria-label="학생 메뉴">
-          {studentNavItems.map(({ href, label, icon: Icon }) => {
+          {studentPrimaryNavItems.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link
@@ -52,7 +56,9 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {actions}
-        <Link href="/profile" title="내 정보 보기" className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-2.5 shadow-[var(--lift-1)] transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)]" aria-label={`로그인 사용자 ${user.name}, 내 정보 보기`}>
+        <PwaInstallAction />
+        <Link href="/profile" className="flex min-h-10 max-w-14 items-center truncate rounded-[10px] px-1.5 text-[.76rem] font-bold text-ink-2 active:bg-surface-2 min-[1024px]:hidden" aria-label={`${user.name} 내 정보 보기`}>{user.name}</Link>
+        <Link href="/profile" title="내 정보 보기" className="hidden min-h-11 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-2.5 shadow-[var(--lift-1)] transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] min-[1024px]:flex" aria-label={`로그인 사용자 ${user.name}, 내 정보 보기`}>
           <Image
             src="/images/sdj-school-logo.webp"
             alt={`${user.schoolName} 로고`}
@@ -67,7 +73,7 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
             <span className="hidden max-w-32 truncate text-[.68rem] text-ink-5 min-[520px]:block lg:hidden">{user.schoolName}</span>
           </span>
         </Link>
-        <button onClick={logout} className="grid size-10 place-items-center rounded-[11px] text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃" title="로그아웃">
+        <button onClick={logout} className="grid size-11 place-items-center rounded-[11px] text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃" title="로그아웃">
           <LogOut size={17} strokeWidth={1.9} />
         </button>
       </div>
@@ -78,13 +84,19 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
 export function StudentBottomNavigation() {
   const pathname = usePathname();
   return (
-    <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 border-t border-line px-3 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 학생 메뉴">
+    <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 학생 메뉴">
       {studentNavItems.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
+        const destination = href === "/learn" ? "/learn#course-picker" : href;
         return (
           <Link
             key={href}
-            href={href}
+            href={destination}
+            onClick={(event) => {
+              if (href !== "/learn" || !active) return;
+              event.preventDefault();
+              window.dispatchEvent(new Event("learncraft:open-course-picker"));
+            }}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.78rem] font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
@@ -98,6 +110,7 @@ export function StudentBottomNavigation() {
           </Link>
         );
       })}
+      <MobileUsageSummary />
     </nav>
   );
 }

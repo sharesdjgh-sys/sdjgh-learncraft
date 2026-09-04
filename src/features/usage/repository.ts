@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { FinishReason } from "ai";
 import { completeUsage as completeDemoUsage, getUsage as getDemoUsage, refundUsage as refundDemoUsage, reserveUsage as reserveDemoUsage } from "@/data/demo-store";
 import { db } from "@/db";
-import { dailyUsage, schools, usageEvents } from "@/db/schema";
+import { courses, dailyUsage, schools, subjects, units, usageEvents } from "@/db/schema";
 import { TUTOR_PROMPT_VERSION } from "@/features/tutor/prompt";
 import { env } from "@/lib/env";
 import type { SessionUser, TutorAction } from "@/types";
@@ -27,13 +27,59 @@ function today() {
 export async function getStudentUsage(user: SessionUser) {
   if (!db) {
     const usage = getDemoUsage(user.id);
-    return { ...usage, remaining: Math.max(0, usage.limit - usage.count) };
+    return {
+      ...usage,
+      remaining: Math.max(0, usage.limit - usage.count),
+      date: today(),
+      byCourse: [],
+    };
   }
-  const [school] = await db.select({ limit: schools.dailyAiLimit }).from(schools).where(eq(schools.id, user.schoolId)).limit(1);
+  const [schoolRows, usageRows, courseUsageResult] = await Promise.all([
+    db.select({ limit: schools.dailyAiLimit }).from(schools).where(eq(schools.id, user.schoolId)).limit(1),
+    db.select().from(dailyUsage).where(and(eq(dailyUsage.studentId, user.id), eq(dailyUsage.usageDate, today()))).limit(1),
+    db.execute(sql`
+      SELECT
+        s.title AS subject_title,
+        c.title AS course_title,
+        COUNT(*)::int AS question_count,
+        to_char(MIN(e.created_at AT TIME ZONE ${env.APP_TIMEZONE}), 'HH24:MI') AS first_used_at,
+        to_char(MAX(e.created_at AT TIME ZONE ${env.APP_TIMEZONE}), 'HH24:MI') AS last_used_at
+      FROM ${usageEvents} e
+      JOIN ${units} u ON u.id = e.unit_id
+      JOIN ${courses} c ON c.id = u.course_id
+      JOIN ${subjects} s ON s.id = c.subject_id
+      WHERE e.student_id = ${user.id}::uuid
+        AND e.status = 'SUCCEEDED'
+        AND (e.created_at AT TIME ZONE ${env.APP_TIMEZONE})::date = ${today()}::date
+      GROUP BY s.id, c.id
+      ORDER BY MAX(e.created_at) DESC
+    `),
+  ]);
+  const [school] = schoolRows;
   const limit = school?.limit ?? 20;
-  const [row] = await db.select().from(dailyUsage).where(and(eq(dailyUsage.studentId, user.id), eq(dailyUsage.usageDate, today()))).limit(1);
+  const [row] = usageRows;
   const count = row?.reservedCount ?? 0;
-  return { count, completed: row?.completedCount ?? 0, limit, remaining: Math.max(0, limit - count) };
+  const courseUsageRows = (courseUsageResult as unknown as { rows?: Array<{
+    subject_title: string;
+    course_title: string;
+    question_count: number;
+    first_used_at: string;
+    last_used_at: string;
+  }> }).rows ?? [];
+  return {
+    count,
+    completed: row?.completedCount ?? 0,
+    limit,
+    remaining: Math.max(0, limit - count),
+    date: today(),
+    byCourse: courseUsageRows.map((item) => ({
+      subjectTitle: item.subject_title,
+      courseTitle: item.course_title,
+      count: item.question_count,
+      firstUsedAt: item.first_used_at,
+      lastUsedAt: item.last_used_at,
+    })),
+  };
 }
 
 export async function reserveAiUsage(input: { user: SessionUser; requestId: string; unitId: string; action: TutorAction; modelId: string }) {

@@ -13,7 +13,7 @@ export function StudentShell({ user, children }: { user: SessionUser; children: 
       {!isLearningPage && (
         <StudentTopNavigation user={user} />
       )}
-      <main className={isLearningPage ? "min-h-dvh" : "min-h-[calc(100dvh-4rem)] pb-[calc(4.8rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0"}>{children}</main>
+      <main className={isLearningPage ? "min-h-dvh" : "min-h-[calc(100dvh-4rem-env(safe-area-inset-top))] pb-[calc(4.8rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0"}>{children}</main>
       <StudentBottomNavigation />
     </div>
   );

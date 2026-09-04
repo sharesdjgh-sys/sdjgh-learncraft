@@ -81,7 +81,7 @@ body {
 }
 
 button, input, textarea, select { color-scheme: light; font: inherit; color: inherit; }
-button, a { -webkit-tap-highlight-color: transparent; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button:active, a:active { transition-duration: 80ms; }
 
 :where(button, a, input, select, [tabindex]):focus-visible {
@@ -249,6 +249,44 @@ button:active, a:active { transition-duration: 80ms; }
 
 @media (max-width: 639px) {
   .login-shell { border-radius: 16px; }
+  .login-input { font-size: 1rem; }
+}
+
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior-y: none; }
+}
+
+.mobile-portrait-guard { display: none; }
+
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  body { overflow: hidden; }
+  .mobile-portrait-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+    background: linear-gradient(145deg, #f7f8ff 0%, #eee9ff 100%);
+    color: var(--ink);
+    text-align: center;
+  }
+  .mobile-portrait-guard__phone {
+    margin-bottom: .85rem;
+    font-size: 2.75rem;
+    line-height: 1;
+    transform: rotate(-90deg);
+  }
+  .mobile-portrait-guard strong {
+    font-family: var(--font-serif);
+    font-size: 1.15rem;
+  }
+  .mobile-portrait-guard p {
+    margin-top: .45rem;
+    font-size: .8rem;
+    color: var(--ink-4);
+  }
 }
 
 .scrollbar-subtle { scrollbar-width: thin; scrollbar-color: #cbc9dd transparent; }

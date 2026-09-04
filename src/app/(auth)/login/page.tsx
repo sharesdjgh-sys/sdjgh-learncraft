@@ -16,7 +16,7 @@ export default async function LoginPage() {
   if (session) redirect(session.role === "ADMIN" ? "/admin/dashboard" : "/learn");
 
   return (
-    <main className="login-canvas relative min-h-dvh overflow-hidden px-4 py-5 sm:grid sm:place-items-center sm:px-7 sm:py-8">
+    <main className="login-canvas relative min-h-dvh overflow-x-hidden px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] sm:grid sm:place-items-center sm:px-7 sm:py-8">
       <div className="login-shell relative z-10 mx-auto grid w-full min-w-0 max-w-[1060px] grid-cols-1 overflow-hidden lg:grid-cols-[.9fr_1.1fr]">
         <section className="login-story relative hidden min-h-[700px] flex-col justify-between overflow-hidden border-r border-line p-12 lg:flex">
           <div className="login-story-mark" aria-hidden="true"><Route size={190} /></div>
@@ -39,7 +39,7 @@ export default async function LoginPage() {
           </div>
         </section>
 
-        <section className="login-form-panel min-w-0 min-h-[calc(100dvh-2.5rem)] px-5 py-7 sm:min-h-0 sm:px-10 sm:py-11 lg:flex lg:min-h-[700px] lg:items-center lg:px-14">
+        <section className="login-form-panel min-h-[calc(100dvh-2.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-w-0 px-5 py-7 sm:min-h-0 sm:px-10 sm:py-11 lg:flex lg:min-h-[700px] lg:items-center lg:px-14">
           <div className="mx-auto w-full min-w-0 max-w-[31rem]">
             <div className="flex flex-col items-start gap-5 lg:hidden">
               <Logo />

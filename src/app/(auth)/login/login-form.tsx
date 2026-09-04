@@ -201,7 +201,7 @@ export function LoginForm({
         <button
           type="button"
           onClick={() => setNotice("학생 계정은 학교 관리자에게 등록을 요청해 주세요.")}
-          className="font-bold text-brand hover:text-brand-dark hover:underline hover:underline-offset-4"
+          className="inline-flex min-h-11 items-center font-bold text-brand hover:text-brand-dark hover:underline hover:underline-offset-4"
         >
           계정 등록 안내
         </button>

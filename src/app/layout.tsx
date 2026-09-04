@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Noto_Serif_KR, Source_Serif_4 } from "next/font/google";
+import { PwaProvider } from "@/components/pwa/pwa-provider";
+import { MobilePortraitGuard } from "@/components/layout/mobile-portrait-guard";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -20,6 +22,7 @@ const mathSerif = Source_Serif_4({
 export const viewport: Viewport = {
   colorScheme: "light",
   themeColor: "#f7f8ff",
+  viewportFit: "cover",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -35,6 +38,16 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: "고등학생을 위한 교육과정 단원 기반 맞춤형 AI 학습 플랫폼",
     applicationName: "LearnCraft",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "LearnCraft",
+    },
+    formatDetection: { telephone: false },
+    icons: {
+      apple: [{ url: "/pwa-icon/180", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: {
       title: "LearnCraft | 교육과정 기반 AI 튜터",
       description: "교육과정 안에서, 나만의 속도로.",
@@ -54,7 +67,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${learningSerif.variable} ${mathSerif.variable}`}>
-      <body>{children}</body>
+      <body><PwaProvider>{children}<MobilePortraitGuard /></PwaProvider></body>
     </html>
   );
 }

@@ -299,7 +299,7 @@ export function NotebookView() {
       {mobileOutlineOpen && (
         <div className="fixed inset-0 z-50 min-[1024px]:hidden" role="dialog" aria-modal="true" aria-label="북마크 목차">
           <button type="button" className="absolute inset-0 cursor-default bg-[#e4e3f1]/72 backdrop-blur-[3px]" onClick={() => setMobileOutlineOpen(false)} aria-label="북마크 목차 닫기" />
-          <aside className="scrollbar-subtle absolute inset-y-0 left-0 w-[min(22rem,88vw)] overflow-y-scroll border-r border-line bg-surface px-5 py-5 shadow-[0_0_60px_rgba(46,43,90,.2)] [scrollbar-gutter:stable]">
+          <aside className="scrollbar-subtle absolute inset-y-0 left-0 w-[min(22rem,88vw)] overflow-y-scroll border-r border-line bg-surface px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] shadow-[0_0_60px_rgba(46,43,90,.2)] [scrollbar-gutter:stable]">
             <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={activeScope} onSelect={selectScope} onClose={() => setMobileOutlineOpen(false)} />
           </aside>
         </div>
@@ -326,7 +326,7 @@ function BookmarkOutline({ groups, itemCount, loading, scope, onSelect, onClose 
           height={224}
           className="mt-1 h-auto min-w-0 flex-1"
         />
-        {onClose && <Button type="button" variant="ghost" size="icon" onClick={onClose} className="-mr-1 -mt-1 size-9 shrink-0" aria-label="북마크 목차 닫기"><X size={17} /></Button>}
+        {onClose && <Button type="button" variant="ghost" size="icon" onClick={onClose} className="-mr-1 -mt-1 size-11 shrink-0" aria-label="북마크 목차 닫기"><X size={17} /></Button>}
       </div>
 
       <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 북마크 목차</div>
@@ -367,7 +367,7 @@ function BookmarkOutline({ groups, itemCount, loading, scope, onSelect, onClose 
                   onClick={() => onSelect(subjectValue)}
                   aria-pressed={scope === subjectValue}
                   className={cn(
-                    "flex min-h-8 w-full items-center gap-2 rounded-[8px] px-1.5 text-left transition hover:bg-brand-page",
+                    "flex min-h-11 w-full items-center gap-2 rounded-[8px] px-1.5 text-left transition hover:bg-brand-page min-[1024px]:min-h-8",
                     scope === subjectValue ? "text-brand-dark" : "text-ink",
                   )}
                 >
@@ -385,7 +385,7 @@ function BookmarkOutline({ groups, itemCount, loading, scope, onSelect, onClose 
                           onClick={() => onSelect(courseValue)}
                           aria-pressed={scope === courseValue}
                           className={cn(
-                            "flex min-h-9 w-full items-center gap-2 rounded-[9px] px-2 text-left transition-all duration-200 active:scale-[.99]",
+                            "flex min-h-11 w-full items-center gap-2 rounded-[9px] px-2 text-left transition-all duration-200 active:scale-[.99] min-[1024px]:min-h-9",
                             scope === courseValue
                               ? "bg-brand-soft text-brand-dark"
                               : "text-ink-2 hover:bg-surface hover:text-ink",
@@ -406,7 +406,7 @@ function BookmarkOutline({ groups, itemCount, loading, scope, onSelect, onClose 
                                 onClick={() => onSelect(unitValue)}
                                 aria-pressed={scope === unitValue}
                                 className={cn(
-                                  "flex min-h-8 w-full items-start gap-1.5 rounded-[8px] px-1.5 py-1 text-left transition-all duration-200 active:scale-[.985]",
+                                  "flex min-h-11 w-full items-start gap-1.5 rounded-[8px] px-1.5 py-2 text-left transition-all duration-200 active:scale-[.985] min-[1024px]:min-h-8 min-[1024px]:py-1",
                                   scope === unitValue
                                     ? "bg-brand-soft text-brand-dark"
                                     : "text-ink-3 hover:bg-surface hover:text-ink",

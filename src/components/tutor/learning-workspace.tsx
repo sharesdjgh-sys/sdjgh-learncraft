@@ -364,6 +364,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [conversationOpen, setConversationOpen] = useState(false);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
   const [preparingImages, setPreparingImages] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -371,6 +372,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerView, setDrawerView] = useState<"COURSES" | "OUTLINE">("COURSES");
   const [conceptOpen, setConceptOpen] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
@@ -408,6 +410,31 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const openCoursePicker = () => {
+      setDrawerView("COURSES");
+      setDrawerOpen(true);
+    };
+    const initialOpenTimer = window.setTimeout(() => {
+      if (window.location.hash === "#course-picker") openCoursePicker();
+    }, 0);
+    window.addEventListener("learncraft:open-course-picker", openCoursePicker);
+    return () => {
+      window.clearTimeout(initialOpenTimer);
+      window.removeEventListener("learncraft:open-course-picker", openCoursePicker);
+    };
+  }, []);
+
+  function openCoursePicker() {
+    setDrawerView("COURSES");
+    setDrawerOpen(true);
+  }
+
+  function openCourseOutline() {
+    setDrawerView("OUTLINE");
+    setDrawerOpen(true);
+  }
 
   useEffect(() => {
     let savedSession: SavedLearningSession | null = null;
@@ -561,6 +588,11 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         messages: completedSessionMessages(messages),
       });
     }
+    const nextUnit = units.find((unit) => unit.id === unitId);
+    if (nextUnit) {
+      setGrade(supportedGrade(nextUnit.grade));
+      setSubject(nextUnit.subjectCode);
+    }
     setSelectedUnitId(unitId);
     setHomeOpen(false);
     setCourseOverviewOpen(true);
@@ -587,7 +619,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setSelectedUnitId(nextUnit.id);
       setHomeOpen(true);
       setCourseOverviewOpen(false);
-      setDrawerOpen(false);
     }
   }
 
@@ -601,7 +632,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setSelectedUnitId(nextUnit.id);
       setHomeOpen(true);
       setCourseOverviewOpen(false);
-      setDrawerOpen(false);
     }
   }
 
@@ -717,7 +747,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       }
 
       const nextRemaining = Number(response.headers.get("X-Remaining-Usage"));
-      if (Number.isFinite(nextRemaining)) setRemaining(nextRemaining);
+      if (Number.isFinite(nextRemaining)) {
+        setRemaining(nextRemaining);
+        window.dispatchEvent(new CustomEvent("learncraft:usage-updated", { detail: { remaining: nextRemaining } }));
+      }
       const reader = response.body?.getReader();
       if (!reader) throw new Error("답변 스트림을 시작할 수 없어요.");
 
@@ -823,7 +856,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
         <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
-          <button onClick={() => setDrawerOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label="학습 단원 선택 열기">
+          <button onClick={homeOpen ? openCoursePicker : openCourseOutline} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label={homeOpen ? "수강 과목 선택 열기" : "선택한 과목 목차 열기"}>
             {homeOpen ? (
               <Sparkles size={15} className="shrink-0 text-brand" aria-hidden="true" />
             ) : courseOverviewOpen ? (
@@ -834,7 +867,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{homeOpen ? "LearnCraft 소개" : courseOverviewOpen ? `${selectedUnit.courseTitle} 과목 안내` : <InlineMarkdown>{selectedUnit.title}</InlineMarkdown>}</span>
             <ChevronDown size={14} className="ml-auto shrink-0 text-ink-5" />
           </button>
-          <span className="shrink-0 text-[.78rem] font-semibold text-ink-4 sm:hidden">{studentName}</span>
+          {!homeOpen && !courseOverviewOpen && (
+            <button
+              type="button"
+              onClick={() => setConceptOpen(true)}
+              className="grid size-11 shrink-0 place-items-center rounded-[12px] border border-brand/15 bg-brand-page text-brand shadow-[var(--lift-1)]"
+              aria-label="단원 핵심 노트 열기"
+              aria-expanded={conceptOpen}
+              aria-controls="concept-note-sheet"
+            >
+              <Image src="/images/core-notes-icon.png" alt="" width={44} height={30} className="h-auto w-9" aria-hidden="true" />
+            </button>
+          )}
           <span className="hidden text-[.78rem] text-ink-4 sm:inline">{schoolName} · {grade}학년</span>
         </div>
 
@@ -844,9 +888,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             homeOpen ? "max-w-[72rem] py-3 sm:py-5" : "max-w-[45rem] py-6 sm:py-9",
           )}>
             {homeOpen ? (
-              <LearnCraftIntro studentName={studentName} onOpenCurriculum={() => setDrawerOpen(true)} />
+              <LearnCraftIntro studentName={studentName} onOpenCurriculum={openCoursePicker} />
             ) : courseOverviewOpen ? (
-              <CourseOverview units={selectedCourseUnits} onOpenCurriculum={() => setDrawerOpen(true)} />
+              <CourseOverview units={selectedCourseUnits} onOpenCurriculum={openCourseOutline} />
             ) : !conversationOpen || messages.length === 0 ? (
               <Welcome unit={selectedUnit} learningLevel={learningLevel} previousAnswerCount={messages.filter((message) => message.role === "assistant" && message.completed).length} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} onResume={resumeConversation} />
             ) : (
@@ -887,19 +931,19 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
-                              <div className="ml-auto flex items-center gap-2">
+                              <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
                                 {index === messages.length - 1 && (
-                                  <button onClick={() => resetConversation()} disabled={loading} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border border-brand/20 bg-brand-page px-3.5 text-[.82rem] font-semibold text-brand-dark transition-all duration-300 hover:-translate-y-px hover:border-brand/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40" aria-label="새 대화 시작">
-                                    <Plus size={16} />
+                                  <button onClick={() => resetConversation()} disabled={loading} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-brand/20 bg-brand-page px-2.5 text-[.74rem] font-semibold text-brand-dark transition-all duration-300 hover:-translate-y-px hover:border-brand/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label="새 대화 시작">
+                                    <Plus className="size-3.5 sm:size-4" />
                                     <span>새 대화</span>
                                   </button>
                                 )}
-                                <button onClick={() => void copyMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
-                                  {copiedMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
+                                <button onClick={() => void copyMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
+                                  {copiedMessageId === message.id ? <Check className="size-3.5 sm:size-4" /> : <Copy className="size-3.5 sm:size-4" />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
                                 </button>
-                                <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
-                                  {savedIds.has(message.id) ? <BookmarkCheck size={16} className="text-brand" /> : <Bookmark size={16} />}
+                                <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
+                                  {savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
                                   <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
                                 </button>
                               </div>
@@ -923,9 +967,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                                     ? ask("QUESTION", LEARNING_ESSENTIALS_PROMPT, "FOLLOW_UP")
                                     : ask(action))}
                                   disabled={loading}
-                                  className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", tone)}
+                                  className={cn("flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border px-3 text-[.76rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:gap-2 sm:rounded-[11px] sm:px-4 sm:text-[.88rem]", tone)}
                                 >
-                                  <FollowUpIcon size={15} />{followUpLabel}{action === "QUIZ" && <span className="rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)]">권장</span>}
+                                  <FollowUpIcon className="size-3.5 sm:size-[15px]" />{followUpLabel}{action === "QUIZ" && <span className="hidden rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)] sm:inline">권장</span>}
                                 </button>
                               );
                             })}
@@ -933,8 +977,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         )}
                         {!message.completed && message.content && retryRequest && index === messages.length - 1 && (
-                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset, retryRequest.source)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-surface px-3.5 text-[.82rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft">
-                            <RotateCcw size={15} className="text-brand" /> 답변 다시 받기
+                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset, retryRequest.source)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[9px] border border-line bg-surface px-3 text-[.76rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft sm:min-h-11 sm:gap-2 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]">
+                            <RotateCcw className="size-3.5 text-brand sm:size-[15px]" /> 답변 다시 받기
                           </button>
                         )}
                       </div>
@@ -952,7 +996,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
             ) : (
-              <form onSubmit={(event) => { event.preventDefault(); void ask(); }} className="composer rounded-[16px] border border-line bg-surface p-1.5 shadow-[var(--lift-2)] transition">
+              <form onSubmit={(event) => { event.preventDefault(); void ask(); }} className="composer relative rounded-[14px] border border-line bg-surface p-1 shadow-[var(--lift-2)] transition sm:rounded-[16px] sm:p-1.5">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -978,22 +1022,22 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                   }}
                 />
                 {attachments.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
+                  <div className="flex gap-2 overflow-x-auto px-1.5 pb-1.5 pt-1.5 sm:pb-2">
                     {attachments.map((attachment) => (
-                      <div key={attachment.id} className="group relative w-24 shrink-0 overflow-hidden rounded-[11px] border border-line bg-surface-2">
+                      <div key={attachment.id} className="group relative w-[4.5rem] shrink-0 overflow-hidden rounded-[10px] border border-line bg-surface-2 sm:w-24 sm:rounded-[11px]">
                         <Image
                           src={attachment.dataUrl}
                           alt={`${attachment.name} 미리보기`}
                           width={96}
                           height={64}
                           unoptimized
-                          className="h-16 w-24 object-cover"
+                          className="h-12 w-[4.5rem] object-cover sm:h-16 sm:w-24"
                         />
-                        <p className="truncate px-2 py-1 text-[.68rem] font-medium text-ink-3">{attachment.name}</p>
+                        <p className="hidden truncate px-2 py-1 text-[.68rem] font-medium text-ink-3 sm:block">{attachment.name}</p>
                         <button
                           type="button"
                           onClick={() => removeAttachment(attachment.id)}
-                          className="absolute right-1 top-1 flex size-7 cursor-pointer items-center justify-center rounded-full border border-white/70 bg-white/90 text-ink shadow-sm transition hover:bg-white hover:text-danger"
+                          className="absolute right-1 top-1 flex size-11 cursor-pointer items-center justify-center rounded-full border border-white/70 bg-white/90 text-ink shadow-sm transition hover:bg-white hover:text-danger sm:size-8"
                           aria-label={`${attachment.name} 삭제`}
                         >
                           <X size={14} />
@@ -1004,38 +1048,58 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                 )}
                 {preparingImages && <p role="status" className="animate-pulse px-2.5 pb-1 text-[.76rem] font-semibold text-brand">이미지를 처리하고 있어요…</p>}
                 {attachmentError && <p role="alert" className="px-2.5 pb-1 text-[.76rem] font-semibold text-danger">{attachmentError}</p>}
-                <div className="flex items-end gap-2">
+                <div className="grid grid-cols-[2.5rem_1fr_2.5rem] items-end gap-x-2 gap-y-0 sm:flex sm:gap-2">
+                  <div className="relative col-start-1 row-start-2 shrink-0 sm:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAttachmentMenuOpen((open) => !open)}
+                      disabled={loading || preparingImages || attachments.length >= maxImageCount}
+                      className="grid size-10 cursor-pointer place-items-center rounded-full text-ink-3 transition active:scale-[.95] disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="이미지 추가 메뉴"
+                      aria-haspopup="menu"
+                      aria-expanded={attachmentMenuOpen}
+                    >
+                      <Plus size={22} strokeWidth={1.9} />
+                    </button>
+                    {attachmentMenuOpen && (
+                      <div role="menu" aria-label="이미지 추가" className="absolute bottom-[calc(100%+.55rem)] left-0 z-30 w-44 rounded-[14px] border border-line bg-surface p-1.5 shadow-[var(--lift-3)]">
+                        <button type="button" role="menuitem" onClick={() => { setAttachmentMenuOpen(false); fileInputRef.current?.click(); }} className="flex min-h-11 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-[.82rem] font-semibold text-ink-2 active:bg-surface-2"><ImagePlus size={17} className="text-brand" /> 이미지 선택</button>
+                        <button type="button" role="menuitem" onClick={() => { setAttachmentMenuOpen(false); cameraInputRef.current?.click(); }} className="flex min-h-11 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-[.82rem] font-semibold text-ink-2 active:bg-surface-2"><Camera size={17} className="text-brand" /> 사진 촬영</button>
+                      </div>
+                    )}
+                  </div>
                   <textarea
                     ref={textAreaRef}
                     value={input}
                     onChange={(event) => {
                       setInput(event.target.value);
                       event.currentTarget.style.height = "auto";
-                      event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 128)}px`;
+                      const maxHeight = window.matchMedia("(max-width: 639px)").matches ? 230 : 128;
+                      event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, maxHeight)}px`;
                     }}
                     onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }}
                     rows={1}
                     maxLength={1200}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
-                    className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-[1rem] leading-7 text-ink outline-none placeholder:text-ink-5"
+                    className="scrollbar-hidden col-span-3 row-start-1 max-h-[230px] min-h-9 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-2.5 pb-1.5 pt-2 text-[1rem] leading-6 text-ink outline-none [-webkit-overflow-scrolling:touch] placeholder:text-[.78rem] placeholder:text-ink-5 sm:max-h-32 sm:min-h-11 sm:flex-1 sm:px-2.5 sm:py-2.5 sm:leading-7 sm:placeholder:text-[1rem]"
                   />
                   <Button
                     type="submit"
                     size="icon"
                     disabled={(!input.trim() && attachments.length === 0) || loading || preparingImages}
                     aria-label="질문 보내기"
-                    className="shrink-0 rounded-[12px] border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#f1ecff_100%)] text-[#7253e8] shadow-[0_8px_20px_rgba(82,57,157,.23),0_2px_6px_rgba(45,34,77,.1)] hover:border-white hover:bg-[linear-gradient(145deg,#ffffff_0%,#ebe3ff_100%)] hover:text-[#6242d4] hover:shadow-[0_11px_24px_rgba(82,57,157,.29),0_3px_8px_rgba(45,34,77,.12)] focus-visible:ring-4 focus-visible:ring-[#8064ef]/20 disabled:translate-y-0 disabled:border-[#e7e1f2] disabled:bg-none disabled:bg-[#f3f0f8] disabled:text-[#b5acc8] disabled:shadow-none"
+                    className="col-start-3 row-start-2 size-10 shrink-0 rounded-full border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#f1ecff_100%)] text-[#7253e8] shadow-[0_8px_20px_rgba(82,57,157,.23),0_2px_6px_rgba(45,34,77,.1)] hover:border-white hover:bg-[linear-gradient(145deg,#ffffff_0%,#ebe3ff_100%)] hover:text-[#6242d4] hover:shadow-[0_11px_24px_rgba(82,57,157,.29),0_3px_8px_rgba(45,34,77,.12)] focus-visible:ring-4 focus-visible:ring-[#8064ef]/20 disabled:translate-y-0 disabled:border-[#e7e1f2] disabled:bg-none disabled:bg-[#f3f0f8] disabled:text-[#b5acc8] disabled:shadow-none sm:size-11 sm:rounded-[12px]"
                   >
                     <Send size={19} strokeWidth={2.3} />
                   </Button>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-1.5 pb-1 pt-1">
-                  <div className="flex items-center gap-1">
+                <div className="hidden items-center justify-end gap-2 px-1.5 pb-1 pt-0.5 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-2 sm:gap-y-1.5 sm:pt-1">
+                  <div className="hidden items-center gap-1 sm:flex">
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={loading || preparingImages || attachments.length >= maxImageCount}
-                      className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[.76rem] font-semibold text-ink-3 transition hover:bg-surface-2 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[.76rem] font-semibold text-ink-3 transition hover:bg-surface-2 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-8"
                       aria-label="이미지 파일 추가"
                     >
                       <ImagePlus size={15} /> 이미지
@@ -1044,34 +1108,34 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                       type="button"
                       onClick={() => cameraInputRef.current?.click()}
                       disabled={loading || preparingImages || attachments.length >= maxImageCount}
-                      className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[.76rem] font-semibold text-ink-3 transition hover:bg-surface-2 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 lg:hidden"
+                      className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[8px] px-2 text-[.76rem] font-semibold text-ink-3 transition hover:bg-surface-2 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-8 lg:hidden"
                       aria-label="사진 촬영"
                     >
                       <Camera size={15} /> 촬영
                     </button>
                   </div>
-                  <div className="ml-auto flex min-w-0 items-center gap-2 text-[.74rem] text-ink-5">
+                  <div className="ml-auto flex min-w-0 items-center gap-1.5 text-[.7rem] text-ink-5 sm:gap-2 sm:text-[.74rem]">
                     {attachments.length > 0 ? (
-                      <span className="truncate">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
+                      <span className="hidden truncate sm:inline">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
                     ) : (
                       <span className="hidden sm:inline">이미지 Ctrl+V · Enter 전송</span>
                     )}
                     <span
-                      className="inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-full border border-[#c9bbf4] bg-[#eee9ff] px-2.5 py-1 font-bold text-[#49328f] shadow-[0_2px_8px_rgba(73,50,143,.12)]"
+                      className="hidden min-h-7 shrink-0 items-center gap-1.5 rounded-full border border-[#c9bbf4] bg-[#eee9ff] px-2.5 py-1 font-bold text-[#49328f] shadow-[0_2px_8px_rgba(73,50,143,.12)] sm:inline-flex"
                       title="오늘 사용할 수 있는 AI 질문 횟수"
                     >
                       <span aria-hidden="true">✨</span>
-                      <span>오늘 AI 질문 가능 횟수</span>
-                      <span className="figure rounded-full bg-white/85 px-1.5 py-0.5 text-[.78rem] font-extrabold text-[#4f32ad] shadow-[0_1px_3px_rgba(73,50,143,.12)]">
+                      <span className="hidden sm:inline">오늘 AI 질문 가능 횟수</span>
+                      <span className="figure rounded-full bg-white/85 px-1.5 py-0.5 text-[.72rem] font-extrabold text-[#4f32ad] shadow-[0_1px_3px_rgba(73,50,143,.12)] sm:text-[.78rem]">
                         {remaining}/{dailyLimit}회
                       </span>
                     </span>
-                    <span className="figure shrink-0 border-l border-line pl-2">{input.length} / 1200</span>
+                    <span className="figure shrink-0 border-l border-line pl-1.5 sm:pl-2">{input.length}/1200</span>
                   </div>
                 </div>
               </form>
             )}
-            <p className="mt-2 text-center text-[.78rem] text-ink-5">AI 답변은 교과서와 선생님께 다시 확인하세요.</p>
+            <p className="mt-2 hidden text-center text-[.78rem] text-ink-5 sm:block">AI 답변은 교과서와 선생님께 다시 확인하세요.</p>
           </div>
         </div>}
       </section>
@@ -1081,7 +1145,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         type="button"
         onClick={() => setConceptOpen(true)}
         className={cn(
-          "group fixed bottom-[calc(5.35rem+env(safe-area-inset-bottom))] right-4 z-40 grid size-[4.35rem] cursor-pointer place-items-center overflow-visible rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#f1ecff_100%)] shadow-[0_14px_32px_rgba(82,57,157,.27),0_4px_10px_rgba(45,34,77,.12)] transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-1 hover:scale-[1.035] hover:shadow-[0_18px_38px_rgba(82,57,157,.32),0_5px_12px_rgba(45,34,77,.14)] active:translate-y-0 active:scale-[.97] min-[1024px]:bottom-7 min-[1024px]:right-7 min-[1024px]:size-[4.8rem]",
+          "group fixed bottom-7 right-7 z-40 hidden size-[4.8rem] cursor-pointer place-items-center overflow-visible rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#f1ecff_100%)] shadow-[0_14px_32px_rgba(82,57,157,.27),0_4px_10px_rgba(45,34,77,.12)] transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-1 hover:scale-[1.035] hover:shadow-[0_18px_38px_rgba(82,57,157,.32),0_5px_12px_rgba(45,34,77,.14)] active:translate-y-0 active:scale-[.97] min-[1024px]:grid",
           conceptOpen && "pointer-events-none scale-95 opacity-0",
         )}
         aria-label="단원 핵심 노트 열기"
@@ -1094,21 +1158,22 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       </button>}
 
       {drawerOpen && (
-        <Sheet title="학습 단원 선택" onClose={() => setDrawerOpen(false)}>
-          <CurriculumPicker grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={homeOpen ? "" : selectedUnit.courseCode} selectedUnitId={homeOpen || courseOverviewOpen ? "" : selectedUnit.id} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
+        <Sheet title={drawerView === "COURSES" ? "수강 과목 선택" : `${selectedUnit.courseTitle} 목차`} dismissible={drawerView === "OUTLINE" || !homeOpen} onClose={() => setDrawerOpen(false)}>
+          <CurriculumPicker selectionControls={drawerView === "COURSES"} grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={drawerView === "OUTLINE" ? selectedUnit.courseCode : ""} selectedUnitId={drawerView === "OUTLINE" && !courseOverviewOpen ? selectedUnit.id : ""} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
         <ConceptPanel unit={selectedUnit} />
       </Sheet>
 
-      {notice && <div className="fixed bottom-24 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[11px] border border-brand/20 bg-surface px-4 py-3 text-sm font-semibold text-brand-dark shadow-[var(--lift-3)] min-[1024px]:bottom-6"><Check size={16} />{notice}</div>}
+      {notice && <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-[11px] border border-brand/20 bg-surface px-4 py-3 text-center text-sm font-semibold text-brand-dark shadow-[var(--lift-3)] min-[1024px]:bottom-6 min-[1024px]:whitespace-nowrap"><Check size={16} className="shrink-0" />{notice}</div>}
       </div>
     </div>
   );
 }
 
-function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
+function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, units, selectedCourseCode, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
+  selectionControls?: boolean;
   grade: SupportedGrade;
   subject: SubjectCode;
   allUnits: LearningUnit[];
@@ -1222,10 +1287,11 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
-      <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학교 진도에 맞는 학습 주제를 고르세요.</p>
+      <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> {selectionControls ? "교육과정" : "과목 목차"}</div>
+      <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">{selectionControls ? "학년과 교과를 확인하고 수강 과목을 고르세요." : "현재 선택한 과목에서 학습할 단원을 고르세요."}</p>
+      {selectionControls && <>
       <div className="mt-4 grid gap-1 rounded-[12px] border border-line bg-surface-3 p-1" style={{ gridTemplateColumns: `repeat(${availableGrades.length}, minmax(0, 1fr))` }}>
-        {availableGrades.map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-9 cursor-pointer rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97]", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
+        {availableGrades.map((item) => <button key={item} onClick={() => onGrade(item)} className={cn("min-h-11 cursor-pointer rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97] min-[1024px]:min-h-9", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
       </div>
       <div ref={subjectMenuRef} className="relative mt-2">
         <button
@@ -1288,11 +1354,41 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
           </div>
         )}
       </div>
+      </>}
 
       {courseOptions.length > 0 ? (
-        <div className="mt-6">
+        <div className={selectionControls ? "mt-6" : "mt-4"}>
+          {selectionControls && <>
           <p className="px-1 text-[.78rem] font-bold text-ink-4">수강 과목</p>
-          <div ref={courseMenuRef} className="relative mt-2.5">
+          <div className="mt-2.5 grid gap-1.5 min-[1024px]:hidden">
+            {courseOptions.map((course) => {
+              const topicCount = units.filter((unit) => unit.courseCode === course.courseCode).length;
+              return (
+                <button
+                  key={course.courseCode}
+                  type="button"
+                  onClick={() => {
+                    const firstUnit = firstCurriculumUnit(
+                      units,
+                      (unit) => unit.courseCode === course.courseCode,
+                    );
+                    if (firstUnit) onCourse(firstUnit.id);
+                  }}
+                  className="flex min-h-12 w-full cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2.5 text-left shadow-[var(--lift-1)] transition-all active:scale-[.99]"
+                >
+                  <BookCopy size={16} className="shrink-0 text-brand" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[.68rem] font-semibold text-ink-5">{course.subjectTitle}</span>
+                    <span className="mt-0.5 block text-[.84rem] font-bold text-ink"><InlineMarkdown>{course.courseTitle}</InlineMarkdown></span>
+                  </span>
+                  <span className="shrink-0 text-[.68rem] font-semibold text-ink-5">{topicCount}개 주제</span>
+                  <ChevronDown size={15} className="shrink-0 -rotate-90 text-ink-5" aria-hidden="true" />
+                </button>
+              );
+            })}
+            <p className="px-1 pt-1 text-[.72rem] leading-5 text-ink-5">수강 과목을 선택하면 해당 과목의 학습 단원을 확인할 수 있어요.</p>
+          </div>
+          <div ref={courseMenuRef} className="relative mt-2.5 hidden min-[1024px]:block">
             <button
               type="button"
               onClick={() => {
@@ -1351,6 +1447,14 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
               </div>
             )}
           </div>
+          </>}
+
+          {!selectionControls && selectedCourse && (
+            <div className="rounded-[14px] border border-line bg-surface-2 px-4 py-3">
+              <p className="text-[.7rem] font-semibold text-ink-5">{selectedCourse.subjectTitle}</p>
+              <p className="font-learning mt-1 text-[.95rem] font-bold text-ink"><InlineMarkdown>{selectedCourse.courseTitle}</InlineMarkdown></p>
+            </div>
+          )}
 
           {selectedCourse && (
             <div className={cn("mt-2.5 rounded-[14px] px-3 py-2.5", selectedCourse.schoolAdopted ? "bg-[var(--ok-page)]" : "bg-[var(--warn-page)]") }>
@@ -1384,7 +1488,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
                             key={unit.id}
                             onClick={() => onUnit(unit.id)}
                             className={cn(
-                              "group flex min-h-9 cursor-pointer items-start gap-1.5 rounded-[9px] px-1.5 py-1 text-left transition-all duration-200 active:scale-[.985] min-[1024px]:min-h-8",
+                              "group flex min-h-11 cursor-pointer items-start gap-1.5 rounded-[9px] px-1.5 py-2 text-left transition-all duration-200 active:scale-[.985] min-[1024px]:min-h-8 min-[1024px]:py-1",
                               selectedUnitId === unit.id
                                 ? "bg-brand-soft text-[#4a3e7a]"
                                 : "text-ink-3 hover:bg-surface hover:text-ink",
@@ -1629,25 +1733,25 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
           )
         )}
 
-        <div className="mt-8">
-          <div className="mb-2.5 flex items-center justify-between gap-4"><p className="text-[.86rem] font-bold text-ink">답변 방식</p><p className="text-right text-[.8rem] text-ink-4">대화 중에도 바꿀 수 있어요</p></div>
+        <div className="mt-6 sm:mt-8">
+          <div className="mb-2 flex items-center justify-between gap-4 sm:mb-2.5"><p className="text-[.8rem] font-bold text-ink sm:text-[.86rem]">답변 방식</p><p className="text-right text-[.72rem] text-ink-4 sm:text-[.8rem]">대화 중에도 바꿀 수 있어요</p></div>
           <div className="grid grid-cols-2 gap-2">
             {levelConfig.map((item) => (
-              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[4.35rem] cursor-pointer rounded-[12px] border px-3.5 py-2.5 text-left transition-all duration-300 active:scale-[.98]", learningLevel === item.level ? "border-brand/30 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line bg-surface-2 text-ink-2 hover:bg-surface-3")}>
-                <span className="font-learning block text-[.95rem] font-bold">{item.label}</span><span className={cn("mt-1 block text-[.76rem] leading-5", learningLevel === item.level ? "text-brand/70" : "text-ink-4")}>{item.description}</span>
+              <button key={item.level} onClick={() => onLevel(item.level)} className={cn("min-h-[3.7rem] cursor-pointer rounded-[10px] border px-3 py-2 text-left transition-all duration-300 active:scale-[.98] sm:min-h-[4.35rem] sm:rounded-[12px] sm:px-3.5 sm:py-2.5", learningLevel === item.level ? "border-brand/30 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line bg-surface-2 text-ink-2 hover:bg-surface-3")}>
+                <span className="font-learning block text-[.84rem] font-bold sm:text-[.95rem]">{item.label}</span><span className={cn("mt-0.5 block text-[.7rem] leading-4 sm:mt-1 sm:text-[.76rem] sm:leading-5", learningLevel === item.level ? "text-brand/70" : "text-ink-4")}>{item.description}</span>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="mt-8">
-          <p className="mb-2.5 text-[.86rem] font-bold text-ink">{selectedLevel?.label ?? "선택한 방식"}으로 물어보기 예시</p>
+        <div className="mt-6 sm:mt-8">
+          <p className="mb-2 text-[.78rem] font-bold text-ink sm:mb-2.5 sm:text-[.86rem]">{selectedLevel?.label ?? "선택한 방식"}으로 물어보기 예시</p>
           <div className="grid gap-1.5">
           {suggestedQuestions.map((question, index) => (
-            <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group grid min-h-[4.25rem] cursor-pointer grid-cols-[2rem_1fr_1.25rem] items-center gap-3 rounded-[13px] border border-transparent bg-surface-2 px-4 py-3 text-left transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:border-line hover:bg-surface active:scale-[.985]">
-              <span className="figure text-[1.02rem] text-brand">0{index + 1}</span>
-              <span className="font-learning text-[.96rem] font-semibold leading-6 text-ink"><InlineMarkdown>{question}</InlineMarkdown></span>
-              <span className="text-lg text-ink-5 transition-transform group-hover:translate-x-0.5">→</span>
+            <button key={question} onClick={() => onQuestion(question)} style={{ animationDelay: `${index * 70}ms` }} className="app-enter group grid min-h-[3.35rem] cursor-pointer grid-cols-[1.5rem_1fr_1rem] items-center gap-2 rounded-[10px] border border-transparent bg-surface-2 px-3 py-2.5 text-left transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:border-line hover:bg-surface active:scale-[.985] sm:min-h-[4.25rem] sm:grid-cols-[2rem_1fr_1.25rem] sm:gap-3 sm:rounded-[13px] sm:px-4 sm:py-3">
+              <span className="figure text-[.8rem] text-brand sm:text-[1.02rem]">0{index + 1}</span>
+              <span className="font-learning text-[.82rem] font-semibold leading-5 text-ink sm:text-[.96rem] sm:leading-6"><InlineMarkdown>{question}</InlineMarkdown></span>
+              <span className="text-base text-ink-5 transition-transform group-hover:translate-x-0.5 sm:text-lg">→</span>
             </button>
           ))}
           </div>
@@ -1767,10 +1871,13 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
   );
 }
 
-function Sheet({ id, title, open = true, onClose, side = "bottom", children }: { id?: string; title: string; open?: boolean; onClose: () => void; side?: "bottom" | "right"; children: React.ReactNode }) {
+function Sheet({ id, title, open = true, dismissible = true, onClose, side = "bottom", children }: { id?: string; title: string; open?: boolean; dismissible?: boolean; onClose: () => void; side?: "bottom" | "right"; children: React.ReactNode }) {
   const [visible, setVisible] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dismiss = useCallback(() => {
+    if (dismissible) onClose();
+  }, [dismissible, onClose]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1787,7 +1894,7 @@ function Sheet({ id, title, open = true, onClose, side = "bottom", children }: {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") dismiss();
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
@@ -1795,13 +1902,13 @@ function Sheet({ id, title, open = true, onClose, side = "bottom", children }: {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open]);
+  }, [dismiss, open]);
 
   return (
     <div id={id} inert={!visible} className={cn("fixed inset-0 z-50 overflow-hidden transition-[visibility] duration-300", visible ? "visible pointer-events-auto" : "invisible pointer-events-none")} role="dialog" aria-modal="true" aria-label={title} aria-hidden={!visible}>
-      <button tabIndex={visible ? 0 : -1} className={cn("absolute inset-0 cursor-default bg-[#e4e3f1]/72 backdrop-blur-[3px] transition-opacity duration-300", visible ? "opacity-100" : "opacity-0")} onClick={onClose} aria-label={`${title} 닫기`} />
+      <button tabIndex={visible && dismissible ? 0 : -1} className={cn("absolute inset-0 cursor-default bg-[#e4e3f1]/72 backdrop-blur-[3px] transition-opacity duration-300", visible ? "opacity-100" : "opacity-0")} onClick={dismissible ? dismiss : undefined} aria-label={dismissible ? `${title} 닫기` : undefined} />
       <div ref={scrollContainerRef} className={cn("absolute overflow-y-auto border-line bg-surface shadow-[0_0_60px_rgba(42,35,31,.18)] transition-transform duration-300 ease-[cubic-bezier(.16,1,.3,1)]", side === "right" ? "scrollbar-hidden inset-y-0 right-0 w-[min(34rem,100vw)] border-l px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-7" : "scrollbar-subtle inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[1.35rem] border-t px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-0 sm:top-0 sm:max-h-none sm:w-[25rem] sm:rounded-none sm:border-l sm:border-t-0", visible ? (side === "right" ? "translate-x-0" : "translate-y-0 sm:translate-x-0") : (side === "right" ? "translate-x-full" : "translate-y-full sm:translate-x-full sm:translate-y-0"))}>
-        <div className="sticky top-0 z-10 -mx-5 mb-5 flex items-center justify-between border-b border-line bg-surface/95 px-5 py-4 backdrop-blur-md sm:-mx-7 sm:px-7"><h2 className="text-lg font-bold tracking-[-0.02em]">{title}</h2><button ref={closeButtonRef} type="button" onClick={onClose} aria-label={`${title} 닫기`} className="grid size-11 cursor-pointer place-items-center rounded-[11px] text-ink-3 transition-all duration-300 hover:bg-surface-3 hover:text-ink active:scale-[.98]"><X size={20} /></button></div>
+        <div className="sticky top-0 z-10 -mx-5 mb-5 flex items-center justify-between gap-3 border-b border-line bg-surface/95 px-5 py-4 backdrop-blur-md sm:-mx-7 sm:px-7"><h2 className="text-lg font-bold tracking-[-0.02em]">{title}</h2>{dismissible ? <button ref={closeButtonRef} type="button" onClick={dismiss} aria-label={`${title} 닫기`} className="grid size-11 cursor-pointer place-items-center rounded-[11px] text-ink-3 transition-all duration-300 hover:bg-surface-3 hover:text-ink active:scale-[.98]"><X size={20} /></button> : <span className="text-right text-[.7rem] font-semibold leading-5 text-brand">수강 과목을<br />선택해 주세요</span>}</div>
         {children}
       </div>
     </div>
