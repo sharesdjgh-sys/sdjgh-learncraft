@@ -9,9 +9,11 @@ import {
   buildTutorSystemPrompt,
   buildTutorUserPrompt,
 } from "@/features/tutor/prompt";
+import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
 import {
   completeAiUsage,
   completeAiUsageWithTokens,
+  getStudentUsage,
   refundAiUsage,
   reserveAiUsage,
   switchAiUsageModel,
@@ -47,6 +49,7 @@ const requestSchema = z.object({
   requestId: z.string().uuid(),
   unitId: z.string().min(1).max(100),
   action: z.enum(["QUESTION", "EASIER", "DEEPER", "REVEAL", "QUIZ"]),
+  source: z.enum(["DIRECT", "FOLLOW_UP"]).default("DIRECT"),
   learningLevel: z.enum(["SUMMARY", "FOUNDATION", "STANDARD", "ADVANCED"]).default("STANDARD"),
   message: z.string().trim().min(1).max(2400).optional(),
   images: z.array(imageSchema).max(3).default([]),
@@ -55,6 +58,15 @@ const requestSchema = z.object({
   const approximateBytes = value.images.reduce((total, image) => total + Math.ceil(image.data.length * 0.75), 0);
   if (approximateBytes > 8 * 1024 * 1024) {
     context.addIssue({ code: "custom", path: ["images"], message: "이미지 전체 용량이 너무 큽니다." });
+  }
+  if (value.source === "DIRECT" && value.action !== "QUESTION") {
+    context.addIssue({ code: "custom", path: ["source"], message: "후속 학습 요청 형식을 확인해 주세요." });
+  }
+  if (value.source === "FOLLOW_UP" && value.images.length > 0) {
+    context.addIssue({ code: "custom", path: ["images"], message: "후속 학습 요청에는 새 이미지를 첨부할 수 없습니다." });
+  }
+  if (value.source === "FOLLOW_UP" && value.action === "QUESTION" && value.message !== LEARNING_ESSENTIALS_PROMPT) {
+    context.addIssue({ code: "custom", path: ["message"], message: "지원하지 않는 후속 학습 요청입니다." });
   }
 });
 
@@ -224,17 +236,20 @@ export async function POST(request: Request) {
   if (input.action === "QUESTION" && !input.message && input.images.length === 0) {
     return errorResponse("VALIDATION_ERROR", "질문이나 이미지를 추가해 주세요.", 400, input.requestId);
   }
-  if (input.action !== "QUESTION" && !hasAssistantContext(input)) {
+  if (input.source === "FOLLOW_UP" && !hasAssistantContext(input)) {
     return errorResponse("VALIDATION_ERROR", "이어갈 튜터 답변이 없습니다.", 400, input.requestId);
   }
 
-  const reservation = await reserveAiUsage({
-    user,
-    requestId: input.requestId,
-    unitId: input.unitId,
-    action: input.action,
-    modelId: env.GEMINI_PRIMARY_MODEL_ID,
-  });
+  const chargesUsage = input.source === "DIRECT";
+  const reservation = chargesUsage
+    ? await reserveAiUsage({
+        user,
+        requestId: input.requestId,
+        unitId: input.unitId,
+        action: input.action,
+        modelId: env.GEMINI_PRIMARY_MODEL_ID,
+      })
+    : { ok: true as const, remaining: (await getStudentUsage(user)).remaining, duplicate: false };
   if (!reservation.ok) {
     if (reservation.duplicate) {
       return errorResponse("DUPLICATE_REQUEST", "이미 처리된 요청입니다.", 409, input.requestId);
@@ -295,7 +310,7 @@ export async function POST(request: Request) {
             },
           },
           onEnd: async ({ usage, finishReason }) => {
-            if (finishReason === "error") return;
+            if (!chargesUsage || finishReason === "error") return;
             await completeAiUsageWithTokens(
               user,
               input.requestId,
@@ -322,9 +337,9 @@ export async function POST(request: Request) {
         tutorTextStream(
           result,
           fallbackEnabled ? () => createResult(env.GEMINI_FALLBACK_MODEL_ID) : null,
-          () => switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID),
+          () => chargesUsage ? switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID) : Promise.resolve(),
           () => request.signal.aborted,
-          (code, cancelled) => refundAiUsage(user, input.requestId, code, cancelled),
+          (code, cancelled) => chargesUsage ? refundAiUsage(user, input.requestId, code, cancelled) : Promise.resolve(),
         ),
         { headers },
       );
@@ -338,13 +353,13 @@ export async function POST(request: Request) {
     return new Response(
       demoStream(
         answer,
-        () => { void completeAiUsage(user, input.requestId); },
-        () => { void refundAiUsage(user, input.requestId, "CLIENT_ABORTED", true); },
+        () => { if (chargesUsage) void completeAiUsage(user, input.requestId); },
+        () => { if (chargesUsage) void refundAiUsage(user, input.requestId, "CLIENT_ABORTED", true); },
       ),
       { headers },
     );
   } catch {
-    await refundAiUsage(user, input.requestId, "AI_PROVIDER_ERROR");
+    if (chargesUsage) await refundAiUsage(user, input.requestId, "AI_PROVIDER_ERROR");
     return errorResponse(
       "AI_PROVIDER_ERROR",
       "AI 튜터 연결을 잠시 완료하지 못했습니다.",

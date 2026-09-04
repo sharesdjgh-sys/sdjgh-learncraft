@@ -38,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
+import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
 import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
@@ -254,6 +255,7 @@ type SavedLearningSession = {
 };
 
 type CachedUnitSession = Pick<SavedLearningSession, "learningLevel" | "messages">;
+type TutorRequestSource = "DIRECT" | "FOLLOW_UP";
 
 type SavedLearningCache = {
   version: 2;
@@ -372,7 +374,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
-  const [retryRequest, setRetryRequest] = useState<{ action: TutorAction; preset?: string } | null>(null);
+  const [retryRequest, setRetryRequest] = useState<{ action: TutorAction; preset?: string; source: TutorRequestSource } | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const conceptTriggerRef = useRef<HTMLButtonElement>(null);
@@ -657,10 +659,11 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setAttachmentError("");
   }
 
-  async function ask(action: TutorAction = "QUESTION", preset?: string) {
-    if (!selectedUnit || loading || preparingImages || remaining <= 0) return;
+  async function ask(action: TutorAction = "QUESTION", preset?: string, source: TutorRequestSource = action === "QUESTION" ? "DIRECT" : "FOLLOW_UP") {
+    const chargesUsage = source === "DIRECT";
+    if (!selectedUnit || loading || preparingImages || (chargesUsage && remaining <= 0)) return;
     const question = (preset ?? input).trim();
-    const currentAttachments = action === "QUESTION" ? attachments : [];
+    const currentAttachments = chargesUsage ? attachments : [];
     if (action === "QUESTION" && !question && currentAttachments.length === 0) return;
 
     const baseMessages = conversationOpen ? messages : [];
@@ -700,6 +703,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           requestId: crypto.randomUUID(),
           unitId: selectedUnit.id,
           action,
+          source,
           message: action === "QUESTION" ? question || undefined : undefined,
           images: currentAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
           learningLevel,
@@ -741,7 +745,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setMessages((current) => current.map((item) => item.id === answerId
         ? { ...item, content: item.content || `답변을 끝까지 불러오지 못했어요.\n\n> ${errorMessage}`, completed: false }
         : item));
-      setRetryRequest({ action, preset });
+      setRetryRequest({ action, preset, source });
     } finally {
       streamingAnswerRef.current = false;
       setLoading(false);
@@ -915,9 +919,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                                 <button
                                   key={action}
                                   onClick={() => void (showLearningEssentials
-                                    ? ask("QUESTION", "방금 설명한 내용에서 이 단원을 이해하기 위해 꼭 알아야 할 핵심 개념, 판단 기준, 자주 혼동하는 부분을 간결하게 정리해 주세요.")
+                                    ? ask("QUESTION", LEARNING_ESSENTIALS_PROMPT, "FOLLOW_UP")
                                     : ask(action))}
-                                  disabled={loading || remaining <= 0}
+                                  disabled={loading}
                                   className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", tone)}
                                 >
                                   <FollowUpIcon size={15} />{followUpLabel}{action === "QUIZ" && <span className="rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)]">권장</span>}
@@ -928,7 +932,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         )}
                         {!message.completed && message.content && retryRequest && index === messages.length - 1 && (
-                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-surface px-3.5 text-[.82rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft">
+                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset, retryRequest.source)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-surface px-3.5 text-[.82rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft">
                             <RotateCcw size={15} className="text-brand" /> 답변 다시 받기
                           </button>
                         )}

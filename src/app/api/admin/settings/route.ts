@@ -19,7 +19,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 });
-  const parsed = z.object({ dailyAiLimit: z.number().int().min(5).max(100) }).safeParse(await request.json().catch(() => null));
+  const parsed = z.object({ dailyAiLimit: z.number().int().min(5).max(500) }).safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR" } }, { status: 400 });
   if (db) {
     const [school] = await db.update(schools).set({ dailyAiLimit: parsed.data.dailyAiLimit, updatedAt: new Date() }).where(eq(schools.id, admin.schoolId)).returning({ dailyAiLimit: schools.dailyAiLimit });
