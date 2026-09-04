@@ -77,15 +77,25 @@ function normalizedCourseTitle(courseTitle: string) {
 
 type ResearchUrlSource = { title?: string; url: string };
 
+type CourseResearchInstructions = {
+  publisherHint: string;
+  curriculumTarget: string;
+  preferredPublisherSource?: ResearchUrlSource;
+  publisherContextUrls: string[];
+};
+
 const NATIONAL_CURRICULUM_SOURCE: ResearchUrlSource = {
-  title: "교육부 고시 제2022-33호 2022 개정 초·중등학교 교육과정 (사회과 별책 7)",
+  title: "교육부 고시 제2022-33호 2022 개정 초·중등학교 교육과정",
   url: "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=141&boardSeq=93458&lev=0&page=1&searchType=null&statusYN=W",
 };
 
-function courseResearchInstructions(courseTitle: string, publisherName: string) {
+function courseResearchInstructions(
+  courseTitle: string,
+  publisherName: string,
+): CourseResearchInstructions {
   const normalized = normalizedCourseTitle(courseTitle);
   const normalizedPublisher = publisherName.normalize("NFKC").replace(/[\s()[\]{}·ㆍ_.\-/]/g, "");
-  if (normalized === "세계시민과지리" && normalizedPublisher.includes("비상교육")) {
+  if (normalized === "세계시민과지리" && normalizedPublisher.includes("비상")) {
     return {
       publisherHint: "공식 식별 정보는 '2022 개정 고등학교 일반 선택 세계시민과 지리 (대표 저자 박배균, 비상교육)'입니다. 공식 상세 페이지 https://text.vivasam.com/detail/153 를 우선 확인하세요.",
       curriculumTarget: "2022 개정 사회과 교육과정의 고등학교 일반 선택 과목 '세계시민과 지리' 성취기준을 확인하세요. 학교 편성 학년은 검색 일치 조건이 아닙니다.",
@@ -93,9 +103,10 @@ function courseResearchInstructions(courseTitle: string, publisherName: string) 
         title: "비상교육 2022 개정 고등학교 일반 선택 세계시민과 지리 (박배균)",
         url: "https://text.vivasam.com/detail/153",
       } satisfies ResearchUrlSource,
+      publisherContextUrls: ["https://text.vivasam.com/detail/153"],
     };
   }
-  if (normalized === "도시의미래탐구" && normalizedPublisher.includes("비상교육")) {
+  if (normalized === "도시의미래탐구" && normalizedPublisher.includes("비상")) {
     return {
       publisherHint: "공식 식별 정보는 '2022 개정 고등학교 진로 선택 도시의 미래 탐구 (대표 저자 최영진, 비상교육)'입니다. 공식 상세 페이지 https://text.vivasam.com/detail/160 를 우선 확인하세요.",
       curriculumTarget: "2022 개정 사회과 교육과정의 고등학교 진로 선택 과목 '도시의 미래 탐구' 성취기준을 확인하세요. 학교 편성 학년은 검색 일치 조건이 아닙니다.",
@@ -103,6 +114,7 @@ function courseResearchInstructions(courseTitle: string, publisherName: string) 
         title: "비상교육 2022 개정 고등학교 진로 선택 도시의 미래 탐구 (최영진)",
         url: "https://text.vivasam.com/detail/160",
       } satisfies ResearchUrlSource,
+      publisherContextUrls: ["https://text.vivasam.com/detail/160"],
     };
   }
   if (normalized === "법과사회" && normalizedPublisher.includes("미래엔")) {
@@ -113,9 +125,13 @@ function courseResearchInstructions(courseTitle: string, publisherName: string) 
         title: "미래엔 2022 개정 고등학교 법과 사회",
         url: "https://22txbook.m-teacher.co.kr/book/view.mrn?id=78",
       } satisfies ResearchUrlSource,
+      publisherContextUrls: ["https://22txbook.m-teacher.co.kr/book/view.mrn?id=78"],
     };
   }
-  if (normalized.includes("지리부도") || normalized.includes("사회과부도")) {
+  if (
+    normalizedPublisher.includes("비상")
+    && (normalized.includes("지리부도") || normalized.includes("사회과부도"))
+  ) {
     return {
       publisherHint: "공식 식별 정보는 '2022 개정 고등학교 일반 선택 지리 부도 (대표 저자 정성훈, 비상교육)'입니다. 학년 표기가 없는 공용 보조 교과서이므로 1학년 표기를 필수 조건으로 삼지 마세요. 공식 페이지 https://text.vivasam.com/detail/152 를 우선 확인하세요.",
       curriculumTarget: "지리 부도는 독립된 교과 성취기준이 없는 보조 교과서입니다. 2022 개정 사회과 교육과정의 지리 영역 중 통합사회 1·2와 세계시민과 지리에 해당하며, 실제 목차 항목과 직접 관련된 성취기준만 연결하세요.",
@@ -123,9 +139,13 @@ function courseResearchInstructions(courseTitle: string, publisherName: string) 
         title: "비상교육 2022 개정 고등학교 일반 선택 지리 부도 (정성훈)",
         url: "https://text.vivasam.com/detail/152",
       } satisfies ResearchUrlSource,
+      publisherContextUrls: [
+        "https://text.vivasam.com/detail/152",
+        "https://dn.vivasam.com/vs/promotion2022/830/index/download/%EA%B3%A0%EB%93%B1-%EC%A7%80%EB%A6%AC%EB%B6%80%EB%8F%84.pdf",
+      ],
     };
   }
-  if (normalized.includes("역사부도")) {
+  if (normalizedPublisher.includes("비상") && normalized.includes("역사부도")) {
     return {
       publisherHint: "공식 식별 정보는 '2022 개정 고등학교 일반 선택 역사 부도 (대표 저자 도면회, 비상교육)'입니다. 학년 표기가 없는 공용 보조 교과서이므로 1학년 표기를 필수 조건으로 삼지 마세요. 공식 페이지 https://text.vivasam.com/detail/164 를 우선 확인하세요.",
       curriculumTarget: "역사 부도는 독립된 교과 성취기준이 없는 보조 교과서입니다. 2022 개정 사회과 역사 영역 중 한국사 1·2와 실제 목차 항목에 직접 관련된 성취기준만 연결하세요.",
@@ -133,12 +153,17 @@ function courseResearchInstructions(courseTitle: string, publisherName: string) 
         title: "비상교육 2022 개정 고등학교 일반 선택 역사 부도 (도면회)",
         url: "https://text.vivasam.com/detail/164",
       } satisfies ResearchUrlSource,
+      publisherContextUrls: [
+        "https://text.vivasam.com/detail/164",
+        "https://dn.vivasam.com/vs/promotion2022/830/index/download/%EA%B3%A0%EB%93%B1-%EC%97%AD%EC%82%AC%EB%B6%80%EB%8F%84.pdf",
+      ],
     };
   }
   return {
     publisherHint: "",
     curriculumTarget: `2022 개정 교육과정의 '${courseTitle}' 과목 성취기준 코드와 원문을 확인하세요.`,
     preferredPublisherSource: undefined,
+    publisherContextUrls: [],
   };
 }
 
@@ -181,7 +206,10 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
   const [publisherResearch, curriculumResearch] = await Promise.all([
     generateText({
       model: google(modelId),
-      tools: { google_search: google.tools.googleSearch({ searchTypes: { webSearch: {} } }) },
+      tools: {
+        google_search: google.tools.googleSearch({ searchTypes: { webSearch: {} } }),
+        url_context: google.tools.urlContext({}),
+      },
       system: researchSystem,
       prompt: [
         `${input.academicYear}학년도 학교 교육과정에서 ${input.grade}학년에 편성한 고등학교 '${input.courseTitle}' 교과서의 공식 목차를 조사하세요.`,
@@ -189,7 +217,12 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
         `채택 출판사는 '${input.publisherName}'입니다.`,
         input.textbookTitle ? `확인할 교과서명은 '${input.textbookTitle}'입니다.` : "과목·학교급·출판사·2022 개정 교육과정이 모두 일치하는 교과서를 식별하세요.",
         researchInstructions.publisherHint,
+        researchInstructions.publisherContextUrls.length > 0
+          ? `다음 공식 페이지와 목차 자료를 URL 문맥으로 직접 열어 확인하세요:\n${researchInstructions.publisherContextUrls.join("\n")}`
+          : "",
         publisherResearchGuide(input.publisherName),
+        `과목명 중심 검색어:\n${publisherGuide.allowedDomains.map((domain) => `- site:${domain} "${input.courseTitle}" "2022 개정"`).join("\n")}`,
+        "한국교과서협회(https://www.ktbook.com/)에서는 과목명·발행사·검인정 여부를 교차 확인하되, 실제 목차는 반드시 위 출판사 공식 도메인에서 확인하세요.",
         "출판사 공식 자료에서 대단원·중단원·소단원 제목과 순서를 빠짐없이 확인하세요.",
         "공식 자료에서 확인할 수 없는 항목은 만들지 말고 무엇이 부족한지 밝히세요.",
       ].filter(Boolean).join("\n"),
@@ -215,35 +248,49 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
     const url = canonicalPublisherOfficialUrl(source.url, publisherGuide);
     return url ? [{ title: source.title, url }] : [];
   });
+  const registeredPublisherSources = publisherGuide.sites.flatMap((site) => {
+    if (site.kind === "company") return [];
+    const url = canonicalPublisherOfficialUrl(site.url, publisherGuide);
+    return url ? [{ title: site.label, url }] : [];
+  });
   let publisherSources = uniqueUrlSources([
     ...(researchInstructions.preferredPublisherSource ? [researchInstructions.preferredPublisherSource] : []),
     ...discoveredPublisherSources,
+    ...registeredPublisherSources,
   ]);
   let fallbackPublisherResearch: {
     text: string;
     sources: typeof publisherResearch.sources;
     usage: typeof publisherResearch.usage;
   } | null = null;
-  if (publisherSources.length === 0) {
+  if (!researchInstructions.preferredPublisherSource || publisherSources.length === 0) {
     const fallback = await generateText({
       model: google(modelId),
-      tools: { google_search: google.tools.googleSearch({ searchTypes: { webSearch: {} } }) },
+      tools: {
+        google_search: google.tools.googleSearch({ searchTypes: { webSearch: {} } }),
+        url_context: google.tools.urlContext({}),
+      },
       system: researchSystem,
       prompt: [
         `고등학교 2022 개정 '${input.courseTitle}' 교과서를 과목명으로 다시 찾으세요. 학교 편성 학년은 검색 조건에서 완전히 제외하세요.`,
         `출판사는 '${input.publisherName}'이며 검색 범위는 공식 도메인 ${publisherGuide.allowedDomains.join(", ")} 내부로만 제한하세요.`,
-        `검색어 예시: site:${publisherGuide.allowedDomains[0]} "${input.courseTitle}" "2022 개정"`,
+        `도메인별 검색어:\n${publisherGuide.allowedDomains.map((domain) => `- site:${domain} "${input.courseTitle}"`).join("\n")}`,
+        publisherResearchGuide(input.publisherName),
+        "한국교과서협회(https://www.ktbook.com/)에서 과목명과 발행사를 교차 확인하세요. 협회 자료는 교재 식별에만 사용하고 목차 근거로는 사용하지 마세요.",
         "정확한 과목명이 본문에 표시된 교과서 상세 페이지를 우선하고, 상세 페이지가 검색되지 않으면 그 과목명이 표시된 공식 고등학교 교과서 목록을 찾으세요.",
         "찾은 페이지에서 목차·차례·단원 정보를 확인하고, 동일하거나 비슷한 이름의 다른 학교급 과목은 제외하세요.",
       ].join("\n"),
       maxOutputTokens: 8_000,
     });
     fallbackPublisherResearch = fallback;
-    publisherSources = uniqueUrlSources(fallback.sources.flatMap((source) => {
-      if (source.sourceType !== "url") return [];
-      const url = canonicalPublisherOfficialUrl(source.url, publisherGuide);
-      return url ? [{ title: source.title, url }] : [];
-    }));
+    publisherSources = uniqueUrlSources([
+      ...publisherSources,
+      ...fallback.sources.flatMap((source) => {
+        if (source.sourceType !== "url") return [];
+        const url = canonicalPublisherOfficialUrl(source.url, publisherGuide);
+        return url ? [{ title: source.title, url }] : [];
+      }),
+    ]);
   }
   const discoveredCurriculumSources = curriculumResearch.sources.flatMap((source) => {
     if (source.sourceType !== "url" || !isCurriculumAuthorityUrl(source.url)) return [];

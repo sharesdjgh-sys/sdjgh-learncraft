@@ -29,6 +29,7 @@ export const publisherSourceGuides: readonly PublisherSourceGuide[] = [
     sites: [
       { kind: "company", label: "비상교육", url: "https://www.visang.com/", purpose: "발행사와 브랜드 확인" },
       { kind: "textbook", label: "2022 개정 비상교과서", url: "https://text.vivasam.com/", purpose: "학교급·과목·저자·교과서 목차·미리보기 확인" },
+      { kind: "textbook", label: "비상교육 고등학교 지리 부도", url: "https://text.vivasam.com/detail/152", purpose: "2022 개정 지리 부도(정성훈) 교과서 정보와 공식 목차 자료 확인" },
       { kind: "teacher-support", label: "중고등 비바샘", url: "https://v.vivasam.com/", purpose: "교과서별 수업 자료와 단원 자료 확인" },
     ],
   },
@@ -84,8 +85,10 @@ export const publisherSourceGuides: readonly PublisherSourceGuide[] = [
     allowedDomains: ["cmass.kr"],
     sites: [
       { kind: "company", label: "씨마스", url: "https://www.cmass.kr/", purpose: "학교급·교과별 발행 교과서 확인" },
+      { kind: "textbook", label: "씨마스 고등일반 교과서", url: "https://www.cmass.kr/books/002003", purpose: "고등학교 일반 교과서의 과목명·개정 교육과정·상세 자료 확인" },
       { kind: "textbook", label: "씨마스 교과서 전시관", url: "https://viewer.cmass.kr/html/textbook/intro.shtml", purpose: "2022 개정 교과서 목차·미리보기·선정 자료 확인" },
-      { kind: "teacher-support", label: "씨마스 티칭샘", url: "https://teachingsaem.cmass.kr/", purpose: "교과서·지도서·수업 자료 확인" },
+      { kind: "textbook", label: "씨마스 2022 개정 고등 교과서", url: "https://viewer.cmass.kr/html/textbook/main_list.shtml?grade=high", purpose: "2022 개정 고등학교 과목별 교과서 목록과 상세 페이지 확인" },
+      { kind: "teacher-support", label: "씨마스 티칭샘 교과서 자료실", url: "https://teachingsaem.cmass.kr/textbook-material/list", purpose: "과목명으로 교과서·지도서·E-book·단원별 수업 자료 검색" },
     ],
   },
   {
