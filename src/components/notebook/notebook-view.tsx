@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, BookOpen, LibraryBig, ListTree, LoaderCircle, NotebookTabs, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { formatCurriculumUnitNumber } from "@/lib/curriculum-hierarchy";
 import { cn } from "@/lib/utils";
 import type { Bookmark as BookmarkType, LearningUnit } from "@/types";
 
@@ -89,7 +90,7 @@ function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, Learn
     const outlineUnit = course.units.get(item.unitId) ?? {
       id: item.unitId,
       title: item.unitTitle,
-      number: unit ? `${unit.chapterOrder}.${unit.sectionOrder}` : "",
+      number: unit ? formatCurriculumUnitNumber(unit) : "",
       order: unit ? unit.chapterOrder * 10_000 + unit.sectionOrder * 100 + unit.topicOrder : Number.MAX_SAFE_INTEGER,
       count: 0,
     };

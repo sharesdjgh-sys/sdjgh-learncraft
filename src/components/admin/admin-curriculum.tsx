@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
+import {
+  formatCurriculumUnitNumber,
+  groupCurriculumUnits,
+  hasDistinctTopicLevel,
+} from "@/lib/curriculum-hierarchy";
 import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
 import type {
@@ -1248,6 +1253,7 @@ function GeneratedContentReview({
   onRegenerate: () => void;
 }) {
   const published = content.status === "PUBLISHED";
+  const chapterGroups = groupCurriculumUnits(content.units);
   return (
     <section className="mt-5 rounded-[16px] border border-brand/20 bg-surface p-5 shadow-[var(--lift-2)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
@@ -1272,11 +1278,27 @@ function GeneratedContentReview({
           </a>
         ))}
       </div>
-      <div className="mt-4 space-y-2">
-        {content.units.map((unit) => (
+      <div className="mt-4 space-y-5">
+        {chapterGroups.map((chapter) => (
+          <section key={chapter.order}>
+            <div className="flex items-center gap-2 px-1">
+              <span className="figure grid size-7 shrink-0 place-items-center rounded-[8px] bg-brand-soft text-[.76rem] font-bold text-brand">{chapter.order}</span>
+              <h4 className="font-learning text-[.86rem] font-extrabold text-ink"><InlineMarkdown>{chapter.title}</InlineMarkdown></h4>
+            </div>
+            <div className="mt-2 space-y-3 border-l border-line pl-3">
+              {chapter.sections.map((section) => (
+                <div key={`${chapter.order}-${section.order}`}>
+                  {section.units.some(hasDistinctTopicLevel) && (
+                    <p className="mb-1.5 px-1 text-[.74rem] font-semibold text-ink-4">
+                      <span className="figure mr-1.5 text-brand">{chapter.order}.{section.order}</span>
+                      <InlineMarkdown>{section.title}</InlineMarkdown>
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {section.units.map((unit) => (
           <details key={unit.id} className="group rounded-[11px] border border-line bg-surface-2 px-4 py-3">
             <summary className="cursor-pointer list-none text-[.8rem] font-extrabold text-ink">
-              <span className="figure mr-2 text-brand">{unit.chapterOrder}.{unit.sectionOrder}</span><InlineMarkdown>{unit.title}</InlineMarkdown>
+              <span className="figure mr-2 text-brand">{formatCurriculumUnitNumber(unit)}</span><InlineMarkdown>{unit.title}</InlineMarkdown>
               <span className="ml-2 text-[.68rem] font-medium text-ink-5"><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown></span>
             </summary>
             <div className="mt-3 border-t border-line pt-3">
@@ -1292,7 +1314,13 @@ function GeneratedContentReview({
               </div>
               <div className="mt-4 rounded-[8px] border border-brand/15 bg-brand-soft/50 px-3 py-2"><p className="text-[.7rem] font-extrabold text-brand-dark">AI 튜터 지침</p><div className="mt-1 text-[.72rem] text-ink-4"><Markdown>{unit.tutorInstructions}</Markdown></div></div>
             </div>
-          </details>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">

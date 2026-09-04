@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
+import { formatCurriculumUnitNumber, hasDistinctTopicLevel } from "@/lib/curriculum-hierarchy";
 import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
@@ -828,7 +829,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             ) : courseOverviewOpen ? (
               <BookCopy size={15} className="shrink-0 text-brand" aria-hidden="true" />
             ) : (
-              <span className="figure shrink-0 text-[.78rem] text-brand">{selectedUnit.chapterOrder}.{selectedUnit.sectionOrder}</span>
+              <span className="figure shrink-0 text-[.78rem] text-brand">{formatCurriculumUnitNumber(selectedUnit)}</span>
             )}
             <span className="font-learning truncate text-[.88rem] font-semibold text-ink">{homeOpen ? "LearnCraft 소개" : courseOverviewOpen ? `${selectedUnit.courseTitle} 과목 안내` : <InlineMarkdown>{selectedUnit.title}</InlineMarkdown>}</span>
             <ChevronDown size={14} className="ml-auto shrink-0 text-ink-5" />
@@ -1374,8 +1375,8 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
                 <div className="mt-1.5 grid gap-1.5 border-l border-line pl-2">
                   {chapter.sections.map((section) => (
                     <div key={`${chapter.order}-${section.order}`}>
-                      {section.title !== chapter.title && (section.units.length > 1 || section.title !== section.units[0]?.title) && (
-                        <p className="mb-0.5 px-1 text-[.74rem] font-semibold leading-5 text-ink-5"><span className="figure">{section.order}.</span> <InlineMarkdown>{section.title}</InlineMarkdown></p>
+                      {section.units.some(hasDistinctTopicLevel) && (
+                        <p className="mb-0.5 px-1 text-[.74rem] font-semibold leading-5 text-ink-5"><span className="figure">{chapter.order}.{section.order}</span> <InlineMarkdown>{section.title}</InlineMarkdown></p>
                       )}
                       <div className="grid gap-0.5">
                         {section.units.map((unit) => (
@@ -1389,7 +1390,7 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
                                 : "text-ink-3 hover:bg-surface hover:text-ink",
                             )}
                           >
-                            <span className={cn("figure shrink-0 pt-0.5 text-[.76rem]", selectedUnitId === unit.id ? "text-brand" : "text-ink-5")}>{chapter.order}.{section.order}</span>
+                            <span className={cn("figure shrink-0 pt-0.5 text-[.76rem]", selectedUnitId === unit.id ? "text-brand" : "text-ink-5")}>{formatCurriculumUnitNumber(unit)}</span>
                             <span className={cn("min-w-0 text-[.83rem] leading-5", selectedUnitId === unit.id ? "font-learning font-bold" : "font-medium")}><InlineMarkdown>{unit.title}</InlineMarkdown></span>
                           </button>
                         ))}
@@ -1592,7 +1593,7 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
   return (
     <div className="flex flex-1 flex-col py-2 sm:py-4">
       <div className="max-w-[44rem]">
-        <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{unit.chapterOrder}.{unit.sectionOrder}</span><span><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown> · <InlineMarkdown>{unit.sectionTitle}</InlineMarkdown></span></p>
+        <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{formatCurriculumUnitNumber(unit)}</span><span><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown> · <InlineMarkdown>{unit.sectionTitle}</InlineMarkdown></span></p>
         <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark"><InlineMarkdown>{unit.title}</InlineMarkdown></span></h2>
         <p className="mt-4 text-[.78rem] font-semibold text-ink-4">이번 단원 학습 목표</p>
         <div className="font-learning mt-1 max-w-[40rem] text-[1rem] text-ink-2 sm:text-[1.08rem]"><Markdown>{unit.summary}</Markdown></div>
@@ -1670,7 +1671,7 @@ function ConceptPanel({ unit }: { unit: LearningUnit }) {
   return (
     <div className="pb-10">
       <div className="rounded-[18px] border border-brand/15 bg-brand-page p-5">
-        <p className="flex items-center gap-2 text-[.78rem] font-bold text-brand"><BookOpenCheck size={16} /> {unit.courseTitle} · {unit.chapterOrder}.{unit.sectionOrder}</p>
+        <p className="flex items-center gap-2 text-[.78rem] font-bold text-brand"><BookOpenCheck size={16} /> {unit.courseTitle} · {formatCurriculumUnitNumber(unit)}</p>
         <h3 className="font-learning mt-3 text-[1.35rem] font-bold leading-8 tracking-[-0.035em] text-ink"><InlineMarkdown>{unit.title}</InlineMarkdown></h3>
         <p className="mt-2 text-[.78rem] font-semibold leading-5 text-ink-4"><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown> · <InlineMarkdown>{unit.sectionTitle}</InlineMarkdown></p>
         <div className="mt-4 border-t border-brand/10 pt-4">
