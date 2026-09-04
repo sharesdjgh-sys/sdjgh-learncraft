@@ -60,6 +60,25 @@ assert.match(normalizedScienceExplanation, /\$\[g\] = \\text\{m\/s\}\^\{\\script
 const generatedScienceHtml = renderToStaticMarkup(createElement(Markdown, { children: generatedScienceExplanation }));
 assert.doesNotMatch(generatedScienceHtml, /katex-error/, "과학 단위식에 KaTeX 오류가 없어야 합니다.");
 
+const factoringExample = String.raw`### 자주 하는 실수 체크
+
+$$4x^2 + 2x$$
+
+위 식에서 $2$만 묶어서 $2(2x^2 + x)$로 끝내거나, $x$만 묶어서 $x(4x + 2)$로 끝내면 안 돼요.`;
+const normalizedFactoringExample = normalizeMathDelimiters(factoringExample);
+const factoringExampleHtml = renderToStaticMarkup(createElement(Markdown, { children: factoringExample }));
+assert.match(
+  normalizedFactoringExample,
+  /4x\^\{\\scriptscriptstyle 2\} \+ 2x/,
+  "제곱 지수를 작은 위첨자 스타일로 정규화해야 합니다.",
+);
+assert.match(
+  factoringExampleHtml,
+  /class="[^"]*(?:katex-)?sizing reset-size3 size1"[^>]*>2<\/span>/,
+  "제곱 숫자가 KaTeX의 가장 작은 위첨자 크기로 렌더링되어야 합니다.",
+);
+assert.doesNotMatch(factoringExampleHtml, /katex-error/, "인수분해 예제에 KaTeX 오류가 없어야 합니다.");
+
 const normalizationCases = [
   ["x², aₙ, v⃗", String.raw`$x^{\scriptscriptstyle 2}$, $a_{\scriptscriptstyle n}$, $\vec{v}$`],
   ["log₃ 81", String.raw`$\log_{\scriptscriptstyle 3}$ 81`],
