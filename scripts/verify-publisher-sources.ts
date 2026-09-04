@@ -70,6 +70,20 @@ for (const [label, url] of [
   }
 }
 
+const chunjae = resolvePublisherSourceGuide("천재교과서");
+if (!chunjae) throw new Error("천재교과서 공식 출처 안내를 찾지 못했습니다.");
+for (const [label, url] of [
+  ["통합 교과서", "https://text.tsherpa.co.kr/"],
+  ["고등 교과서", "https://text.tsherpa.co.kr/high/"],
+] as const) {
+  if (!chunjae.sites.some((site) => site.url === url) || !isPublisherOfficialUrl(url, chunjae)) {
+    throw new Error(`천재교과서 T셀파 ${label} 진입점이 공식 출처로 등록되지 않았습니다.`);
+  }
+}
+if (chunjae.sites.some((site) => site.url.includes("textbook.tsherpa.co.kr"))) {
+  throw new Error("접속할 수 없는 이전 T셀파 교과서 주소가 남아 있습니다.");
+}
+
 console.log(
   `출판사 공식 출처 검증 완료: ${publisherSourceGuides.length}개 출판사 그룹, 학교 카탈로그 ${schoolCourseCatalog.length}개 과목 100% 연결`,
 );

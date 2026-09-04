@@ -60,6 +60,8 @@ type BatchGenerationProgress = {
   completed: number;
   total: number;
   currentTitle: string;
+  currentGrade: number | null;
+  currentPublisher: string;
   successCount: number;
   failures: BatchGenerationFailure[];
 };
@@ -99,6 +101,24 @@ const statusLabel: Record<CurriculumVersionStatus, string> = {
   PUBLISHED: "학생 공개",
   ARCHIVED: "이전 버전",
 };
+
+const generationPhases = [
+  { title: "공식 출처 확인", note: "출판사 교과서와 국가 교육과정을 찾고 있습니다" },
+  { title: "목차·성취기준 정리", note: "확인한 자료로 단원 구성과 학습 범위를 맞추고 있습니다" },
+  { title: "단원 학습자료 작성", note: "단원별 설명, 예시와 추천 질문을 만들고 있습니다" },
+] as const;
+
+function generationPhaseIndex(elapsedSeconds: number) {
+  return elapsedSeconds < 25 ? 0 : elapsedSeconds < 70 ? 1 : 2;
+}
+
+function generationEstimatedPercent(elapsedSeconds: number) {
+  return Math.min(92, 12 + Math.round(elapsedSeconds * 0.8));
+}
+
+function elapsedTimeLabel(elapsedSeconds: number) {
+  return `${Math.floor(elapsedSeconds / 60)}분 ${String(elapsedSeconds % 60).padStart(2, "0")}초`;
+}
 
 function stateError(data: ApiResponse, fallback: string) {
   return data.error?.message ?? fallback;
@@ -451,7 +471,15 @@ export function AdminCurriculum() {
 
       let successCount = 0;
       const failures: BatchGenerationFailure[] = [];
-      setBatchProgress({ completed: 0, total: targets.length, currentTitle: targets[0].courseTitle, successCount: 0, failures: [] });
+      setBatchProgress({
+        completed: 0,
+        total: targets.length,
+        currentTitle: targets[0].courseTitle,
+        currentGrade: targets[0].grade,
+        currentPublisher: targets[0].publisherName,
+        successCount: 0,
+        failures: [],
+      });
 
       for (const [index, item] of targets.entries()) {
         setGeneratingOfferingId(item.id!);
@@ -459,6 +487,8 @@ export function AdminCurriculum() {
           completed: index,
           total: targets.length,
           currentTitle: item.courseTitle,
+          currentGrade: item.grade,
+          currentPublisher: item.publisherName,
           successCount,
           failures: [...failures],
         });
@@ -486,6 +516,8 @@ export function AdminCurriculum() {
           completed: index + 1,
           total: targets.length,
           currentTitle: index + 1 < targets.length ? targets[index + 1].courseTitle : "",
+          currentGrade: index + 1 < targets.length ? targets[index + 1].grade : null,
+          currentPublisher: index + 1 < targets.length ? targets[index + 1].publisherName : "",
           successCount,
           failures: [...failures],
         });
@@ -943,6 +975,19 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
 }) {
   const finished = Boolean(progress && progress.total > 0 && progress.completed === progress.total);
   const progressPercent = progress?.total ? Math.round((progress.completed / progress.total) * 100) : 0;
+  const [currentElapsedSeconds, setCurrentElapsedSeconds] = useState(0);
+  const activePhase = generationPhaseIndex(currentElapsedSeconds);
+  const currentEstimatedPercent = generationEstimatedPercent(currentElapsedSeconds);
+
+  useEffect(() => {
+    setCurrentElapsedSeconds(0);
+    if (!running || !progress?.currentTitle || finished) return;
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setCurrentElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [finished, progress?.completed, progress?.currentTitle, running]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -954,7 +999,7 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
 
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(31,24,52,.34)] p-4 backdrop-blur-[3px]" onMouseDown={() => { if (!running) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="batch-generation-dialog-title" onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-[36rem] overflow-hidden rounded-[22px] border border-white/80 bg-surface shadow-[0_28px_80px_rgba(43,31,79,.3)]">
+      <section role="dialog" aria-modal="true" aria-labelledby="batch-generation-dialog-title" onMouseDown={(event) => event.stopPropagation()} className="flex max-h-[92dvh] w-full max-w-[42rem] flex-col overflow-hidden rounded-[22px] border border-white/80 bg-surface shadow-[0_28px_80px_rgba(43,31,79,.3)]">
         <div className="flex items-start justify-between gap-4 border-b border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] px-6 py-5">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-brand text-white shadow-[var(--lift-brand)]"><WandSparkles size={21} /></span>
@@ -966,19 +1011,56 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
           <button type="button" onClick={onClose} disabled={running} className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink disabled:opacity-35" aria-label="팝업 닫기"><X size={17} /></button>
         </div>
 
-        <div className="px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {progress ? (
             <div>
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[.76rem] font-bold text-ink">{finished ? "일괄 생성이 끝났습니다" : `${progress.currentTitle} 생성 중`}</p>
-                  <p className="mt-1 text-[.7rem] text-ink-4">성공 {progress.successCount}개 · 실패 {progress.failures.length}개</p>
+                  <p className="text-[.76rem] font-bold text-ink">{finished ? "일괄 생성이 끝났습니다" : "전체 과목 진행률"}</p>
+                  <p className="mt-1 text-[.7rem] text-ink-4">성공 {progress.successCount}개 · 실패 {progress.failures.length}개 · 진행 중 {finished ? 0 : 1}개 · 대기 {Math.max(0, progress.total - progress.completed - (finished ? 0 : 1))}개</p>
                 </div>
-                <span className="figure text-[.78rem] font-bold text-brand">{progress.completed}/{progress.total}</span>
+                <span className="figure text-[.78rem] font-bold text-brand">{progress.completed}/{progress.total} · {progressPercent}%</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3">
                 <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${progressPercent}%` }} />
               </div>
+              {!finished && progress.currentTitle && (
+                <div className="mt-5 rounded-[14px] border border-brand/20 bg-brand-page/55 p-4" aria-live="polite">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[.67rem] font-extrabold text-brand">현재 {progress.completed + 1}번째 과목</p>
+                      <p className="mt-1 truncate text-base font-extrabold text-ink">{progress.currentTitle}</p>
+                      <p className="mt-1 text-[.68rem] text-ink-4">{progress.currentGrade}학년 · {progress.currentPublisher || "출판사 미입력"}</p>
+                    </div>
+                    <span className="figure shrink-0 rounded-full border border-brand/15 bg-surface px-2.5 py-1 text-[.68rem] font-bold text-brand-dark">{elapsedTimeLabel(currentElapsedSeconds)}</span>
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[.76rem] font-extrabold text-ink">{generationPhases[activePhase].title}</p>
+                      <p className="mt-1 text-[.68rem] leading-5 text-ink-4">{generationPhases[activePhase].note}</p>
+                    </div>
+                    <span className="figure shrink-0 text-[.68rem] font-bold text-brand">예상 {currentEstimatedPercent}%</span>
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                    <div className="h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${currentEstimatedPercent}%` }} />
+                  </div>
+
+                  <ol className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {generationPhases.map((phase, index) => {
+                      const complete = index < activePhase;
+                      const active = index === activePhase;
+                      return (
+                        <li key={phase.title} className={cn("flex items-center gap-2 rounded-[10px] border px-2.5 py-2.5", active ? "border-brand/25 bg-surface" : "border-line bg-surface/65", index > activePhase && "opacity-50")}>
+                          <span className={cn("grid size-5 shrink-0 place-items-center rounded-full text-[.6rem] font-extrabold", complete ? "bg-[var(--ok-page)] text-ok" : active ? "bg-brand text-white" : "bg-surface-3 text-ink-5")}>{complete ? <Check size={11} /> : active ? <LoaderCircle size={11} className="animate-spin" /> : index + 1}</span>
+                          <span className="min-w-0 truncate text-[.66rem] font-bold text-ink" title={phase.title}>{phase.title}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <p className="mt-3 text-[.64rem] text-ink-5">과목 분량과 공식 자료 검색 시간에 따라 단계별 소요 시간은 달라질 수 있습니다.</p>
+                </div>
+              )}
               {progress.failures.length > 0 && (
                 <div className="mt-4 max-h-36 overflow-y-auto rounded-[11px] border border-[var(--danger)]/15 bg-[var(--danger-page)] px-3.5 py-3">
                   <p className="text-[.7rem] font-bold text-danger">생성하지 못한 과목</p>
@@ -1052,14 +1134,9 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
   }, [running]);
 
   const outputs = ["단원 구성", "핵심 개념", "수식·예시", "선수 개념", "추천 질문", "AI 튜터 지침"];
-  const phases = [
-    { title: "공식 출처 확인", note: "출판사 교과서와 국가 교육과정을 찾고 있습니다" },
-    { title: "목차·성취기준 정리", note: "확인된 자료의 단원 구조와 학습 범위를 맞추고 있습니다" },
-    { title: "단원 학습자료 작성", note: "단원별 설명, 예시와 추천 질문을 만들고 있습니다" },
-  ];
-  const activePhase = elapsedSeconds < 25 ? 0 : elapsedSeconds < 70 ? 1 : 2;
-  const estimatedPercent = Math.min(92, 12 + Math.round(elapsedSeconds * 0.8));
-  const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}분 ${String(elapsedSeconds % 60).padStart(2, "0")}초`;
+  const activePhase = generationPhaseIndex(elapsedSeconds);
+  const estimatedPercent = generationEstimatedPercent(elapsedSeconds);
+  const elapsedLabel = elapsedTimeLabel(elapsedSeconds);
 
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(31,24,52,.34)] p-4 backdrop-blur-[3px]" onMouseDown={() => { if (!running) onClose(); }}>
@@ -1079,8 +1156,8 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
             <div aria-live="polite">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-[.8rem] font-extrabold text-ink">{phases[activePhase].title}</p>
-                  <p className="mt-1 text-[.71rem] leading-5 text-ink-4">{phases[activePhase].note}</p>
+                  <p className="text-[.8rem] font-extrabold text-ink">{generationPhases[activePhase].title}</p>
+                  <p className="mt-1 text-[.71rem] leading-5 text-ink-4">{generationPhases[activePhase].note}</p>
                 </div>
                 <span className="figure shrink-0 text-[.72rem] font-bold text-brand">{elapsedLabel}</span>
               </div>
@@ -1089,7 +1166,7 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
               </div>
               <p className="mt-2 text-[.65rem] text-ink-5">예상 진행 표시 · 과목 분량에 따라 보통 1~3분 정도 걸립니다.</p>
               <ol className="mt-5 space-y-2.5">
-                {phases.map((phase, index) => {
+                {generationPhases.map((phase, index) => {
                   const complete = index < activePhase;
                   const active = index === activePhase;
                   return (
