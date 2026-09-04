@@ -30,6 +30,10 @@ async function main() {
   assert.equal(manifest.start_url, "/learn");
   assert.equal(manifest.scope, "/");
   assert.equal(manifest.orientation, "portrait-primary");
+  assert.equal(manifest.launch_handler?.client_mode, "navigate-existing");
+  assert.deepEqual(manifest.related_applications, [
+    { platform: "webapp", url: "/manifest.webmanifest", id: "/" },
+  ]);
   assert.ok(manifest.icons.some((icon: { sizes?: string }) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon: { sizes?: string; purpose?: string }) => (
     icon.sizes === "512x512" && icon.purpose?.includes("maskable")

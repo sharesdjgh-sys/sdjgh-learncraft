@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   reactStrictMode: true,
   async redirects() {
-    return [{ source: "/favicon.ico", destination: "/icon.png", permanent: true }];
+    return [{ source: "/favicon.ico", destination: "/pwa-icon/192?v=2", permanent: true }];
   },
   async headers() {
     return [{

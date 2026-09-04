@@ -9,19 +9,24 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/learn",
     scope: "/",
     display: "standalone",
+    launch_handler: { client_mode: "navigate-existing" },
     background_color: "#f7f8ff",
     theme_color: "#6847e8",
     orientation: "portrait-primary",
     lang: "ko-KR",
     categories: ["education", "productivity"],
+    prefer_related_applications: false,
+    related_applications: [
+      { platform: "webapp", url: "/manifest.webmanifest", id: "/" },
+    ],
     icons: [
-      { src: "/pwa-icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/pwa-icon/512", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/pwa-icon/512", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/pwa-icon/192?v=2", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/pwa-icon/512?v=2", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/pwa-icon/512?v=2", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "AI 학습 시작", short_name: "학습", url: "/learn", icons: [{ src: "/pwa-icon/192", sizes: "192x192" }] },
-      { name: "학습 북마크", short_name: "북마크", url: "/notebook", icons: [{ src: "/pwa-icon/192", sizes: "192x192" }] },
+      { name: "AI 학습 시작", short_name: "학습", url: "/learn", icons: [{ src: "/pwa-icon/192?v=2", sizes: "192x192" }] },
+      { name: "학습 북마크", short_name: "북마크", url: "/notebook", icons: [{ src: "/pwa-icon/192?v=2", sizes: "192x192" }] },
     ],
   };
 }

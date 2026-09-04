@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Noto_Serif_KR, Source_Serif_4 } from "next/font/google";
 import { PwaProvider } from "@/components/pwa/pwa-provider";
+import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobilePortraitGuard } from "@/components/layout/mobile-portrait-guard";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -46,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     formatDetection: { telephone: false },
     icons: {
-      apple: [{ url: "/pwa-icon/180", sizes: "180x180", type: "image/png" }],
+      apple: [{ url: "/pwa-icon/180?v=2", sizes: "180x180", type: "image/png" }],
     },
     openGraph: {
       title: "LearnCraft | 교육과정 기반 AI 튜터",
@@ -67,7 +68,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${learningSerif.variable} ${mathSerif.variable}`}>
-      <body><PwaProvider>{children}<MobilePortraitGuard /></PwaProvider></body>
+      <body><PwaProvider>{children}<PwaInstallAction promptOnly /><MobilePortraitGuard /></PwaProvider></body>
     </html>
   );
 }

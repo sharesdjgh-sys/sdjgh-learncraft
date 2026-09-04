@@ -1,5 +1,5 @@
-const CACHE_NAME = "learncraft-static-v1";
-const PRECACHE_URLS = ["/offline", "/pwa-icon/192", "/pwa-icon/512"];
+const CACHE_NAME = "learncraft-static-v2";
+const PRECACHE_URLS = ["/offline", "/pwa-icon/192?v=2", "/pwa-icon/512?v=2"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)));

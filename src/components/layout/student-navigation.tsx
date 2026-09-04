@@ -31,7 +31,7 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
   return (
     <header className="veil sticky top-0 z-40 flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center justify-between gap-3 border-b border-line px-3 pt-[env(safe-area-inset-top)] sm:px-6">
       <div className="flex min-w-0 items-center gap-7">
-        <Logo className="max-[420px]:[&>span]:w-28" />
+        <Logo className="max-[520px]:[&>span]:h-[1.575rem] max-[520px]:[&>span]:w-28" />
         <nav className="hidden items-center gap-1 min-[1024px]:flex" aria-label="학생 메뉴">
           {studentPrimaryNavItems.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);

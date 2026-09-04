@@ -24,7 +24,10 @@ next-env.d.ts
 /.vercel/
 
 # Local project references
-/ref/
+/ref/*
+!/ref/logo-concepts/
+/ref/logo-concepts/*
+!/ref/logo-concepts/favicon.png
 
 # Logs and diagnostics
 *.log
