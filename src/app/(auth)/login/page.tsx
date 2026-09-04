@@ -26,16 +26,16 @@ export default async function LoginPage() {
               <p className="flex items-center gap-2 text-[.74rem] font-extrabold tracking-[.14em] text-brand"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
             </div>
             <h1 className="font-learning mt-7 text-[2.55rem] font-bold leading-[1.38] tracking-[-0.055em] text-ink text-balance">
-              궁금한 지점에서 시작해<br />개념의 흐름을 이어가요
+              교과서에서 막힌 순간,<br />AI 튜터에게 바로 물어봐요
             </h1>
             <p className="mt-5 max-w-[23rem] text-[.92rem] leading-7 text-ink-3">
-              학교 교육과정과 지금 이해한 내용을 연결해, 필요한 설명부터 차근차근 학습할 수 있어요.
+              학교 진도와 채택 교과서에 맞춰 사진 속 문제부터 어려운 개념까지 질문하세요. 더 쉽게, 더 깊게, 확인 문제까지 내 수준에 맞춰 이어갈 수 있어요.
             </p>
           </div>
 
           <div className="grid gap-2.5">
-            <div className="login-story-item"><BookOpenCheck size={18} /><span><strong>학교 진도에 맞춰</strong> 필요한 단원부터 학습해요</span></div>
-            <div className="login-story-item"><BrainCircuit size={18} /><span><strong>이해한 지점부터</strong> 설명의 깊이를 조절해요</span></div>
+            <div className="login-story-item"><BookOpenCheck size={18} /><span><strong>교과서와 사진 그대로</strong> 막힌 문제를 바로 질문해요</span></div>
+            <div className="login-story-item"><BrainCircuit size={18} /><span><strong>이해될 때까지</strong> 더 쉽게, 더 깊게 이어서 배워요</span></div>
           </div>
         </section>
 

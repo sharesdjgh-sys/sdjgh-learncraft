@@ -1437,11 +1437,11 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
         <div className="max-w-[38rem]">
           <p className="flex items-center gap-2 text-[.72rem] font-extrabold tracking-[.12em] text-brand"><Sparkles size={15} /> LEARNCRAFT</p>
           <p className="mt-6 text-[.86rem] font-semibold text-ink-3">안녕하세요, {studentName}님.</p>
-          <h1 className="font-learning mt-2 break-keep text-balance text-[2.35rem] font-bold leading-[1.16] tracking-[-0.055em] text-ink sm:text-[3.1rem] lg:text-[3.55rem]">
-            모르는 지점부터,<br /><span className="text-brand-dark">내 방식으로 이해하는 학습</span>
+          <h1 className="font-learning mt-2 break-keep text-balance text-[1.9rem] font-bold leading-[1.22] tracking-[-0.045em] text-ink sm:text-[2.35rem] lg:text-[2.75rem]">
+            오늘 공부할 단원을 고르고,<br /><span className="text-brand-dark">궁금한 건 바로 질문하세요</span>
           </h1>
           <p className="mt-6 max-w-[34rem] break-keep text-[.94rem] leading-7 text-ink-3 sm:text-[1.02rem] sm:leading-8">
-            학교 교육과정과 채택 교과서 안에서 질문하고, 쉬운 설명부터 원리와 문제 풀이까지 내 속도에 맞춰 이어가세요.
+            학교 진도에 맞춰 준비된 교과서 목차에서 단원을 선택하세요. 사진 속 문제 풀이부터 쉬운 설명, 핵심 정리, 확인 문제까지 필요한 방식으로 이어서 배울 수 있어요.
           </p>
           <button type="button" onClick={onOpenCurriculum} className="group mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-[12px] border border-brand bg-brand px-5 text-[.88rem] font-bold text-white shadow-[var(--lift-brand)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-brand-dark active:scale-[.98] min-[1024px]:hidden">
             <BookOpen size={18} /> 학습할 과목 선택하기 <ChevronDown size={15} className="-rotate-90 transition-transform group-hover:translate-x-0.5" />
