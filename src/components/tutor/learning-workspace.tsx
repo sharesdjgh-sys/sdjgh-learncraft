@@ -51,6 +51,13 @@ const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: stri
 
 const followUpOrder: TutorAction[] = ["QUIZ", "EASIER", "DEEPER", "REVEAL"];
 
+const followUpRequestText: Record<Exclude<TutorAction, "QUESTION">, string> = {
+  EASIER: "방금 설명한 내용 중 이해하기 어려운 개념과 용어를 쉬운 말로 바꾸고, 간단한 비유와 예시를 활용해 처음 배우는 학생도 이해할 수 있도록 다시 설명해 주세요.",
+  DEEPER: "방금 설명한 내용의 핵심 원리와 개념이 성립하는 이유, 조건이 달라질 때의 변화, 다른 개념과의 연결을 단계적으로 더 깊이 설명해 주세요.",
+  REVEAL: "방금 출제한 확인 문제의 조건을 정리하고, 적용할 개념부터 단계별 풀이, 최종 답, 검산 또는 확인 방법까지 빠짐없이 보여 주세요.",
+  QUIZ: "방금 배운 내용을 제대로 이해했는지 확인할 수 있도록 현재 단원과 학습 수준에 맞는 문제를 한 개 내 주세요. 정답과 해설은 아직 보여 주지 말고, 필요한 경우 힌트만 제공해 주세요.",
+};
+
 type SubjectCatalogItem = {
   id: SubjectCode;
   title: string;
@@ -657,11 +664,10 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     if (action === "QUESTION" && !question && currentAttachments.length === 0) return;
 
     const baseMessages = conversationOpen ? messages : [];
-    const actionLabel = actionConfig.find((item) => item.action === action)?.label ?? "질문";
     const userMessage: TutorMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: action === "QUESTION" ? question || "첨부 이미지로 질문" : actionLabel,
+      content: action === "QUESTION" ? question || "첨부 이미지로 질문" : followUpRequestText[action],
       imageNames: currentAttachments.map((attachment) => attachment.name),
       action,
       completed: true,
@@ -899,11 +905,25 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           <div className="mt-6">
                             <p className="mb-3 text-[.86rem] font-bold text-ink">이어서 학습하기</p>
                             <div className="flex flex-wrap gap-2">
-                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon, tone }) => (
-                              <button key={action} onClick={() => void ask(action)} disabled={loading || remaining <= 0} className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", tone)}>
-                                <Icon size={15} />{label}{action === "QUIZ" && <span className="rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)]">권장</span>}
-                              </button>
-                            ))}
+                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon, tone }) => {
+                              const hasProblemToReveal = message.action === "QUIZ";
+                              const showLearningEssentials = action === "REVEAL" && !hasProblemToReveal;
+                              const FollowUpIcon = showLearningEssentials ? BookOpenCheck : Icon;
+                              const followUpLabel = showLearningEssentials ? "꼭 알아야 할 내용" : label;
+
+                              return (
+                                <button
+                                  key={action}
+                                  onClick={() => void (showLearningEssentials
+                                    ? ask("QUESTION", "방금 설명한 내용에서 이 단원을 이해하기 위해 꼭 알아야 할 핵심 개념, 판단 기준, 자주 혼동하는 부분을 간결하게 정리해 주세요.")
+                                    : ask(action))}
+                                  disabled={loading || remaining <= 0}
+                                  className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[11px] border px-4 text-[.88rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40", tone)}
+                                >
+                                  <FollowUpIcon size={15} />{followUpLabel}{action === "QUIZ" && <span className="rounded-full bg-white/75 px-2 py-0.5 text-[.7rem] font-bold text-brand shadow-[0_1px_3px_rgba(82,57,157,.08)]">권장</span>}
+                                </button>
+                              );
+                            })}
                             </div>
                           </div>
                         )}
