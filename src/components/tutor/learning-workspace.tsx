@@ -793,17 +793,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-      <StudentTopNavigation user={{ name: studentName, schoolName }} actions={(
-        <>
-          <div className="flex items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2" title="오늘 남은 AI 학습 횟수">
-            <span className="hidden text-[.8rem] font-semibold text-ink-3 sm:inline">오늘 남은 질문</span>
-            <span className="figure text-sm font-semibold text-ink">{remaining}<span className="text-[.78rem] text-ink-5">/{dailyLimit}</span></span>
-          </div>
-          <button onClick={() => resetConversation()} disabled={loading || !conversationOpen || messages.length === 0} className="hidden min-h-10 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 text-[.8rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex" aria-label="새 대화 시작">
-            <Plus size={16} />새 대화
-          </button>
-        </>
-      )} />
+      <StudentTopNavigation user={{ name: studentName, schoolName }} />
       <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
       <aside className="scrollbar-subtle hidden overflow-y-scroll border-r border-line bg-surface/55 px-4 py-5 [scrollbar-gutter:stable] min-[1024px]:block">
         <CurriculumPicker
@@ -887,6 +877,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
                               <div className="ml-auto flex items-center gap-2">
+                                {index === messages.length - 1 && (
+                                  <button onClick={() => resetConversation()} disabled={loading} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border border-brand/20 bg-brand-page px-3.5 text-[.82rem] font-semibold text-brand-dark transition-all duration-300 hover:-translate-y-px hover:border-brand/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40" aria-label="새 대화 시작">
+                                    <Plus size={16} />
+                                    <span>새 대화</span>
+                                  </button>
+                                )}
                                 <button onClick={() => void copyMessage(message)} className={cn("flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[11px] border px-3.5 text-[.82rem] font-semibold transition-all duration-300 hover:-translate-y-px", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
                                   {copiedMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
@@ -1008,7 +1004,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                     <Send size={19} strokeWidth={2.3} />
                   </Button>
                 </div>
-                <div className="flex items-center justify-between gap-2 px-1.5 pb-1 pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-1.5 pb-1 pt-1">
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -1029,13 +1025,23 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                       <Camera size={15} /> 촬영
                     </button>
                   </div>
-                  <div className="flex min-w-0 items-center gap-2 text-[.74rem] text-ink-5">
+                  <div className="ml-auto flex min-w-0 items-center gap-2 text-[.74rem] text-ink-5">
                     {attachments.length > 0 ? (
                       <span className="truncate">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
                     ) : (
                       <span className="hidden sm:inline">이미지 Ctrl+V · Enter 전송</span>
                     )}
-                    <span className="figure shrink-0">{input.length} / 1200</span>
+                    <span
+                      className="inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-full border border-[#c9bbf4] bg-[#eee9ff] px-2.5 py-1 font-bold text-[#49328f] shadow-[0_2px_8px_rgba(73,50,143,.12)]"
+                      title="오늘 사용할 수 있는 AI 질문 횟수"
+                    >
+                      <span aria-hidden="true">✨</span>
+                      <span>오늘 AI 질문 가능 횟수</span>
+                      <span className="figure rounded-full bg-white/85 px-1.5 py-0.5 text-[.78rem] font-extrabold text-[#4f32ad] shadow-[0_1px_3px_rgba(73,50,143,.12)]">
+                        {remaining}/{dailyLimit}회
+                      </span>
+                    </span>
+                    <span className="figure shrink-0 border-l border-line pl-2">{input.length} / 1200</span>
                   </div>
                 </div>
               </form>
@@ -1191,15 +1197,6 @@ function CurriculumPicker({ grade, subject, allUnits, units, selectedCourseCode,
 
   return (
     <div>
-      <div className="mb-4 border-b border-line px-1 pb-4">
-        <Image
-          src="/images/sdj-school-logo.webp"
-          alt="서대전여자고등학교"
-          width={1415}
-          height={224}
-          className="h-auto w-full max-w-[16.5rem]"
-        />
-      </div>
       <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
       <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학교 진도에 맞는 학습 주제를 고르세요.</p>
       <div className="mt-4 grid gap-1 rounded-[12px] border border-line bg-surface-3 p-1" style={{ gridTemplateColumns: `repeat(${availableGrades.length}, minmax(0, 1fr))` }}>

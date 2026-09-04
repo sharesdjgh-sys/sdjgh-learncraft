@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BookOpenText, LogOut, NotebookTabs } from "lucide-react";
@@ -52,10 +53,18 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
       <div className="flex shrink-0 items-center gap-2">
         {actions}
         <Link href="/profile" title="내 정보 보기" className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-2.5 shadow-[var(--lift-1)] transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)]" aria-label={`로그인 사용자 ${user.name}, 내 정보 보기`}>
-          <span className="font-learning grid size-7 shrink-0 place-items-center rounded-[8px] bg-brand-soft text-[.78rem] font-bold text-brand-dark">{user.name.slice(0, 1)}</span>
+          <Image
+            src="/images/sdj-school-logo.webp"
+            alt={`${user.schoolName} 로고`}
+            width={1415}
+            height={224}
+            className="hidden h-7 w-auto max-w-[10.5rem] shrink-0 object-contain lg:block"
+          />
+          <span className="hidden h-6 w-px shrink-0 bg-line lg:block" aria-hidden="true" />
+          <span className="font-learning grid size-7 shrink-0 place-items-center rounded-[8px] bg-brand-soft text-[.78rem] font-bold text-brand-dark lg:hidden">{user.name.slice(0, 1)}</span>
           <span className="hidden min-w-0 leading-tight min-[520px]:block">
             <span className="block truncate text-[.78rem] font-bold text-ink">{user.name}</span>
-            <span className="hidden max-w-32 truncate text-[.68rem] text-ink-5 xl:block">{user.schoolName}</span>
+            <span className="hidden max-w-32 truncate text-[.68rem] text-ink-5 min-[520px]:block lg:hidden">{user.schoolName}</span>
           </span>
         </Link>
         <button onClick={logout} className="grid size-10 place-items-center rounded-[11px] text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃" title="로그아웃">
