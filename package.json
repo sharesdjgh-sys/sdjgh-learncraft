@@ -9,6 +9,7 @@
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test:graph": "tsx scripts/verify-graph.tsx",
+    "test:markdown": "tsx scripts/verify-markdown-rendering.tsx",
     "test:math": "tsx scripts/verify-math-rendering.ts",
     "test:curriculum-import": "tsx scripts/verify-curriculum-import.ts",
     "test:publisher-sources": "tsx scripts/verify-publisher-sources.ts",

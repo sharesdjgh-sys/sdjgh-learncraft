@@ -1191,8 +1191,8 @@ function GeneratedContentReview({
         {content.units.map((unit) => (
           <details key={unit.id} className="group rounded-[11px] border border-line bg-surface-2 px-4 py-3">
             <summary className="cursor-pointer list-none text-[.8rem] font-extrabold text-ink">
-              <span className="figure mr-2 text-brand">{unit.chapterOrder}.{unit.sectionOrder}</span>{unit.title}
-              <span className="ml-2 text-[.68rem] font-medium text-ink-5">{unit.chapterTitle}</span>
+              <span className="figure mr-2 text-brand">{unit.chapterOrder}.{unit.sectionOrder}</span><InlineMarkdown>{unit.title}</InlineMarkdown>
+              <span className="ml-2 text-[.68rem] font-medium text-ink-5"><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown></span>
             </summary>
             <div className="mt-3 border-t border-line pt-3">
               <div className="text-[.78rem] text-ink-3"><Markdown>{unit.summary}</Markdown></div>

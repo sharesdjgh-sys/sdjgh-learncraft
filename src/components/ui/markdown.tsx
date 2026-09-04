@@ -232,7 +232,8 @@ function findExactBacktickRun(value: string, from: number, length: number) {
 
 function normalizePlainMath(value: string) {
   const texAliasNormalized = normalizeTexAliases(value);
-  const texInlineDelimiterNormalized = texAliasNormalized.replace(
+  const unicodeStrongNormalized = normalizeUnicodeStrongMarkers(texAliasNormalized);
+  const texInlineDelimiterNormalized = unicodeStrongNormalized.replace(
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
     (match, expression: string) => expression.trim() ? `$${expression.trim()}$` : match,
   );
@@ -361,7 +362,7 @@ function separateKoreanFromDollarMath(value: string) {
 function looksLikeMathExpression(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0
-    && !/[가-힣]/.test(trimmed)
+    && !/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(trimmed)
     && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
 }
 
@@ -540,6 +541,14 @@ function normalizeEscapedStrongMarkers(value: string) {
   return value.replace(
     /\\\*\\\*([^*\r\n]+?)\\\*\\\*/g,
     (_, content: string) => `**${content}**`,
+  );
+}
+
+/** Convert common model-generated Unicode asterisk pairs into Markdown strong markers. */
+function normalizeUnicodeStrongMarkers(value: string) {
+  return value.replace(
+    /([∗＊﹡⁎])\1([^\r\n]+?)\1\1/g,
+    (_, _marker: string, content: string) => `**${content}**`,
   );
 }
 
