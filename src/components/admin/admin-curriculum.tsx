@@ -392,7 +392,6 @@ export function AdminCurriculum() {
 
   async function generateContent(item: CurriculumOffering, refreshSources = false) {
     if (!item.id || !selectedVersion || !editable) return;
-    setGenerationTarget(null);
     setGeneratingOfferingId(item.id);
     clearNotice();
     try {
@@ -413,8 +412,10 @@ export function AdminCurriculum() {
         subjectCode: item.subjectCode,
       });
       setMessage(`${data.units.length}개 단원 초안을 만들었습니다. 내용을 확인한 뒤 콘텐츠를 공개해 주세요.`);
+      setGenerationTarget(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "AI 콘텐츠를 만들지 못했습니다.");
+      setGenerationTarget(null);
     } finally {
       setGeneratingOfferingId(null);
     }
@@ -718,7 +719,7 @@ export function AdminCurriculum() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[.94rem] font-extrabold">{grade}학년 · {subjects.find((subject) => subject.code === subjectCode)?.title ?? "교과"}</h3>
-                    <p className="mt-1 text-[.73rem] text-ink-4">과목명과 출판사를 확인하고 필요한 과목을 선택하세요.</p>
+                    <p className="mt-1 text-[.73rem] text-ink-4">운영할 과목을 고르고, 필요한 정보만 짧게 확인하거나 수정하세요.</p>
                   </div>
                   {editable && <Button size="sm" variant="secondary" onClick={addCourse}><Plus size={15} /> 과목 직접 추가</Button>}
                 </div>
@@ -726,7 +727,7 @@ export function AdminCurriculum() {
                 {loading ? <div className="grid min-h-72 place-items-center"><LoaderCircle size={24} className="animate-spin text-brand" /></div> : visibleItems.length ? (
                   <div className="mt-5 space-y-2">
                     {visibleItems.map((item) => (
-                      <article key={item.rowKey} className={cn("grid gap-3 rounded-[12px] border p-3.5 transition sm:grid-cols-[1.25rem_4.5rem_minmax(6.5rem,.65fr)_minmax(10rem,1.15fr)_minmax(8rem,.9fr)_auto]", item.enabled ? "border-brand/20 bg-brand-page" : "border-line bg-surface-2 opacity-70")}>
+                      <article key={item.rowKey} className={cn("grid gap-x-3 gap-y-2.5 rounded-[12px] border p-3.5 transition sm:grid-cols-[1.25rem_4.5rem_minmax(7.5rem,1fr)_minmax(10rem,1.5fr)] xl:grid-cols-[1.25rem_4.5rem_7.5rem_minmax(10rem,14rem)_8.5rem_minmax(12rem,1fr)]", item.enabled ? "border-brand/20 bg-brand-page" : "border-line bg-surface-2 opacity-70")}>
                         <button type="button" disabled={!editable} onClick={() => updateItem(item.rowKey, { enabled: !item.enabled })} aria-label={item.enabled ? "과목 선택 해제" : "과목 선택"} title={!editable ? "수정용 검토본에서 선택을 변경할 수 있습니다" : item.enabled ? "운영 과목에서 제외" : "운영 과목으로 선택"} className={cn("mt-2 grid size-5 place-items-center rounded-[6px] border transition", item.enabled ? "border-brand bg-brand text-white" : "border-[var(--line-2)] bg-surface", !editable && "cursor-not-allowed opacity-50")}>{item.enabled && <Check size={12} strokeWidth={2.6} />}</button>
                         <label className="min-w-0">
                           <span className="mb-1 block text-[.66rem] font-bold text-ink-5">학년</span>
@@ -742,17 +743,15 @@ export function AdminCurriculum() {
                           <span className="mb-1 block text-[.66rem] font-bold text-ink-5">과목명</span>
                           <input disabled={!editable} value={item.courseTitle} onChange={(event) => updateItem(item.rowKey, { courseTitle: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.8rem] font-bold text-ink outline-none transition focus:border-brand disabled:bg-transparent" />
                         </label>
-                        <div className="min-w-0 space-y-2">
-                          <label className="block min-w-0">
-                            <span className="mb-1 block text-[.66rem] font-bold text-ink-5">출판사</span>
-                            <input disabled={!editable} value={item.publisherName} onChange={(event) => updateItem(item.rowKey, { publisherName: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.78rem] text-ink-3 outline-none transition focus:border-brand disabled:bg-transparent" />
-                          </label>
-                          <label className="block min-w-0">
-                            <span className="mb-1 block text-[.66rem] font-bold text-ink-5">정식 교과서명 · 대표 저자</span>
-                            <input disabled={!editable} value={item.textbookTitle ?? ""} onChange={(event) => updateItem(item.rowKey, { textbookTitle: event.target.value || null, reviewRequired: true })} placeholder="예: 일반 선택 지리 부도 (정성훈)" className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.75rem] text-ink-3 outline-none transition placeholder:text-ink-5 focus:border-brand disabled:bg-transparent" />
-                          </label>
-                        </div>
-                        <div className="flex flex-wrap items-end justify-between gap-2 sm:justify-end">
+                        <label className="min-w-0 sm:col-start-2 xl:col-start-auto">
+                          <span className="mb-1 block text-[.66rem] font-bold text-ink-5">출판사</span>
+                          <input disabled={!editable} value={item.publisherName} onChange={(event) => updateItem(item.rowKey, { publisherName: event.target.value, reviewRequired: true })} className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.78rem] text-ink-3 outline-none transition focus:border-brand disabled:bg-transparent" />
+                        </label>
+                        <label className="min-w-0 sm:col-start-3 sm:col-end-5 xl:col-start-auto xl:col-end-auto">
+                          <span className="mb-1 block text-[.66rem] font-bold text-ink-5">교과서명 · 대표 저자 <span className="font-medium text-ink-5">(선택)</span></span>
+                          <input disabled={!editable} value={item.textbookTitle ?? ""} onChange={(event) => updateItem(item.rowKey, { textbookTitle: event.target.value || null, reviewRequired: true })} placeholder="예: 일반 선택 지리 부도 (정성훈)" className="h-9 w-full rounded-[8px] border border-line bg-surface px-2.5 text-[.75rem] text-ink-3 outline-none transition placeholder:text-ink-5 focus:border-brand disabled:bg-transparent" />
+                        </label>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:col-span-4 xl:col-start-2 xl:col-end-7">
                           {item.reviewRequired && <span className="mb-2 inline-flex items-center gap-1 whitespace-nowrap text-[.66rem] font-bold text-warn"><TriangleAlert size={12} />확인 필요</span>}
                           {item.contentCourseCode && item.generatedContent && item.id ? (
                             <button type="button" onClick={() => void openGeneratedContent(item.id!)} className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-2 text-[.68rem] font-bold text-ok hover:bg-[var(--ok-page)]"><CheckCircle2 size={13} />생성 콘텐츠 보기</button>
@@ -798,7 +797,11 @@ export function AdminCurriculum() {
       {generationTarget && (
         <GenerationConfirmDialog
           item={generationTarget}
-          onClose={() => setGenerationTarget(null)}
+          running={generatingOfferingId === generationTarget.id}
+          onClose={() => {
+            if (generatingOfferingId === generationTarget.id) return;
+            setGenerationTarget(null);
+          }}
           onConfirm={() => void generateContent(generationTarget)}
         />
       )}
@@ -1023,44 +1026,95 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
   );
 }
 
-function GenerationConfirmDialog({ item, onClose, onConfirm }: {
+function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
   item: CurriculumOffering;
+  running: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !running) onClose();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  }, [onClose, running]);
+
+  useEffect(() => {
+    if (!running) return;
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [running]);
 
   const outputs = ["단원 구성", "핵심 개념", "수식·예시", "선수 개념", "추천 질문", "AI 튜터 지침"];
+  const phases = [
+    { title: "공식 출처 확인", note: "출판사 교과서와 국가 교육과정을 찾고 있습니다" },
+    { title: "목차·성취기준 정리", note: "확인된 자료의 단원 구조와 학습 범위를 맞추고 있습니다" },
+    { title: "단원 학습자료 작성", note: "단원별 설명, 예시와 추천 질문을 만들고 있습니다" },
+  ];
+  const activePhase = elapsedSeconds < 25 ? 0 : elapsedSeconds < 70 ? 1 : 2;
+  const estimatedPercent = Math.min(92, 12 + Math.round(elapsedSeconds * 0.8));
+  const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}분 ${String(elapsedSeconds % 60).padStart(2, "0")}초`;
+
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(31,24,52,.34)] p-4 backdrop-blur-[3px]" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(31,24,52,.34)] p-4 backdrop-blur-[3px]" onMouseDown={() => { if (!running) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="generation-dialog-title" onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-[31rem] overflow-hidden rounded-[22px] border border-white/80 bg-surface shadow-[0_28px_80px_rgba(43,31,79,.3)]">
         <div className="flex items-start justify-between gap-4 border-b border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] px-6 py-5">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-brand text-white shadow-[0_8px_20px_rgba(103,76,190,.25)]"><WandSparkles size={21} /></span>
             <div className="min-w-0">
               <p className="text-[.7rem] font-bold text-brand">AI 학습자료 초안</p>
-              <h2 id="generation-dialog-title" className="mt-1 truncate text-lg font-extrabold tracking-[-0.025em]">{item.courseTitle} 콘텐츠를 만들까요?</h2>
+              <h2 id="generation-dialog-title" className="mt-1 truncate text-lg font-extrabold tracking-[-0.025em]">{running ? `${item.courseTitle} 자료를 만들고 있어요` : `${item.courseTitle} 콘텐츠를 만들까요?`}</h2>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink" aria-label="팝업 닫기"><X size={17} /></button>
+          <button type="button" onClick={onClose} disabled={running} className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30" aria-label="팝업 닫기"><X size={17} /></button>
         </div>
         <div className="px-6 py-5">
-          <p className="text-[.82rem] leading-6 text-ink-3">AI가 교육과정과 과목명을 바탕으로 다음 내용을 초안으로 구성합니다.</p>
-          <div className="mt-4 flex flex-wrap gap-2">{outputs.map((output) => <span key={output} className="rounded-full border border-brand/15 bg-brand-soft px-3 py-1.5 text-[.7rem] font-bold text-brand-dark">{output}</span>)}</div>
-          <div className="mt-5 rounded-[11px] border border-line bg-surface-2 px-4 py-3">
-            <p className="flex items-center gap-1.5 text-[.72rem] font-bold text-ink"><CheckCircle2 size={14} className="text-ok" />학생에게 바로 공개되지 않습니다</p>
-            <p className="mt-1 text-[.7rem] leading-5 text-ink-4">생성 후 관리자가 단원별 내용을 펼쳐 확인하고, 별도로 콘텐츠 공개를 눌러야 연결됩니다.</p>
-          </div>
+          {running ? (
+            <div aria-live="polite">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[.8rem] font-extrabold text-ink">{phases[activePhase].title}</p>
+                  <p className="mt-1 text-[.71rem] leading-5 text-ink-4">{phases[activePhase].note}</p>
+                </div>
+                <span className="figure shrink-0 text-[.72rem] font-bold text-brand">{elapsedLabel}</span>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3" aria-label="예상 진행률">
+                <div className="h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${estimatedPercent}%` }} />
+              </div>
+              <p className="mt-2 text-[.65rem] text-ink-5">예상 진행 표시 · 과목 분량에 따라 보통 1~3분 정도 걸립니다.</p>
+              <ol className="mt-5 space-y-2.5">
+                {phases.map((phase, index) => {
+                  const complete = index < activePhase;
+                  const active = index === activePhase;
+                  return (
+                    <li key={phase.title} className={cn("flex items-start gap-3 rounded-[11px] border px-3.5 py-3 transition", active ? "border-brand/25 bg-brand-soft/70" : "border-line bg-surface-2", index > activePhase && "opacity-55")}>
+                      <span className={cn("grid size-6 shrink-0 place-items-center rounded-full text-[.65rem] font-extrabold", complete ? "bg-[var(--ok-page)] text-ok" : active ? "bg-brand text-white" : "bg-surface-3 text-ink-5")}>{complete ? <Check size={13} /> : active ? <LoaderCircle size={13} className="animate-spin" /> : index + 1}</span>
+                      <div><p className="text-[.72rem] font-bold text-ink">{phase.title}</p><p className="mt-0.5 text-[.66rem] leading-5 text-ink-4">{phase.note}</p></div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ) : (
+            <>
+              <p className="text-[.82rem] leading-6 text-ink-3">AI가 교육과정과 과목명을 바탕으로 다음 내용을 초안으로 구성합니다.</p>
+              <div className="mt-4 flex flex-wrap gap-2">{outputs.map((output) => <span key={output} className="rounded-full border border-brand/15 bg-brand-soft px-3 py-1.5 text-[.7rem] font-bold text-brand-dark">{output}</span>)}</div>
+              <div className="mt-5 rounded-[11px] border border-line bg-surface-2 px-4 py-3">
+                <p className="flex items-center gap-1.5 text-[.72rem] font-bold text-ink"><CheckCircle2 size={14} className="text-ok" />학생에게 바로 공개되지 않습니다</p>
+                <p className="mt-1 text-[.7rem] leading-5 text-ink-4">생성 후 관리자가 단원별 내용을 펼쳐 확인하고, 별도로 콘텐츠 공개를 눌러야 연결됩니다.</p>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-line bg-surface-2 px-6 py-4">
-          <Button type="button" variant="secondary" onClick={onClose}>취소</Button>
-          <Button type="button" onClick={onConfirm}><WandSparkles size={15} />초안 생성 시작</Button>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={running}>{running ? "작업 중에는 닫을 수 없음" : "취소"}</Button>
+          <Button type="button" onClick={onConfirm} disabled={running}>{running ? <LoaderCircle size={15} className="animate-spin" /> : <WandSparkles size={15} />}{running ? "단원 자료 생성 중" : "초안 생성 시작"}</Button>
         </div>
       </section>
     </div>
