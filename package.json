@@ -13,6 +13,7 @@
     "test:math": "tsx scripts/verify-math-rendering.ts",
     "test:curriculum-import": "tsx scripts/verify-curriculum-import.ts",
     "test:publisher-sources": "tsx scripts/verify-publisher-sources.ts",
+    "test:gemini-retry": "tsx scripts/verify-gemini-response-retry.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts"

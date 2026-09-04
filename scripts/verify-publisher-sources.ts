@@ -22,6 +22,7 @@ const aliasCases = [
   ["(주)천재교육", "CHUNJAE"],
   ["와이비엠", "YBM"],
   ["㈜엔이능률", "NEUNGYULE"],
+  ["(주)리베르스쿨 교과서", "LIBER_SCHOOL"],
 ] as const;
 
 for (const [publisherName, expectedKey] of aliasCases) {
@@ -82,6 +83,31 @@ for (const [label, url] of [
 }
 if (chunjae.sites.some((site) => site.url.includes("textbook.tsherpa.co.kr"))) {
   throw new Error("접속할 수 없는 이전 T셀파 교과서 주소가 남아 있습니다.");
+}
+
+const liberSchool = resolvePublisherSourceGuide("리베르스쿨");
+if (!liberSchool) throw new Error("리베르스쿨 공식 출처 안내를 찾지 못했습니다.");
+const liberHighSchoolTextbooks = "https://textbook.liber.site/shop/list.php?ca_id=20";
+if (
+  !liberSchool.sites.some((site) => site.url === liberHighSchoolTextbooks)
+  || !isPublisherOfficialUrl(liberHighSchoolTextbooks, liberSchool)
+) {
+  throw new Error("리베르스쿨 고등 교과서 목록이 공식 출처로 등록되지 않았습니다.");
+}
+
+const darakwon = resolvePublisherSourceGuide("다락원");
+if (!darakwon) throw new Error("다락원 공식 출처 안내를 찾지 못했습니다.");
+for (const [label, url] of [
+  ["교과서 목록", "https://textbook.darakwon.co.kr/textbook/"],
+  ["미술 교과서 목록", "https://textbook.darakwon.co.kr/textbook/?pm1=7"],
+  ["교과서 미리보기", "https://darakwonpds.hscdn.com:8443/ebook/teachingbook/22hi_art/index.html"],
+] as const) {
+  if (!darakwon.sites.some((site) => site.url === url) && label !== "교과서 미리보기") {
+    throw new Error(`다락원 ${label}이 공식 출처로 등록되지 않았습니다.`);
+  }
+  if (!isPublisherOfficialUrl(url, darakwon)) {
+    throw new Error(`다락원 ${label} URL을 공식 출처로 인식하지 못했습니다.`);
+  }
 }
 
 console.log(

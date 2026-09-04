@@ -150,6 +150,7 @@ export function AdminCurriculum() {
   const [batchProgress, setBatchProgress] = useState<BatchGenerationProgress | null>(null);
   const [contentPublishing, setContentPublishing] = useState(false);
   const [contentDetail, setContentDetail] = useState<GeneratedContentDetail | null>(null);
+  const [generationRefreshSources, setGenerationRefreshSources] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -433,9 +434,11 @@ export function AdminCurriculum() {
       });
       setMessage(`${data.units.length}개 단원 초안을 만들었습니다. 내용을 확인한 뒤 콘텐츠를 공개해 주세요.`);
       setGenerationTarget(null);
+      setGenerationRefreshSources(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "AI 콘텐츠를 만들지 못했습니다.");
       setGenerationTarget(null);
+      setGenerationRefreshSources(false);
     } finally {
       setGeneratingOfferingId(null);
     }
@@ -544,16 +547,8 @@ export function AdminCurriculum() {
       setError("재생성할 과목 정보를 찾지 못했습니다.");
       return;
     }
-    setConfirmation({
-      tone: "warning",
-      icon: "replace",
-      eyebrow: "AI 콘텐츠 재생성",
-      title: `‘${contentDetail.courseTitle}’ 초안을 교체할까요?`,
-      description: "공식 출처를 웹에서 다시 검색한 뒤 전체 단원 콘텐츠를 새로 생성합니다.",
-      note: "현재 목차와 작성된 초안은 새 결과로 교체되며 되돌릴 수 없습니다.",
-      confirmLabel: "다시 검색하고 재생성",
-      onConfirm: () => void generateContent(item, true),
-    });
+    setGenerationRefreshSources(true);
+    setGenerationTarget(item);
   }
 
   async function performPublishContent() {
@@ -792,7 +787,7 @@ export function AdminCurriculum() {
                           ) : item.generatedContent && item.id ? (
                             <button type="button" onClick={() => void openGeneratedContent(item.id!)} className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] bg-brand-soft px-2.5 text-[.68rem] font-bold text-brand-dark hover:bg-brand-page"><WandSparkles size={13} />생성 초안 검토</button>
                           ) : editable && item.enabled && item.id ? (
-                            <button type="button" disabled={generatingOfferingId !== null} onClick={() => setGenerationTarget(item)} title="단원 목차, 핵심 개념, 수식·예시, 선수 개념, 추천 질문과 튜터 지침을 생성합니다" className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] border border-brand/20 bg-surface px-2.5 text-[.68rem] font-bold text-brand transition hover:bg-brand-soft disabled:opacity-45">{generatingOfferingId === item.id ? <LoaderCircle size={13} className="animate-spin" /> : <WandSparkles size={13} />}{generatingOfferingId === item.id ? "단원 콘텐츠 생성 중" : "단원 학습자료 생성"}</button>
+                            <button type="button" disabled={generatingOfferingId !== null} onClick={() => { setGenerationRefreshSources(false); setGenerationTarget(item); }} title="단원 목차, 핵심 개념, 수식·예시, 선수 개념, 추천 질문과 튜터 지침을 생성합니다" className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] border border-brand/20 bg-surface px-2.5 text-[.68rem] font-bold text-brand transition hover:bg-brand-soft disabled:opacity-45">{generatingOfferingId === item.id ? <LoaderCircle size={13} className="animate-spin" /> : <WandSparkles size={13} />}{generatingOfferingId === item.id ? "단원 콘텐츠 생성 중" : "단원 학습자료 생성"}</button>
                           ) : <span className="mb-2 text-[.66rem] font-bold text-ink-5">{item.enabled ? "콘텐츠 준비 전" : "미선택 과목"}</span>}
                           {editable && item.reviewRequired && <button type="button" onClick={() => updateItem(item.rowKey, { reviewRequired: false, confidence: 100 })} className="mb-1 min-h-8 whitespace-nowrap rounded-[8px] px-2 text-[.68rem] font-bold text-brand hover:bg-brand-soft">검토 완료</button>}
                           {editable && <button type="button" onClick={() => setItems((current) => current.filter((entry) => entry.rowKey !== item.rowKey))} className="mb-1 grid size-8 place-items-center rounded-[8px] text-ink-5 hover:bg-[var(--danger-page)] hover:text-danger" aria-label="과목 삭제"><Trash2 size={14} /></button>}
@@ -830,11 +825,13 @@ export function AdminCurriculum() {
         <GenerationConfirmDialog
           item={generationTarget}
           running={generatingOfferingId === generationTarget.id}
+          refreshSources={generationRefreshSources}
           onClose={() => {
             if (generatingOfferingId === generationTarget.id) return;
             setGenerationTarget(null);
+            setGenerationRefreshSources(false);
           }}
-          onConfirm={() => void generateContent(generationTarget)}
+          onConfirm={() => void generateContent(generationTarget, generationRefreshSources)}
         />
       )}
       {batchGenerationOpen && (
@@ -975,19 +972,23 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
 }) {
   const finished = Boolean(progress && progress.total > 0 && progress.completed === progress.total);
   const progressPercent = progress?.total ? Math.round((progress.completed / progress.total) * 100) : 0;
-  const [currentElapsedSeconds, setCurrentElapsedSeconds] = useState(0);
+  const progressTimerKey = `${progress?.completed ?? 0}:${progress?.currentTitle ?? ""}`;
+  const [elapsedTimer, setElapsedTimer] = useState({ key: progressTimerKey, seconds: 0 });
+  const currentElapsedSeconds = elapsedTimer.key === progressTimerKey ? elapsedTimer.seconds : 0;
   const activePhase = generationPhaseIndex(currentElapsedSeconds);
   const currentEstimatedPercent = generationEstimatedPercent(currentElapsedSeconds);
 
   useEffect(() => {
-    setCurrentElapsedSeconds(0);
     if (!running || !progress?.currentTitle || finished) return;
     const startedAt = Date.now();
     const interval = window.setInterval(() => {
-      setCurrentElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+      setElapsedTimer({
+        key: progressTimerKey,
+        seconds: Math.floor((Date.now() - startedAt) / 1_000),
+      });
     }, 1_000);
     return () => window.clearInterval(interval);
-  }, [finished, progress?.completed, progress?.currentTitle, running]);
+  }, [finished, progress?.currentTitle, progressTimerKey, running]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1108,9 +1109,10 @@ function BatchGenerationDialog({ items, running, progress, onClose, onConfirm }:
   );
 }
 
-function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
+function GenerationConfirmDialog({ item, running, refreshSources, onClose, onConfirm }: {
   item: CurriculumOffering;
   running: boolean;
+  refreshSources: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -1145,8 +1147,8 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-brand text-white shadow-[0_8px_20px_rgba(103,76,190,.25)]"><WandSparkles size={21} /></span>
             <div className="min-w-0">
-              <p className="text-[.7rem] font-bold text-brand">AI 학습자료 초안</p>
-              <h2 id="generation-dialog-title" className="mt-1 truncate text-lg font-extrabold tracking-[-0.025em]">{running ? `${item.courseTitle} 자료를 만들고 있어요` : `${item.courseTitle} 콘텐츠를 만들까요?`}</h2>
+              <p className="text-[.7rem] font-bold text-brand">{refreshSources ? "공식 목차 재검색 · AI 초안 교체" : "AI 학습자료 초안"}</p>
+              <h2 id="generation-dialog-title" className="mt-1 truncate text-lg font-extrabold tracking-[-0.025em]">{running ? `${item.courseTitle} 자료를 만들고 있어요` : refreshSources ? `${item.courseTitle} 목차와 초안을 다시 만들까요?` : `${item.courseTitle} 콘텐츠를 만들까요?`}</h2>
             </div>
           </div>
           <button type="button" onClick={onClose} disabled={running} className="grid size-9 shrink-0 place-items-center rounded-[9px] text-ink-4 transition hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30" aria-label="팝업 닫기"><X size={17} /></button>
@@ -1180,8 +1182,14 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
             </div>
           ) : (
             <>
-              <p className="text-[.82rem] leading-6 text-ink-3">AI가 교육과정과 과목명을 바탕으로 다음 내용을 초안으로 구성합니다.</p>
+              <p className="text-[.82rem] leading-6 text-ink-3">{refreshSources ? "출판사 공식 사이트와 국가 교육과정을 다시 검색한 뒤 다음 내용을 모두 새로 구성합니다." : "AI가 교육과정과 과목명을 바탕으로 다음 내용을 초안으로 구성합니다."}</p>
               <div className="mt-4 flex flex-wrap gap-2">{outputs.map((output) => <span key={output} className="rounded-full border border-brand/15 bg-brand-soft px-3 py-1.5 text-[.7rem] font-bold text-brand-dark">{output}</span>)}</div>
+              {refreshSources && (
+                <div className="mt-5 flex items-start gap-2 rounded-[11px] border border-warn/15 bg-[var(--warn-page)] px-4 py-3 text-warn">
+                  <TriangleAlert size={15} className="mt-0.5 shrink-0" />
+                  <p className="text-[.7rem] font-semibold leading-5">현재 목차와 작성된 초안은 새 검색 결과로 교체되며 되돌릴 수 없습니다.</p>
+                </div>
+              )}
               <div className="mt-5 rounded-[11px] border border-line bg-surface-2 px-4 py-3">
                 <p className="flex items-center gap-1.5 text-[.72rem] font-bold text-ink"><CheckCircle2 size={14} className="text-ok" />학생에게 바로 공개되지 않습니다</p>
                 <p className="mt-1 text-[.7rem] leading-5 text-ink-4">생성 후 관리자가 단원별 내용을 펼쳐 확인하고, 별도로 콘텐츠 공개를 눌러야 연결됩니다.</p>
@@ -1191,7 +1199,7 @@ function GenerationConfirmDialog({ item, running, onClose, onConfirm }: {
         </div>
         <div className="flex justify-end gap-2 border-t border-line bg-surface-2 px-6 py-4">
           <Button type="button" variant="secondary" onClick={onClose} disabled={running}>{running ? "작업 중에는 닫을 수 없음" : "취소"}</Button>
-          <Button type="button" onClick={onConfirm} disabled={running}>{running ? <LoaderCircle size={15} className="animate-spin" /> : <WandSparkles size={15} />}{running ? "단원 자료 생성 중" : "초안 생성 시작"}</Button>
+          <Button type="button" onClick={onConfirm} disabled={running}>{running ? <LoaderCircle size={15} className="animate-spin" /> : <WandSparkles size={15} />}{running ? (refreshSources ? "목차 재검색 · 자료 생성 중" : "단원 자료 생성 중") : (refreshSources ? "다시 검색하고 재생성" : "초안 생성 시작")}</Button>
         </div>
       </section>
     </div>

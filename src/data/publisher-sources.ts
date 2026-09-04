@@ -115,10 +115,11 @@ export const publisherSourceGuides: readonly PublisherSourceGuide[] = [
     key: "DARAKWON",
     canonicalName: "다락원",
     aliases: ["다락원"],
-    allowedDomains: ["darakwon.co.kr"],
+    allowedDomains: ["darakwon.co.kr", "darakwon.hscdn.com", "darakwonpds.hscdn.com"],
     sites: [
       { kind: "company", label: "다락원", url: "https://www.darakwon.co.kr/", purpose: "발행사와 교재 정보 확인" },
-      { kind: "textbook", label: "다다익샘", url: "https://textbook.darakwon.co.kr/", purpose: "2022 개정 교과서와 교사용 자료 확인" },
+      { kind: "textbook", label: "다다익샘 교과서", url: "https://textbook.darakwon.co.kr/textbook/", purpose: "2022 개정 중·고등학교 과목별 교과서와 상세 페이지 확인" },
+      { kind: "textbook", label: "다락원 미술 교과서", url: "https://textbook.darakwon.co.kr/textbook/?pm1=7", purpose: "2022 개정 중학교 미술 1·2와 고등학교 미술 교과서·미리보기 확인" },
       { kind: "teacher-support", label: "다락원 학습자료", url: "https://www.darakwon.co.kr/studydata/default.asp?pc_id_2=12", purpose: "교과서 음원·정오표·부가 자료 확인" },
     ],
   },
@@ -148,11 +149,11 @@ export const publisherSourceGuides: readonly PublisherSourceGuide[] = [
   {
     key: "LIBER_SCHOOL",
     canonicalName: "리베르스쿨",
-    aliases: ["리베르스쿨", "리베르"],
+    aliases: ["리베르스쿨", "리베르", "리베르스쿨교과서"],
     allowedDomains: ["liber.site"],
     sites: [
       { kind: "company", label: "리베르", url: "https://www.liber.site/", purpose: "발행사 정보 확인" },
-      { kind: "textbook", label: "리베르스쿨 교과서", url: "https://textbook.liber.site/", purpose: "리베르스쿨 교과서와 목차·미리보기 확인" },
+      { kind: "textbook", label: "리베르스쿨 고등 교과서", url: "https://textbook.liber.site/shop/list.php?ca_id=20", purpose: "2022 개정 고등학교 과목별 교과서 목록과 교재 상세 페이지 확인" },
     ],
   },
 ] as const;
