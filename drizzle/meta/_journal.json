@@ -50,6 +50,13 @@
       "when": 1788312252080,
       "tag": "0006_backfill_generated_unit_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788520355649,
+      "tag": "0007_shared_course_source_cache",
+      "breakpoints": true
     }
   ]
 }

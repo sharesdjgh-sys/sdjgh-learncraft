@@ -201,6 +201,45 @@ export const schoolCourseOfferings = pgTable(
   (table) => [uniqueIndex("school_course_offering_idx").on(table.versionId, table.rowKey)],
 );
 
+type StoredCourseSourceBundle = {
+  documents: Array<{
+    kind: "NATIONAL_CURRICULUM" | "PUBLISHER_TOC";
+    title: string;
+    url: string;
+  }>;
+  tocEntries: Array<{
+    chapterTitle: string;
+    chapterOrder: number;
+    sectionTitle: string;
+    sectionOrder: number;
+    topicTitle: string;
+    topicOrder: number;
+  }>;
+  achievementStandards: Array<{
+    code: string;
+    content: string;
+    displayOrder: number;
+  }>;
+};
+
+export const sharedCourseSourceBundles = pgTable(
+  "shared_course_source_bundles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceFingerprint: text("source_fingerprint").notNull(),
+    curriculumRevision: text("curriculum_revision").default("2022").notNull(),
+    courseTitle: text("course_title").notNull(),
+    publisherName: text("publisher_name").notNull(),
+    textbookTitle: text("textbook_title"),
+    bundleJson: jsonb("bundle_json").$type<StoredCourseSourceBundle>().notNull(),
+    sourceModel: text("source_model"),
+    researchExcerpt: text("research_excerpt").default("").notNull(),
+    retrievedAt: timestamp("retrieved_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("shared_course_source_bundle_fingerprint_idx").on(table.sourceFingerprint)],
+);
+
 export const courseSourceDocuments = pgTable(
   "course_source_documents",
   {
