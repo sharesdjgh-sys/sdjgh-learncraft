@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, BookOpen, LibraryBig, ListTree, LoaderCircle, NotebookTabs, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -318,18 +317,11 @@ function BookmarkOutline({ groups, itemCount, loading, scope, onSelect, onClose 
 }) {
   return (
     <div>
-      <div className="mb-4 flex items-start gap-3 border-b border-line px-1 pb-4">
-        <Image
-          src="/images/sdj-school-logo.webp"
-          alt="서대전여자고등학교"
-          width={1415}
-          height={224}
-          className="mt-1 h-auto min-w-0 flex-1"
-        />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 북마크 목차</div>
         {onClose && <Button type="button" variant="ghost" size="icon" onClick={onClose} className="-mr-1 -mt-1 size-11 shrink-0" aria-label="북마크 목차 닫기"><X size={17} /></Button>}
       </div>
 
-      <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 북마크 목차</div>
       <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">저장한 답변을 과목과 단원별로 모아 보세요.</p>
 
       <button
