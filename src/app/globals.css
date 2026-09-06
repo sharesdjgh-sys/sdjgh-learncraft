@@ -80,7 +80,10 @@ body {
   text-wrap: pretty;
 }
 
-button, input, textarea, select { color-scheme: light; font: inherit; color: inherit; }
+/* Keep form defaults below utilities so button text colors and weights apply. */
+@layer base {
+  button, input, textarea, select { color-scheme: light; font: inherit; color: inherit; }
+}
 button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button:active, a:active { transition-duration: 80ms; }
 
