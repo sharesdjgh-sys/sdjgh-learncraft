@@ -11,6 +11,7 @@ export type DiagramShape = Paint & (
 );
 export type DiagramSpec = {
   kind: "diagram"; title: string; description: string;
+  projection: "plane" | "spatial";
   xRange: Position; yRange: Position; shapes: DiagramShape[];
 };
 export type ChartSpec = {
@@ -49,7 +50,7 @@ function positive(value: unknown) {
 function color(value: unknown, fallback: string) {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
-function shape(value: unknown): DiagramShape {
+function shape(value: unknown, projection: DiagramSpec["projection"]): DiagramShape {
   const raw = record(value);
   const paint = { color: color(raw.color, "#374151"), fill: color(raw.fill, "none"), dashed: raw.dashed === true };
   switch (raw.type) {
@@ -69,7 +70,10 @@ function shape(value: unknown): DiagramShape {
       const a = [from[0] - vertex[0], from[1] - vertex[1]];
       const b = [to[0] - vertex[0], to[1] - vertex[1]];
       const product = Math.hypot(...a) * Math.hypot(...b);
-      if (!product || Math.abs(a[0] * b[0] + a[1] * b[1]) / product > 0.01) throw new Error("직각 표시와 도형의 각도가 일치하지 않아요.");
+      if (!product) throw new Error("직각 표시의 두 변은 길이가 있어야 해요.");
+      if (Math.abs(a[0] * b[1] - a[1] * b[0]) / product < 0.001) throw new Error("직각 표시의 두 변이 겹쳐 있어요. 그림의 시점을 바꿔 주세요.");
+      // A spatial right angle generally appears oblique after projection.
+      if (projection === "plane" && Math.abs(a[0] * b[0] + a[1] * b[1]) / product > 0.01) throw new Error("직각 표시와 도형의 각도가 일치하지 않아요.");
       return { ...paint, type: "rightAngle", vertex, from, to, size: raw.size === undefined ? 0.25 : positive(raw.size) };
     }
     case "point": return { ...paint, type: "point", at: position(raw.at), label: label(raw.label, "", 40), labelAt: raw.labelAt === undefined ? undefined : position(raw.labelAt) };
@@ -85,7 +89,10 @@ export function parseLearningFigure(source: string): LearningFigureSpec {
   if (!base.description) throw new Error("그림을 설명하는 문장이 필요해요.");
   if (raw.kind === "diagram") {
     if (!Array.isArray(raw.shapes) || !raw.shapes.length || raw.shapes.length > 80) throw new Error("그림 요소는 1~80개로 작성해 주세요.");
-    return { ...base, kind: "diagram", xRange: range(raw.xRange, [0, 10]), yRange: range(raw.yRange, [0, 6]), shapes: raw.shapes.map(shape) };
+    if (raw.projection !== undefined && raw.projection !== "plane" && raw.projection !== "spatial") throw new Error("도형의 투영 형식을 확인해 주세요.");
+    // Older answers have no projection field; retain recognizable spatial diagrams.
+    const projection = raw.projection ?? (/삼수선|공간\s*도형|공간\s*좌표|입체\s*도형|사면체|직육면체|정육면체/.test(`${base.title} ${base.description}`) ? "spatial" : "plane");
+    return { ...base, kind: "diagram", projection, xRange: range(raw.xRange, [0, 10]), yRange: range(raw.yRange, [0, 6]), shapes: raw.shapes.map((item) => shape(item, projection)) };
   }
   if (raw.kind !== "bar" && raw.kind !== "line") throw new Error("지원하지 않는 자료 형식이에요.");
   if (!Array.isArray(raw.labels) || !raw.labels.length || raw.labels.length > 12) throw new Error("자료 항목은 1~12개로 작성해 주세요.");

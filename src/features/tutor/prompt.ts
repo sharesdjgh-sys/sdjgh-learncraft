@@ -2,7 +2,7 @@ import "server-only";
 import { LEARNING_FIGURE_GUIDE } from "./figure-prompt";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 15;
+export const TUTOR_PROMPT_VERSION = 16;
 
 type TutorPromptInput = {
   unit: LearningUnit;

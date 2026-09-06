@@ -92,7 +92,7 @@ export function LearningFigure({ source }: { source: string }) {
   if (!result.spec) return <aside role="status" className="my-4 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink-4">{result.error}</aside>;
   const spec = result.spec;
   return <figure className="my-5 overflow-hidden rounded-xl border border-line bg-surface">
-    <figcaption className="border-b border-line bg-surface-2 px-4 py-3 text-sm font-bold">{spec.title}</figcaption>
+    <figcaption className="border-b border-line bg-surface-2 px-4 py-3 text-sm font-bold">{spec.title}{spec.kind === "diagram" && spec.projection === "spatial" && <span className="ml-2 text-xs font-normal text-ink-4">입체도형의 평면 투영도</span>}</figcaption>
     <div className="p-3 sm:p-4">{spec.kind === "diagram" ? <Diagram spec={spec} id={id} /> : <DataChart spec={spec} id={id} />}</div>
   </figure>;
 }

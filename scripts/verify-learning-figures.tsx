@@ -40,8 +40,29 @@ const mechanism = {
   shapes: [{ type: "line", from: [0.5, 1], to: [9, 1] }, { type: "polygon", points: [[2, 1], [4, 1], [4, 3], [2, 3]], fill: "#e9edf5" }, { type: "line", from: [4, 2], to: [7, 2], arrow: true }, { type: "text", at: [5.5, 2.5], text: "F" }],
 };
 const block = (spec: unknown) => `\n\n\`\`\`learncraft-figure\n${JSON.stringify(spec)}\n\`\`\`\n\n`;
+const spatial = {
+  kind: "diagram", projection: "spatial", title: "삼수선 정리", description: "PO는 평면에 수직이고, 평면 위에서 OA와 AB는 수직이다.",
+  xRange: [-1, 5], yRange: [-1, 4],
+  shapes: [
+    { type: "polygon", points: [[-0.5, -0.5], [3.5, -0.5], [4.5, 1.5], [0.5, 1.5]], fill: "#eef2ff" },
+    { type: "line", from: [0, 3], to: [0, 0] },
+    { type: "line", from: [0, 0], to: [3, 0] },
+    { type: "line", from: [3, 0], to: [4, 1] },
+    { type: "line", from: [0, 3], to: [3, 0] },
+    { type: "rightAngle", vertex: [3, 0], from: [0, 0], to: [4, 1] },
+    { type: "point", at: [0, 3], label: "P" }, { type: "point", at: [0, 0], label: "O" },
+    { type: "point", at: [3, 0], label: "A" }, { type: "point", at: [4, 1], label: "B" },
+  ],
+};
 const render = (spec: unknown) => renderToStaticMarkup(<Markdown collapseHints>{block(spec)}</Markdown>);
-const examples = [triangle, circle, science, social, mechanism];
+const examples = [triangle, circle, science, social, mechanism, spatial];
+assert.match(render(spatial), /<polyline/);
+assert.match(render(spatial), /입체도형의 평면 투영도/);
+assert.match(render({ ...spatial, projection: undefined }), /<svg/);
+assert.throws(() => parseLearningFigure(JSON.stringify({ ...spatial, projection: "plane" })));
+for (const from of [[3, 0], [2, -1]]) {
+  assert.throws(() => parseLearningFigure(JSON.stringify({ ...spatial, shapes: [{ type: "rightAngle", vertex: [3, 0], from, to: [4, 1] }] })));
+}
 for (const spec of examples) {
   parseLearningFigure(JSON.stringify(spec));
   const html = render(spec);

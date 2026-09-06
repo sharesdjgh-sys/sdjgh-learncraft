@@ -8,13 +8,15 @@ export const LEARNING_FIGURE_GUIDE = `## 문제 그림과 자료 출력 규약
 도형 형식:
 {"kind":"diagram","title":"삼각형 ABC","description":"B에서 직각인 삼각형 ABC. AB는 3, BC는 4이다.","xRange":[-1,5],"yRange":[-1,4],"shapes":[{"type":"polygon","points":[[0,3],[0,0],[4,0]]},{"type":"point","at":[0,3],"label":"A"},{"type":"point","at":[0,0],"label":"B"},{"type":"point","at":[4,0],"label":"C"},{"type":"rightAngle","vertex":[0,0],"from":[0,3],"to":[4,0],"size":0.25},{"type":"text","at":[-0.4,1.5],"text":"3"},{"type":"text","at":[2,-0.4],"text":"4"}]}
 - 좌표 [x,y]는 오른쪽·위쪽이 양수이고 가로세로 단위 길이는 같습니다. xRange, yRange 안에 모든 도형과 라벨을 여유 있게 배치합니다. 라벨끼리 또는 선과 글자가 겹치지 않게 합니다.
+- 평면도형은 projection을 "plane", 삼수선 정리·사면체 등 공간도형의 투영도는 "spatial"로 지정합니다. spatial의 좌표는 입체를 평면에 투영한 그림 좌표이므로 화면의 각도가 실제 각도와 다를 수 있습니다. 실제 3차원 조건에서 직각임을 확인한 두 변에만 rightAngle을 넣습니다. 평면도형의 잘못된 직각을 통과시키려고 spatial을 사용하지 않습니다.
+- 공간도형은 먼저 실제 공간에서 점과 수직·평행 관계를 정하고 모든 점에 동일한 투영을 적용합니다. 예: 공간점 [X,Y,Z]를 그림 좌표 [X+0.5Y,Z+0.5Y]로 옮깁니다. 직각의 두 변이 화면에서 겹치면 투영 방향을 바꿉니다. 주어진 직각과 증명해야 할 직각을 구분하고 증명할 직각 표시는 문제 그림에 미리 넣지 않습니다.
 - shapes는 최대 80개, polygon의 points는 3~40개입니다. 지원 요소는 다음과 같습니다.
   line: from, to, arrow(true이면 끝에 화살표). polygon: points. circle: center, radius.
   arc: center, radius, startAngle, endAngle(도 단위, 양의 x축에서 반시계 방향, 차이의 절댓값은 360 미만).
   rightAngle: vertex, from, to, size(두 변 위 점으로 방향 지정, 실제 직각일 때만 사용).
   point: at, label, labelAt(선택, 이름을 표시할 좌표; 선이나 각도 표시와 겹칠 때 지정). text: at, text(60자 이하 일반 텍스트; 수식은 본문에 작성).
 - 공통 color와 fill은 #RRGGBB 색상만, dashed는 점선 여부입니다. 기본은 어두운 선과 채우기 없음입니다. 각도는 arc와 text를 함께 사용하고, 부채꼴 음영은 호 위 좌표와 중심을 polygon으로 연결합니다. 평행 표시와 같은 길이 표시는 짧은 line을 추가합니다.
-- 계산한 좌표가 주어진 길이·직각·접선·교점 조건과 일치하는지 확인합니다. 기하 조건을 임의의 그림으로 대체하지 않습니다. 실험 장치나 과정은 단순 모식도로 표현하고 필요한 경우 '모식도'라고 표시합니다.
+- 평면도형은 그림 좌표가, 공간도형은 투영 전 공간 좌표가 주어진 길이·직각·접선·교점 조건과 일치하는지 확인합니다. 기하 조건을 임의의 그림으로 대체하지 않습니다. 실험 장치나 과정은 단순 모식도로 표현하고 필요한 경우 '모식도'라고 표시합니다.
 
 자료 그래프 형식:
 {"kind":"bar","title":"지역별 교통수단 이용률","description":"가상 지역 가, 나, 다의 버스와 지하철 이용률을 비교한 자료이다.","xLabel":"지역","yLabel":"이용률 (%)","labels":["가","나","다"],"series":[{"name":"버스","values":[40,25,30]},{"name":"지하철","values":[20,45,35]}],"dataNote":"학습용 가상 자료"}
