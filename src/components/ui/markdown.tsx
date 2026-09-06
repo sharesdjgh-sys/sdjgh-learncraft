@@ -238,7 +238,11 @@ function findExactBacktickRun(value: string, from: number, length: number) {
 }
 
 function normalizePlainMath(value: string) {
-  const texAliasNormalized = normalizeTexAliases(value);
+  const choiceLinesNormalized = value.replace(
+    /^[\t ]*(?:\*\*)?(?:\\?<보기\\?>|〈보기〉|&lt;보기&gt;)(?:\*\*)?[\t ]*(?:\r?\n[\t ]*)?(?=[ㄱ-ㅎ]\.)/gm,
+    "**\\<보기\\>**\n\n",
+  );
+  const texAliasNormalized = normalizeTexAliases(choiceLinesNormalized);
   const unicodeStrongNormalized = normalizeUnicodeStrongMarkers(texAliasNormalized);
   const texInlineDelimiterNormalized = unicodeStrongNormalized.replace(
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,

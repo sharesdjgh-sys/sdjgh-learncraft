@@ -11,6 +11,13 @@ const strongCases = [
   "1.＊＊一日/不讀/書＊＊",
 ];
 
+for (const heading of ["<보기>", "〈보기〉", "**<보기>**", String.raw`\<보기\>`]) {
+  for (const separator of [" ", "\n"]) {
+    const html = renderToStaticMarkup(<Markdown>{`${heading}${separator}ㄱ. 첫 번째 문장입니다.`}</Markdown>);
+    assert.match(html, /<p[^>]*><strong[^>]*>&lt;보기&gt;<\/strong><\/p>\s*<p[^>]*>ㄱ\./);
+  }
+}
+
 for (const markdown of strongCases) {
   for (const [renderer, output] of [
     ["inline", renderToStaticMarkup(<InlineMarkdown>{markdown}</InlineMarkdown>)],

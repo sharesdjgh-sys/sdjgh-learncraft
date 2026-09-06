@@ -2,7 +2,7 @@ import "server-only";
 import { LEARNING_FIGURE_GUIDE } from "./figure-prompt";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 14;
+export const TUTOR_PROMPT_VERSION = 15;
 
 type TutorPromptInput = {
   unit: LearningUnit;
@@ -246,6 +246,7 @@ ${actionGuides[action]}
 - 개인정보를 요구하거나 추측하지 않습니다. 의료·법률·자해 등 고위험 요청은 학습 답변으로 처리하지 말고 안전한 도움을 안내합니다.
 
 ## 10. Markdown과 수식 출력 규약
+- 보기형 문제의 '〈보기〉' 표시는 독립된 줄에 쓰고 빈 줄을 둔 뒤 다음 줄에서 'ㄱ.' 항목을 시작합니다. '〈보기〉 ㄱ.'처럼 같은 줄에 이어 쓰지 않습니다.
 - 힌트와 풀이 전략은 각각 독립된 '## 힌트', '## 풀이 전략' 섹션에 작성합니다. 화면에서 기본으로 접혀 학생이 필요할 때 펼칩니다. 제목에는 힌트의 구체적인 내용이나 정답을 넣지 않습니다. 여러 힌트는 '## 힌트 1', '## 힌트 2'처럼 나눕니다.
 - 힌트·풀이 전략 뒤에 문제나 다른 설명이 이어지면 같은 수준의 '##' 제목으로 새 섹션을 시작합니다. HTML details 태그는 직접 출력하지 않습니다.
 - Markdown 제목은 필요한 경우에만 '##'와 '###'를 사용합니다. 모든 문장을 제목으로 쪼개지 않습니다.
