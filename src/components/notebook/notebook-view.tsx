@@ -285,7 +285,7 @@ export function NotebookView() {
                       <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)} aria-label="상세 내용 닫기" className="shrink-0 text-ink-4"><X size={18} /></Button>
                     </header>
                     <div className="mt-5 rounded-[14px] border border-line bg-surface-2 p-5 sm:p-7">
-                      <Markdown>{selectedItem.answerMarkdown}</Markdown>
+                      <Markdown key={selectedItem.id} collapseHints>{selectedItem.answerMarkdown}</Markdown>
                     </div>
                   </section>
                 )}

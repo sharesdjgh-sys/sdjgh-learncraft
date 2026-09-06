@@ -1004,7 +1004,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         </div>
                         <div>
-                          {message.content ? <Markdown>{message.content}</Markdown> : <Thinking />}
+                          {message.content ? <Markdown collapseHints>{message.content}</Markdown> : <Thinking />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>

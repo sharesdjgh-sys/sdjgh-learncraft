@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
 import { compactDollarMath } from "@/lib/math-notation";
+import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
 
 function nodeText(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -31,6 +32,8 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
 }
 
 const markdownComponents: Components = {
+  details: ({ children }) => <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>,
+  summary: ({ children }) => <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">막힐 때 펼쳐보세요</span></summary>,
   h1: ({ children }) => (
     <h1 className="mt-8 mb-4 text-balance text-2xl leading-[1.35] font-extrabold tracking-[-0.025em] text-ink first:mt-0 sm:text-[1.65rem]">
       {children}
@@ -633,14 +636,14 @@ function normalizeShortDisplayMath(value: string) {
     .replace(texDisplayBetweenSentenceText, (_, expression: string) => ` $${expression.trim()}$`);
 }
 
-export function Markdown({ children }: { children: string }) {
+export function Markdown({ children, collapseHints = false }: { children: string; collapseHints?: boolean }) {
   const normalizedMarkdown = useMemo(() => normalizeMathDelimiters(children), [children]);
 
   return (
     <div className="learncraft-markdown min-w-0 max-w-none break-words text-[0.965rem] leading-[1.78] text-[#303b52] [word-break:keep-all]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={collapseHints ? [rehypeFoldHints, rehypeKatex] : [rehypeKatex]}
         components={markdownComponents}
         skipHtml
       >
