@@ -27,8 +27,8 @@ type GraphSpec = {
 type NumericFunction = (x: number) => number;
 type JsonRecord = Record<string, unknown>;
 
-const WIDTH = 720;
-const HEIGHT = 420;
+const MAX_PLOT_WIDTH = 560;
+const MAX_PLOT_HEIGHT = 336;
 const PLOT = { left: 58, right: 22, top: 22, bottom: 48 };
 const CURVE_COLORS = ["#6847e8", "#e0783f", "#1886bd", "#2c8a70"];
 
@@ -265,12 +265,15 @@ function compileExpression(expression: string) {
   return new ExpressionParser(normalized).parse();
 }
 
-function niceTicks([min, max]: Range, target = 9) {
-  const rawStep = (max - min) / target;
+function gridStep(scale: number) {
+  const rawStep = 24 / scale;
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
   const residual = rawStep / magnitude;
-  const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 5 ? 5 : 10;
-  const step = factor * magnitude;
+  const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 2.5 ? 2.5 : residual <= 5 ? 5 : 10;
+  return factor * magnitude;
+}
+
+function niceTicks([min, max]: Range, step: number) {
   const ticks: number[] = [];
   for (let value = Math.ceil(min / step) * step; value <= max + step * 0.001; value += step) {
     ticks.push(Number(value.toPrecision(12)));
@@ -358,7 +361,7 @@ function curvePath(
 
       const pixelX = toX(x);
       const pixelY = toY(y);
-      const jumpsAcrossPlot = previousPixelY !== undefined && Math.abs(pixelY - previousPixelY) > HEIGHT * 0.85;
+      const jumpsAcrossPlot = previousPixelY !== undefined && Math.abs(pixelY - previousPixelY) > MAX_PLOT_HEIGHT * 0.85;
       commands.push(`${!drawing || jumpsAcrossPlot ? "M" : "L"}${pixelX.toFixed(2)},${pixelY.toFixed(2)}`);
       drawing = true;
       previousX = x;
@@ -390,14 +393,21 @@ export function FunctionGraph({ source }: { source: string }) {
   }
 
   const spec = parsed.spec;
-  const plotWidth = WIDTH - PLOT.left - PLOT.right;
-  const plotHeight = HEIGHT - PLOT.top - PLOT.bottom;
-  const toX = (x: number) => PLOT.left + ((x - spec.xRange[0]) / (spec.xRange[1] - spec.xRange[0])) * plotWidth;
-  const toY = (y: number) => PLOT.top + ((spec.yRange[1] - y) / (spec.yRange[1] - spec.yRange[0])) * plotHeight;
+  const xSpan = spec.xRange[1] - spec.xRange[0];
+  const ySpan = spec.yRange[1] - spec.yRange[0];
+  // One coordinate unit has the same pixel size on both axes.
+  const scale = Math.min(MAX_PLOT_WIDTH / xSpan, MAX_PLOT_HEIGHT / ySpan);
+  const plotWidth = xSpan * scale;
+  const plotHeight = ySpan * scale;
+  const width = PLOT.left + plotWidth + PLOT.right;
+  const height = PLOT.top + plotHeight + PLOT.bottom;
+  const toX = (x: number) => PLOT.left + (x - spec.xRange[0]) * scale;
+  const toY = (y: number) => PLOT.top + (spec.yRange[1] - y) * scale;
   const xAxisY = toY(Math.min(spec.yRange[1], Math.max(spec.yRange[0], 0)));
   const yAxisX = toX(Math.min(spec.xRange[1], Math.max(spec.xRange[0], 0)));
-  const xTicks = niceTicks(spec.xRange);
-  const yTicks = niceTicks(spec.yRange, 7);
+  const step = gridStep(scale);
+  const xTicks = niceTicks(spec.xRange, step);
+  const yTicks = niceTicks(spec.yRange, step);
 
   return (
     <figure className="my-5 overflow-hidden rounded-[13px] border border-line bg-surface shadow-[var(--lift-2)]">
@@ -408,8 +418,12 @@ export function FunctionGraph({ source }: { source: string }) {
 
       <div className="overflow-x-auto p-2 sm:p-4">
         <svg
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          className="block h-auto w-full min-w-0"
+          viewBox={`0 0 ${width} ${height}`}
+          width={width}
+          height={height}
+          preserveAspectRatio="xMidYMid meet"
+          className="mx-auto block h-auto w-full min-w-0"
+          style={{ maxWidth: width }}
           role="img"
           aria-label={`${spec.title}. ${spec.curves.map((curve) => curve.label).join(", ")}`}
         >
