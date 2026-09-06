@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, LibraryBig, LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, LibraryBig, LogOut, Settings, ShieldCheck, UsersRound, MessageSquareText } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
@@ -11,6 +11,7 @@ const links = [
   { href: "/admin/dashboard", label: "사용 현황", icon: BarChart3 },
   { href: "/admin/curriculum", label: "교육과정", icon: LibraryBig },
   { href: "/admin/accounts", label: "학생 계정", icon: UsersRound },
+  { href: "/admin/feedback", label: "피드백", icon: MessageSquareText },
   { href: "/admin/settings", label: "운영 설정", icon: Settings },
 ] as const;
 
@@ -63,7 +64,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
         </div>
       </header>
       <main className="pb-[calc(4.8rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">{children}</main>
-      <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 관리자 메뉴">
+      <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 관리자 메뉴">
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (

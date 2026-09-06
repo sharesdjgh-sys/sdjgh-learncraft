@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpenText, LogOut, NotebookTabs } from "lucide-react";
+import { BookOpenText, LogOut, NotebookTabs, MessageSquareText } from "lucide-react";
 import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobileUsageSummary } from "@/components/usage/mobile-usage-summary";
 import { Logo } from "@/components/ui/logo";
@@ -13,6 +13,7 @@ import type { SessionUser } from "@/types";
 const studentPrimaryNavItems = [
   { href: "/learn", label: "학습", icon: BookOpenText },
   { href: "/notebook", label: "학습 북마크", icon: NotebookTabs },
+  { href: "/feedback", label: "피드백", icon: MessageSquareText },
 ] as const;
 
 export const studentNavItems = studentPrimaryNavItems;
@@ -84,7 +85,7 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
 export function StudentBottomNavigation() {
   const pathname = usePathname();
   return (
-    <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 학생 메뉴">
+    <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 학생 메뉴">
       {studentNavItems.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         const destination = href === "/learn" ? "/learn#course-picker" : href;

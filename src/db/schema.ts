@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   integer,
+  index,
   jsonb,
   numeric,
   pgEnum,
@@ -83,6 +84,29 @@ export const accountCredentials = pgTable("account_credentials", {
     .defaultNow()
     .notNull(),
 });
+
+export const feedbackCategory = pgEnum("feedback_category", ["BUG", "IMPROVEMENT", "QUESTION"]);
+export const feedbackStatus = pgEnum("feedback_status", ["RECEIVED", "IN_PROGRESS", "COMPLETED"]);
+export const feedback = pgTable("feedback", {
+  images: jsonb("images").$type<import("@/features/feedback/model").StoredFeedbackImage[]>().default([]).notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  requestId: uuid("request_id").notNull(),
+  schoolId: uuid("school_id").references(() => schools.id).notNull(),
+  studentId: uuid("student_id").references(() => users.id).notNull(),
+  category: feedbackCategory("category").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: feedbackStatus("status").default("RECEIVED").notNull(),
+  reply: text("reply").default("").notNull(),
+  handledBy: uuid("handled_by").references(() => users.id),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  version: integer("version").default(1).notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("feedback_student_request_idx").on(table.studentId, table.requestId),
+  index("feedback_school_created_idx").on(table.schoolId, table.createdAt),
+  index("feedback_student_created_idx").on(table.studentId, table.createdAt),
+]);
 
 export const curriculumVersions = pgTable("curriculum_versions", {
   id: uuid("id").defaultRandom().primaryKey(),

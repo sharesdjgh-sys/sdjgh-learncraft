@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:graph": "tsx scripts/verify-graph.tsx",
     "test:figure": "tsx scripts/verify-learning-figures.tsx",
+    "test:feedback": "tsx scripts/verify-feedback.ts",
     "test:markdown": "tsx scripts/verify-markdown-rendering.tsx",
     "test:math": "tsx scripts/verify-math-rendering.ts",
     "test:curriculum-import": "tsx scripts/verify-curriculum-import.ts",
@@ -25,6 +26,7 @@
   "dependencies": {
     "@ai-sdk/google": "latest",
     "@neondatabase/serverless": "latest",
+    "@vercel/blob": "^2.8.0",
     "ai": "latest",
     "clsx": "latest",
     "dotenv": "latest",
@@ -41,6 +43,7 @@
     "rehype-katex": "latest",
     "remark-gfm": "latest",
     "remark-math": "latest",
+    "sharp": "^0.35.4",
     "tailwind-merge": "latest",
     "unpdf": "^1.8.1",
     "zod": "latest"
