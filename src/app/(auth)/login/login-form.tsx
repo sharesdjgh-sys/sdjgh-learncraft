@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Eye,
@@ -24,7 +23,6 @@ export function LoginForm({
   sampleAccounts: SampleAccountPreview[];
   showLocalAdminLogin: boolean;
 }) {
-  const router = useRouter();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -55,8 +53,8 @@ export function LoginForm({
         return;
       }
 
-      router.push(data.redirectTo);
-      router.refresh();
+      // Start a fresh authenticated document without a second refresh request.
+      window.location.replace(data.redirectTo);
     } catch {
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
       setLoading(null);
@@ -78,8 +76,7 @@ export function LoginForm({
         return;
       }
 
-      router.push(data.redirectTo);
-      router.refresh();
+      window.location.replace(data.redirectTo);
     } catch {
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
       setLoading(null);

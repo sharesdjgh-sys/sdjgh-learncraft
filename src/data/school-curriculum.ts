@@ -606,7 +606,10 @@ async function legacyContentCodes(schoolId: string) {
   return new Set(rows.map((row) => row.contentCourseCode).filter((code): code is string => Boolean(code)));
 }
 
-export async function getSchoolLearningUnits(schoolId: string) {
+export async function getSchoolLearningUnits(
+  schoolId: string,
+  options: { outlineOnly?: boolean; courseCode?: string } = {},
+) {
   let enabledCourseCodes: Set<string>;
   let generatedUnits: typeof learningUnits = [];
   if (!db) {
@@ -627,16 +630,13 @@ export async function getSchoolLearningUnits(schoolId: string) {
       .limit(1);
     if (!active) enabledCourseCodes = await legacyContentCodes(schoolId);
     else {
-      const rows = await db.select({ contentCourseCode: schoolCourseOfferings.contentCourseCode })
+      const rowsQuery = db.select({ contentCourseCode: schoolCourseOfferings.contentCourseCode })
         .from(schoolCourseOfferings)
         .where(and(
           eq(schoolCourseOfferings.versionId, active.id),
           eq(schoolCourseOfferings.enabled, true),
         ));
-      enabledCourseCodes = new Set(rows
-        .map((row) => row.contentCourseCode)
-        .filter((code): code is string => Boolean(code)));
-      const generatedRows = await db.select({
+      const generatedQuery = db.select({
         id: units.id,
         code: units.code,
         title: units.title,
@@ -647,7 +647,7 @@ export async function getSchoolLearningUnits(schoolId: string) {
         topicOrder: units.topicOrder,
         courseCode: courses.code,
         courseTitle: courses.title,
-        courseOverview: courses.overview,
+        courseOverview: options.outlineOnly ? sql<string>`''` : courses.overview,
         courseOrder: courses.displayOrder,
         grade: courses.grade,
         curriculum: curriculumVersions.title,
@@ -655,17 +655,17 @@ export async function getSchoolLearningUnits(schoolId: string) {
         subjectTitle: subjects.title,
         publisherName: courses.publisherName,
         sourceUrl: units.sourceUrl,
-        summary: unitContents.summaryMarkdown,
-        keyPoints: unitContents.keyPoints,
-        formulas: unitContents.formulas,
-        examples: unitContents.examples,
-        recommendedQuestions: units.recommendedQuestions,
-        keywords: units.keywords,
-        prerequisites: units.prerequisites,
-        commonMistakes: units.commonMistakes,
-        scopeExcluded: units.scopeExcluded,
-        assessmentTags: units.assessmentTags,
-        tutorInstructions: units.tutorPrompt,
+        summary: options.outlineOnly ? sql<string>`''` : unitContents.summaryMarkdown,
+        keyPoints: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : unitContents.keyPoints,
+        formulas: options.outlineOnly ? sql<typeof learningUnits[number]["formulas"]>`'[]'::jsonb` : unitContents.formulas,
+        examples: options.outlineOnly ? sql<typeof learningUnits[number]["examples"]>`'[]'::jsonb` : unitContents.examples,
+        recommendedQuestions: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.recommendedQuestions,
+        keywords: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.keywords,
+        prerequisites: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.prerequisites,
+        commonMistakes: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.commonMistakes,
+        scopeExcluded: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.scopeExcluded,
+        assessmentTags: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.assessmentTags,
+        tutorInstructions: options.outlineOnly ? sql<string>`''` : units.tutorPrompt,
       })
         .from(generatedCourseContents)
         .innerJoin(
@@ -687,7 +687,12 @@ export async function getSchoolLearningUnits(schoolId: string) {
           eq(schoolCourseOfferings.enabled, true),
           eq(units.status, "PUBLISHED"),
           eq(unitContents.status, "PUBLISHED"),
+          options.courseCode ? eq(courses.code, options.courseCode) : undefined,
         ));
+      const [rows, generatedRows] = await Promise.all([rowsQuery, generatedQuery]);
+      enabledCourseCodes = new Set(rows
+        .map((row) => row.contentCourseCode)
+        .filter((code): code is string => Boolean(code)));
       generatedUnits = generatedRows.map((row) => ({
         ...row,
         title: curriculumTitle(row.title),
@@ -705,9 +710,25 @@ export async function getSchoolLearningUnits(schoolId: string) {
       }));
     }
   }
-  const staticUnits = learningUnits.filter((unit) => enabledCourseCodes.has(unit.courseCode));
+  const staticUnits = learningUnits.filter((unit) => enabledCourseCodes.has(unit.courseCode)
+    && (!options.courseCode || unit.courseCode === options.courseCode));
   const seen = new Set(staticUnits.map((unit) => unit.id));
-  return [...staticUnits, ...generatedUnits.filter((unit) => !seen.has(unit.id))];
+  const result = [...staticUnits, ...generatedUnits.filter((unit) => !seen.has(unit.id))];
+  return options.outlineOnly ? result.map((unit) => ({
+    ...unit,
+    courseOverview: "",
+    summary: "",
+    keyPoints: [],
+    formulas: [],
+    examples: [],
+    recommendedQuestions: [],
+    keywords: [],
+    prerequisites: [],
+    commonMistakes: [],
+    scopeExcluded: [],
+    assessmentTags: [],
+    tutorInstructions: "",
+  })) : result;
 }
 
 export async function getSchoolLearningUnit(schoolId: string, unitId: string) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSchoolLearningUnits } from "@/data/school-curriculum";
 import { getSession } from "@/lib/auth";
+import { packLearningOutline } from "@/lib/learning-outline";
 import type { SubjectCode } from "@/types";
 
 export async function GET(request: Request) {
@@ -10,12 +11,21 @@ export async function GET(request: Request) {
   const grade = Number(params.get("grade")) || undefined;
   const subject = params.get("subject") as SubjectCode | null;
   const course = params.get("course") || undefined;
-  const schoolUnits = await getSchoolLearningUnits(session.schoolId);
+  const outlineOnly = params.get("view") === "outline";
+  const schoolUnits = await getSchoolLearningUnits(session.schoolId, {
+    outlineOnly,
+    courseCode: course,
+  });
   const filteredUnits = schoolUnits.filter((unit) => (
     (!grade || unit.recommendedGrades.includes(grade as 1 | 2 | 3))
     && (!subject || unit.subjectCode === subject)
     && (!course || unit.courseCode === course)
   ));
+  if (outlineOnly) {
+    return NextResponse.json({ outline: packLearningOutline(filteredUnits) }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
   const seenCourses = new Set<string>();
   const courseOptions = schoolUnits
     .filter((unit) => (
@@ -41,5 +51,5 @@ export async function GET(request: Request) {
   return NextResponse.json({
     courses: courseOptions,
     units: filteredUnits,
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

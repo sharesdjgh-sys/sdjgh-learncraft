@@ -42,6 +42,7 @@ import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
 import { formatCurriculumUnitNumber, hasDistinctTopicLevel } from "@/lib/curriculum-hierarchy";
 import { displayMathMarkdown } from "@/lib/math-notation";
 import { cn } from "@/lib/utils";
+import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
 
 const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: string; description: string; icon: typeof Sparkles; tone: string }> = [
@@ -324,11 +325,55 @@ type LearningWorkspaceProps = {
   schoolName: string;
 };
 
-export function LearningWorkspace(props: LearningWorkspaceProps) {
-  if (props.units.length === 0) {
-    return <EmptyLearningWorkspace studentName={props.studentName} schoolName={props.schoolName} />;
+export function LearningWorkspace(props: Omit<LearningWorkspaceProps, "units">) {
+  const [units, setUnits] = useState<LearningUnit[] | null>(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [pickerRequested, setPickerRequested] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/curriculum?view=outline", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Curriculum request failed");
+        return response.json() as Promise<{ outline: LearningOutline }>;
+      })
+      .then((data) => { if (!controller.signal.aborted) setUnits(expandLearningOutline(data.outline)); })
+      .catch(() => { if (!controller.signal.aborted) setError(true); });
+    return () => controller.abort();
+  }, [attempt]);
+
+  useEffect(() => {
+    const open = () => setPickerRequested(true);
+    window.addEventListener("learncraft:open-course-picker", open);
+    return () => window.removeEventListener("learncraft:open-course-picker", open);
+  }, []);
+
+  if (units === null) {
+    return (
+      <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
+        <StudentTopNavigation user={{ name: props.studentName, schoolName: props.schoolName }} />
+        <main className="min-h-0 flex-1 overflow-y-auto bg-surface px-4 pb-24 sm:px-7">
+          <div className="mx-auto max-w-[72rem] py-5">
+            <CurriculumLoadStatus error={error} onRetry={() => { setError(false); setAttempt((value) => value + 1); }} />
+            <LearnCraftIntro studentName={props.studentName} onOpenCurriculum={() => setPickerRequested(true)} />
+            {pickerRequested && <p role="status" className="text-center text-sm text-ink-3">과목 목록이 준비되면 선택창을 열어드릴게요.</p>}
+          </div>
+        </main>
+      </div>
+    );
   }
-  return <LearningWorkspaceContent {...props} />;
+  if (units.length === 0) return <EmptyLearningWorkspace {...props} />;
+  return <LearningWorkspaceContent {...props} units={units} initialPickerOpen={pickerRequested} />;
+}
+
+function CurriculumLoadStatus({ error, onRetry }: { error: boolean; onRetry: () => void }) {
+  return (
+    <div role={error ? "alert" : "status"} className="my-4 rounded-[14px] border border-line bg-surface-2 p-5 text-center text-sm text-ink-3">
+      <p>{error ? "학습 자료를 불러오지 못했어요. 다시 시도해 주세요." : "학습 자료를 불러오고 있어요…"}</p>
+      {error && <button type="button" onClick={onRetry} className="mt-3 min-h-11 rounded-lg bg-brand px-5 font-bold text-white">다시 시도</button>}
+    </div>
+  );
 }
 
 function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorkspaceProps, "studentName" | "schoolName">) {
@@ -346,7 +391,7 @@ function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorksp
   );
 }
 
-function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName }: LearningWorkspaceProps) {
+function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
   const availableGrades = availableGradesFor(units);
   const requestedInitialGrade = supportedGrade(initialGrade);
   const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
@@ -371,7 +416,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(initialPickerOpen);
   const [drawerView, setDrawerView] = useState<"COURSES" | "OUTLINE">("COURSES");
   const [conceptOpen, setConceptOpen] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -395,11 +440,38 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       .sort(compareCurriculumOrder),
     [units, grade, subject],
   );
-  const selectedUnit = (units.find((unit) => unit.id === selectedUnitId) ?? filteredUnits[0] ?? units[0])!;
+  const [courseDetails, setCourseDetails] = useState<Record<string, LearningUnit[]>>({});
+  const [failedCourse, setFailedCourse] = useState<string | null>(null);
+  const [detailAttempt, setDetailAttempt] = useState(0);
+  const selectedOutline = (units.find((unit) => unit.id === selectedUnitId) ?? filteredUnits[0] ?? units[0])!;
+  const courseCode = selectedOutline.courseCode;
+  const loadedCourse = courseDetails[courseCode];
+  const selectedUnit = loadedCourse?.find((unit) => unit.id === selectedOutline.id) ?? selectedOutline;
+  const detailsReady = Boolean(loadedCourse?.some((unit) => unit.id === selectedOutline.id));
   const selectedCourseUnits = useMemo(
-    () => filteredUnits.filter((unit) => unit.courseCode === selectedUnit.courseCode),
-    [filteredUnits, selectedUnit.courseCode],
+    () => loadedCourse ?? filteredUnits.filter((unit) => unit.courseCode === courseCode),
+    [filteredUnits, courseCode, loadedCourse],
   );
+
+  useEffect(() => {
+    if (homeOpen || loadedCourse || failedCourse === courseCode) return;
+    const controller = new AbortController();
+    fetch(`/api/curriculum?course=${encodeURIComponent(courseCode)}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Course request failed");
+        return response.json() as Promise<{ units: LearningUnit[] }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const expected = units.filter((unit) => unit.courseCode === courseCode);
+        if (!expected.every((unit) => data.units.some((detail) => detail.id === unit.id))) {
+          throw new Error("Course curriculum changed");
+        }
+        setCourseDetails((current) => ({ ...current, [courseCode]: data.units }));
+      })
+      .catch(() => { if (!controller.signal.aborted) setFailedCourse(courseCode); });
+    return () => controller.abort();
+  }, [courseCode, homeOpen, loadedCourse, failedCourse, detailAttempt, units]);
 
   useEffect(() => {
     fetch("/api/usage")
@@ -692,7 +764,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   async function ask(action: TutorAction = "QUESTION", preset?: string, source: TutorRequestSource = action === "QUESTION" ? "DIRECT" : "FOLLOW_UP") {
     const chargesUsage = source === "DIRECT";
-    if (!selectedUnit || loading || preparingImages || (chargesUsage && remaining <= 0)) return;
+    if (!selectedUnit || !detailsReady || loading || preparingImages || (chargesUsage && remaining <= 0)) return;
     const question = (preset ?? input).trim();
     const currentAttachments = chargesUsage ? attachments : [];
     if (action === "QUESTION" && !question && currentAttachments.length === 0) return;
@@ -889,6 +961,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           )}>
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={openCoursePicker} />
+            ) : !detailsReady ? (
+              <CurriculumLoadStatus error={failedCourse === courseCode} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />
             ) : courseOverviewOpen ? (
               <CourseOverview units={selectedCourseUnits} onOpenCurriculum={openCourseOutline} />
             ) : !conversationOpen || messages.length === 0 ? (
@@ -991,7 +1065,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           </div>
         </div>
 
-        {!homeOpen && !courseOverviewOpen && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
+        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
           <div className="mx-auto max-w-[45rem]">
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
@@ -1163,7 +1237,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
-        <ConceptPanel unit={selectedUnit} />
+        {detailsReady ? <ConceptPanel unit={selectedUnit} /> : <CurriculumLoadStatus error={failedCourse === courseCode} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />}
       </Sheet>
 
       {notice && <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-[11px] border border-brand/20 bg-surface px-4 py-3 text-center text-sm font-semibold text-brand-dark shadow-[var(--lift-3)] min-[1024px]:bottom-6 min-[1024px]:whitespace-nowrap"><Check size={16} className="shrink-0" />{notice}</div>}

@@ -1,0 +1,63 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]:
+            - link "LearnCraft 홈" [ref=e7] [cursor=pointer]:
+              - /url: /
+            - paragraph [ref=e9]: LEARNCRAFT SCHOOL
+          - heading "교과서에서 막힌 순간, AI 튜터에게 바로 물어봐요" [level=1] [ref=e11]: 교과서에서 막힌 순간,AI 튜터에게 바로 물어봐요
+          - paragraph [ref=e12]: 학교 진도와 채택 교과서에 맞춰 사진 속 문제부터 어려운 개념까지 질문하세요. 더 쉽게, 더 깊게, 확인 문제까지 내 수준에 맞춰 이어갈 수 있어요.
+        - generic [ref=e13]:
+          - generic [ref=e18]:
+            - strong [ref=e19]: 교과서와 사진 그대로
+            - text: 막힌 문제를 바로 질문해요
+          - generic [ref=e33]:
+            - strong [ref=e34]: 이해될 때까지
+            - text: 더 쉽게, 더 깊게 이어서 배워요
+      - generic [ref=e36]:
+        - paragraph [ref=e37]: LEARNCRAFT SCHOOL
+        - heading "학습 공간에 로그인" [level=2] [ref=e39]
+        - paragraph [ref=e40]: 학교에서 받은 학번과 비밀번호를 입력해 주세요. 관리자 계정도 같은 방식으로 로그인합니다.
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - generic [ref=e44]: 학번 또는 아이디
+              - textbox "학번 또는 아이디" [ref=e45]:
+                - /placeholder: 아이디를 입력하세요
+            - generic [ref=e46]:
+              - generic [ref=e47]: 비밀번호
+              - generic [ref=e48]:
+                - textbox "비밀번호 비밀번호 보기" [ref=e49]:
+                  - /placeholder: 비밀번호를 입력하세요
+                - button "비밀번호 보기" [ref=e50]
+          - button "비밀번호를 잊었나요?" [ref=e54]
+          - button "학습 시작하기" [ref=e55]
+          - button "관리자 샘플 로그인" [ref=e58]
+          - generic [ref=e62]:
+            - paragraph [ref=e63]: 학생 샘플 계정
+            - generic [ref=e64]:
+              - button "10501 김하늘" [ref=e65]:
+                - generic [ref=e66]: "10501"
+                - generic [ref=e67]: 김하늘
+              - button "10502 이도윤" [ref=e68]:
+                - generic [ref=e69]: "10502"
+                - generic [ref=e70]: 이도윤
+              - button "10503 박서아" [ref=e71]:
+                - generic [ref=e72]: "10503"
+                - generic [ref=e73]: 박서아
+              - button "20301 최민준" [ref=e74]:
+                - generic [ref=e75]: "20301"
+                - generic [ref=e76]: 최민준
+              - button "20302 정지우" [ref=e77]:
+                - generic [ref=e78]: "20302"
+                - generic [ref=e79]: 정지우
+              - button "31201 한유진" [ref=e80]:
+                - generic [ref=e81]: "31201"
+                - generic [ref=e82]: 한유진
+            - paragraph [ref=e83]: 학생 초기 비밀번호는 모두 student^^ 입니다.
+          - paragraph [ref=e84]:
+            - text: 아직 계정이 없나요?
+            - button "계정 등록 안내" [ref=e85]
+  - button "Open Next.js Dev Tools" [ref=e91] [cursor=pointer]

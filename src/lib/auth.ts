@@ -1,6 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import { and, eq, sql } from "drizzle-orm";
 import { sampleStudentAccounts } from "@/data/student-accounts";
@@ -108,7 +109,15 @@ export async function authenticateCredentials(loginId: string, password: string)
       .limit(1);
 
     if (account && await verifyPassword(password, account.passwordHash)) {
-      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, account.id));
+      const database = db;
+      const loggedInAt = new Date();
+      after(async () => {
+        try {
+          await database.update(users).set({ lastLoginAt: loggedInAt }).where(eq(users.id, account.id));
+        } catch {
+          console.error("Failed to record last login time");
+        }
+      });
       return {
         id: account.id,
         externalId: account.externalId,
