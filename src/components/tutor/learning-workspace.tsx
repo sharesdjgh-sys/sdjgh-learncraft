@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  Maximize2,
+  Minimize2,
   Bookmark,
   BookmarkCheck,
   BookCopy,
@@ -407,6 +409,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [wideView, setWideView] = useState(false);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
@@ -878,6 +881,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     }
   }
 
+  const wideConversation = wideView && !homeOpen && !courseOverviewOpen;
+  const conversationWidth = wideConversation
+    ? "max-w-[45rem] md:max-w-[80rem] lg:max-w-[clamp(45rem,calc(100%_-_10rem),80rem)]"
+    : "max-w-[45rem]";
+  const conversationPadding = "px-4 sm:px-7";
+
   async function copyMessage(message: TutorMessage) {
     if (!message.completed || !message.content) return;
 
@@ -929,7 +938,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         <CurriculumBrandFooter />
       </aside>
 
-      <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
+      <section id="learning-conversation" className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
         <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface-2 px-4 py-2.5 min-[1024px]:hidden">
           <button onClick={homeOpen ? openCoursePicker : openCourseOutline} className="flex min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-surface px-3 py-2 text-left shadow-[var(--lift-1)]" aria-label={homeOpen ? "수강 과목 선택 열기" : "선택한 과목 목차 열기"}>
             {homeOpen ? (
@@ -959,8 +968,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
         <div ref={messageScrollRef} onScroll={trackScrollPosition} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto" aria-live="polite">
           <div className={cn(
-            "mx-auto flex min-h-full w-full flex-col px-4 sm:px-7",
-            homeOpen ? "max-w-[72rem] py-3 sm:py-5" : "max-w-[45rem] py-6 sm:py-9",
+            "mx-auto flex min-h-full w-full flex-col",
+            conversationPadding,
+            homeOpen ? "max-w-[72rem] py-3 sm:py-5" : cn(conversationWidth, "py-6 sm:py-9"),
           )}>
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={openCoursePicker} />
@@ -1068,8 +1078,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           </div>
         </div>
 
-        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="shrink-0 bg-surface px-3 pb-3 pt-2 sm:px-7 sm:pb-5">
-          <div className="mx-auto max-w-[45rem]">
+        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="shrink-0 bg-surface pb-3 pt-2 sm:pb-5">
+          <div className={cn("mx-auto w-full", conversationWidth, conversationPadding)}>
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
             ) : (
@@ -1191,6 +1201,17 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                       <Camera size={15} /> 촬영
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setWideView((value) => !value)}
+                    aria-pressed={wideView}
+                    aria-controls="learning-conversation"
+                    aria-label={wideView ? "대화창 기본 너비로 보기" : "대화창 넓게 보기"}
+                    title={wideView ? "대화창 기본 너비로 보기" : "대화창 넓게 보기"}
+                    className="hidden size-9 shrink-0 items-center justify-center rounded-lg text-ink-3 hover:bg-surface-2 hover:text-brand focus-visible:outline-2 focus-visible:outline-brand md:inline-flex"
+                  >
+                    {wideView ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+                  </button>
                   <div className="ml-auto flex min-w-0 items-center gap-1.5 text-[.7rem] text-ink-5 sm:gap-2 sm:text-[.74rem]">
                     {attachments.length > 0 ? (
                       <span className="hidden truncate sm:inline">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
@@ -1789,11 +1810,11 @@ function Welcome({ unit, learningLevel, previousAnswerCount, onLevel, onQuestion
 
   return (
     <div className="flex flex-1 flex-col py-2 sm:py-4">
-      <div className="max-w-[44rem]">
+      <div className="w-full min-w-0" data-unit-introduction>
         <p className="flex items-baseline gap-2 text-[.84rem] font-semibold leading-6 text-brand"><span className="figure text-ink-5">{formatCurriculumUnitNumber(unit)}</span><span><InlineMarkdown>{unit.chapterTitle}</InlineMarkdown> · <InlineMarkdown>{unit.sectionTitle}</InlineMarkdown></span></p>
-        <h2 className="font-learning mt-3 max-w-2xl text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark"><InlineMarkdown>{unit.title}</InlineMarkdown></span></h2>
+        <h2 className="font-learning mt-3 text-balance text-[1.85rem] font-bold leading-[1.35] tracking-[-0.045em] text-ink sm:text-[2.25rem]"><span className="mark"><InlineMarkdown>{unit.title}</InlineMarkdown></span></h2>
         <p className="mt-4 text-[.78rem] font-semibold text-ink-4">이번 단원 학습 목표</p>
-        <div className="font-learning mt-1 max-w-[40rem] text-[1rem] text-ink-2 sm:text-[1.08rem]"><Markdown>{unit.summary}</Markdown></div>
+        <div className="font-learning mt-1 text-[1rem] text-ink-2 sm:text-[1.08rem]"><Markdown>{unit.summary}</Markdown></div>
 
         {unit.prerequisites.length > 0 && (
           unit.subjectCode === "MATH" ? (

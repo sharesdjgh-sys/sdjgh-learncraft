@@ -6,6 +6,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
+import { LearningFigure } from "@/components/ui/learning-figure";
 import { compactDollarMath } from "@/lib/math-notation";
 import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
 
@@ -19,6 +20,9 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
   const child = Children.toArray(children)[0];
   if (isValidElement<{ className?: string; children?: ReactNode }>(child)) {
     const language = child.props.className ?? "";
+    if (/\blanguage-learncraft-figure\b/.test(language)) {
+      return <LearningFigure source={nodeText(child.props.children).trim()} />;
+    }
     if (/\blanguage-(?:learncraft-)?graph\b/.test(language)) {
       return <FunctionGraph source={nodeText(child.props.children).trim()} />;
     }
