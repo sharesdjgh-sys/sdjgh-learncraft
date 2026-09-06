@@ -911,19 +911,22 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
       <StudentTopNavigation user={{ name: studentName, schoolName }} />
       <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
-      <aside className="scrollbar-subtle hidden overflow-y-scroll border-r border-line bg-surface/55 px-4 py-5 [scrollbar-gutter:stable] min-[1024px]:block">
-        <CurriculumPicker
-          grade={grade}
-          subject={subject}
-          allUnits={units}
-          units={filteredUnits}
-          selectedCourseCode={homeOpen ? "" : selectedUnit.courseCode}
-          selectedUnitId={homeOpen || courseOverviewOpen ? "" : selectedUnit.id}
-          onGrade={changeGrade}
-          onSubject={changeSubject}
-          onCourse={openCourseOverview}
-          onUnit={selectUnit}
-        />
+      <aside className="hidden min-h-0 flex-col border-r border-line bg-surface/55 min-[1024px]:flex">
+        <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-5 [scrollbar-gutter:stable]">
+          <CurriculumPicker
+            grade={grade}
+            subject={subject}
+            allUnits={units}
+            units={filteredUnits}
+            selectedCourseCode={homeOpen ? "" : selectedUnit.courseCode}
+            selectedUnitId={homeOpen || courseOverviewOpen ? "" : selectedUnit.id}
+            onGrade={changeGrade}
+            onSubject={changeSubject}
+            onCourse={openCourseOverview}
+            onUnit={selectUnit}
+          />
+        </div>
+        <CurriculumBrandFooter />
       </aside>
 
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface pb-[calc(4.45rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">
@@ -1234,6 +1237,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       {drawerOpen && (
         <Sheet title={drawerView === "COURSES" ? "수강 과목 선택" : `${selectedUnit.courseTitle} 목차`} dismissible={drawerView === "OUTLINE" || !homeOpen} onClose={() => setDrawerOpen(false)}>
           <CurriculumPicker selectionControls={drawerView === "COURSES"} grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={drawerView === "OUTLINE" ? selectedUnit.courseCode : ""} selectedUnitId={drawerView === "OUTLINE" && !courseOverviewOpen ? selectedUnit.id : ""} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
+          <CurriculumBrandFooter className="mt-4" />
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
@@ -1243,6 +1247,21 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       {notice && <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-[11px] border border-brand/20 bg-surface px-4 py-3 text-center text-sm font-semibold text-brand-dark shadow-[var(--lift-3)] min-[1024px]:bottom-6 min-[1024px]:whitespace-nowrap"><Check size={16} className="shrink-0" />{notice}</div>}
       </div>
     </div>
+  );
+}
+
+function CurriculumBrandFooter({ className }: { className?: string }) {
+  return (
+    <footer className={cn("shrink-0 px-5 py-2.5", className)}>
+      <Image
+        src="/images/lifeprofessor-logo.png"
+        alt="인생교수의 AI 연구소"
+        width={399}
+        height={67}
+        className="mx-auto h-auto w-full max-w-[148px] opacity-60 brightness-150 saturate-100"
+        sizes="148px"
+      />
+    </footer>
   );
 }
 

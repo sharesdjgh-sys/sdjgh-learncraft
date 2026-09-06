@@ -6,8 +6,19 @@ import { courses, dailyUsage, schools, subjects, units, usageEvents } from "@/db
 import { TUTOR_PROMPT_VERSION } from "@/features/tutor/prompt";
 import { env } from "@/lib/env";
 import type { SessionUser, TutorAction } from "@/types";
+import { getUnit } from "@/data/curriculum";
+import { periodDates, summarizeUsage, type StudentUsageInsights, type UsageActivity, type UsagePeriod } from "./insights";
 
-const demoUsageEvents = new Map<string, "RESERVED" | "SUCCEEDED" | "FAILED" | "CANCELLED">();
+type DemoUsageStatus = "RESERVED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+type DemoActivity = UsageActivity & { studentId: string; schoolId: string };
+
+declare global {
+  var __learncraftDemoUsageEvents: Map<string, DemoUsageStatus> | undefined;
+  var __learncraftDemoActivity: Map<string, DemoActivity> | undefined;
+}
+
+const demoUsageEvents = globalThis.__learncraftDemoUsageEvents ??= new Map<string, DemoUsageStatus>();
+const demoActivity = globalThis.__learncraftDemoActivity ??= new Map<string, DemoActivity>();
 
 function demoEventKey(user: SessionUser, requestId: string) {
   return `${user.id}:${requestId}`;
@@ -24,19 +35,19 @@ function today() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: env.APP_TIMEZONE }).format(new Date());
 }
 
-export async function getStudentUsage(user: SessionUser) {
+export async function getStudentUsage(user: SessionUser, usageDate = today()) {
   if (!db) {
     const usage = getDemoUsage(user.id);
     return {
       ...usage,
       remaining: Math.max(0, usage.limit - usage.count),
-      date: today(),
+      date: usageDate,
       byCourse: [],
     };
   }
   const [schoolRows, usageRows, courseUsageResult] = await Promise.all([
     db.select({ limit: schools.dailyAiLimit }).from(schools).where(eq(schools.id, user.schoolId)).limit(1),
-    db.select().from(dailyUsage).where(and(eq(dailyUsage.studentId, user.id), eq(dailyUsage.usageDate, today()))).limit(1),
+    db.select().from(dailyUsage).where(and(eq(dailyUsage.studentId, user.id), eq(dailyUsage.usageDate, usageDate))).limit(1),
     db.execute(sql`
       SELECT
         s.title AS subject_title,
@@ -50,7 +61,7 @@ export async function getStudentUsage(user: SessionUser) {
       JOIN ${subjects} s ON s.id = c.subject_id
       WHERE e.student_id = ${user.id}::uuid
         AND e.status = 'SUCCEEDED'
-        AND (e.created_at AT TIME ZONE ${env.APP_TIMEZONE})::date = ${today()}::date
+        AND (e.created_at AT TIME ZONE ${env.APP_TIMEZONE})::date = ${usageDate}::date
       GROUP BY s.id, c.id
       ORDER BY MAX(e.created_at) DESC
     `),
@@ -71,7 +82,7 @@ export async function getStudentUsage(user: SessionUser) {
     completed: row?.completedCount ?? 0,
     limit,
     remaining: Math.max(0, limit - count),
-    date: today(),
+    date: usageDate,
     byCourse: courseUsageRows.map((item) => ({
       subjectTitle: item.subject_title,
       courseTitle: item.course_title,
@@ -80,6 +91,42 @@ export async function getStudentUsage(user: SessionUser) {
       lastUsedAt: item.last_used_at,
     })),
   };
+}
+
+export async function getStudentUsageInsights(user: SessionUser, days: UsagePeriod): Promise<StudentUsageInsights> {
+  const date = today();
+  const dates = periodDates(date, days);
+  const activities = async (): Promise<UsageActivity[]> => {
+    if (!db) {
+      return [...demoActivity].filter(([key, activity]) => activity.studentId === user.id
+        && activity.schoolId === user.schoolId && demoUsageEvents.get(key) === "SUCCEEDED")
+        .map(([, activity]) => activity);
+    }
+    const result = await db.execute(sql`
+      SELECT
+        to_char(e.created_at AT TIME ZONE ${env.APP_TIMEZONE}, 'YYYY-MM-DD') AS date,
+        COALESCE(c.id::text, 'unknown') AS course_id,
+        COALESCE(c.title, '과목 정보 없음') AS course_title,
+        COALESCE(s.title, '기타') AS subject_title,
+        COUNT(*)::int AS count
+      FROM ${usageEvents} e
+      LEFT JOIN ${units} u ON u.id = e.unit_id
+      LEFT JOIN ${courses} c ON c.id = u.course_id
+      LEFT JOIN ${subjects} s ON s.id = c.subject_id
+      WHERE e.student_id = ${user.id}::uuid
+        AND e.school_id = ${user.schoolId}::uuid
+        AND e.status = 'SUCCEEDED'
+        AND e.created_at >= (${dates[0]}::date::timestamp AT TIME ZONE ${env.APP_TIMEZONE})
+        AND e.created_at < ((${date}::date + 1)::timestamp AT TIME ZONE ${env.APP_TIMEZONE})
+      GROUP BY 1, 2, 3, 4
+    `);
+    const rows = (result as unknown as { rows: Array<{
+      date: string; course_id: string; course_title: string; subject_title: string; count: number;
+    }> }).rows ?? [];
+    return rows.map((row) => ({ date: row.date, courseId: row.course_id, courseTitle: row.course_title, subjectTitle: row.subject_title, count: Number(row.count) }));
+  };
+  const [usage, rows] = await Promise.all([getStudentUsage(user, date), activities()]);
+  return { days, date, timeZone: env.APP_TIMEZONE, usage, history: summarizeUsage(rows, dates) };
 }
 
 export async function reserveAiUsage(input: { user: SessionUser; requestId: string; unitId: string; action: TutorAction; modelId: string }) {
@@ -94,7 +141,15 @@ export async function reserveAiUsage(input: { user: SessionUser; requestId: stri
       };
     }
     const reservation = reserveDemoUsage(input.user.id);
-    if (reservation.ok) demoUsageEvents.set(key, "RESERVED");
+    if (reservation.ok) {
+      demoUsageEvents.set(key, "RESERVED");
+      const unit = getUnit(input.unitId);
+      demoActivity.set(key, {
+        studentId: input.user.id, schoolId: input.user.schoolId, date: today(),
+        courseId: unit?.courseCode ?? input.unitId, courseTitle: unit?.courseTitle ?? "과목 정보 없음",
+        subjectTitle: unit?.subjectTitle ?? "기타", count: 1,
+      });
+    }
     return { ...reservation, duplicate: false };
   }
   const existing = await db.select({ id: usageEvents.id }).from(usageEvents).where(and(eq(usageEvents.studentId, input.user.id), eq(usageEvents.requestId, input.requestId))).limit(1);
