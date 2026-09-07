@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, requireStudent } from "@/lib/auth";
+import { getSession, requireLearner } from "@/lib/auth";
 import { createFeedbackSchema, feedbackQuerySchema } from "@/features/feedback/model";
 import { createFeedback, findFeedback, listFeedback } from "@/features/feedback/repository";
 import { ImageInputError, normalizeImage, saveImage, removeImage } from "@/features/feedback/image-storage";
@@ -7,7 +7,7 @@ import type { StoredFeedbackImage } from "@/features/feedback/model";
 
 export async function GET(request: Request) {
   const user = await getSession();
-  if (!user || !["STUDENT", "ADMIN"].includes(user.role)) return NextResponse.json({ error: { message: "로그인이 필요해요." } }, { status: 401 });
+  if (!user || !["STUDENT", "TEACHER", "ADMIN"].includes(user.role)) return NextResponse.json({ error: { message: "로그인이 필요해요." } }, { status: 401 });
   const url = new URL(request.url);
   const query = feedbackQuerySchema.safeParse({ page: url.searchParams.get("page") ?? undefined, status: url.searchParams.get("status") ?? undefined });
   if (!query.success) return NextResponse.json({ error: { message: "조회 조건을 확인해 주세요." } }, { status: 400 });
@@ -16,8 +16,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireStudent();
-  if (!user) return NextResponse.json({ error: { message: "학생 로그인이 필요해요." } }, { status: 401 });
+  const user = await requireLearner();
+  if (!user) return NextResponse.json({ error: { message: "학생 또는 선생님 로그인이 필요해요." } }, { status: 401 });
   // Bound the actual stream too: Content-Length can be absent or forged.
   let payload: unknown;
   let files: File[] = [];

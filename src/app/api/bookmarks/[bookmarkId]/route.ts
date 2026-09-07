@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireStudent } from "@/lib/auth";
+import { requireLearner } from "@/lib/auth";
 import { deleteStudentBookmark } from "@/features/bookmarks/repository";
 
 export async function DELETE(_request: Request, context: { params: Promise<{ bookmarkId: string }> }) {
-  const user = await requireStudent();
+  const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   const { bookmarkId } = await context.params;
   if (!(await deleteStudentBookmark(user.id, bookmarkId))) {

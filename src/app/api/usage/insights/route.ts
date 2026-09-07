@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireStudent } from "@/lib/auth";
+import { requireLearner } from "@/lib/auth";
 import { getStudentUsageInsights } from "@/features/usage/repository";
 
 export async function GET(request: Request) {
-  const user = await requireStudent();
+  const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   const value = new URL(request.url).searchParams.get("days") ?? "7";
   if (value !== "7" && value !== "30") {

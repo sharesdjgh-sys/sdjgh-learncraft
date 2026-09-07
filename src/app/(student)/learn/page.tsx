@@ -1,10 +1,10 @@
 import { LearningWorkspace } from "@/components/tutor/learning-workspace";
-import { requireStudent } from "@/lib/auth";
+import { requireLearner } from "@/lib/auth";
 
 export const metadata = { title: "AI 학습" };
 
 export default async function LearnPage() {
-  const user = await requireStudent();
+  const user = await requireLearner();
   return (
     <LearningWorkspace
       initialGrade={user?.learningGrade ?? user?.officialGrade ?? 1}

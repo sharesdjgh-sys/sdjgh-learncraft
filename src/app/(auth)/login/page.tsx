@@ -1,3 +1,4 @@
+import { homeForRole } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import { BookOpenCheck, BrainCircuit, Route } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const session = await getSession();
-  if (session) redirect(session.role === "ADMIN" ? "/admin/dashboard" : "/learn");
+  if (session) redirect(homeForRole(session.role));
 
   return (
     <main className="login-canvas relative min-h-dvh overflow-x-hidden px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] sm:grid sm:place-items-center sm:px-7 sm:py-8">
@@ -48,7 +49,7 @@ export default async function LoginPage() {
 
             <p className="hidden items-center gap-2 text-[.75rem] font-extrabold tracking-[.12em] text-brand lg:flex"><span className="h-px w-5 bg-brand/50" /> LEARNCRAFT SCHOOL</p>
             <h2 className="font-learning mt-6 text-[2rem] font-bold tracking-[-0.045em] text-ink sm:text-[2.3rem] lg:mt-4">학습 공간에 로그인</h2>
-            <p className="mt-2 max-w-[28rem] text-[.9rem] leading-6 text-ink-3">학교에서 받은 학번과 비밀번호를 입력해 주세요. 관리자 계정도 같은 방식으로 로그인합니다.</p>
+            <p className="mt-2 max-w-[28rem] text-[.9rem] leading-6 text-ink-3">학교에서 받은 학번 또는 아이디와 비밀번호를 입력해 주세요. 학생·선생님·관리자 계정 모두 같은 방식으로 로그인합니다.</p>
 
             <LoginForm
               sampleAccounts={getSampleStudentAccountPreviews()}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSchoolLearningUnit } from "@/data/school-curriculum";
-import { requireStudent } from "@/lib/auth";
+import { requireLearner } from "@/lib/auth";
 import { createStudentBookmark, listStudentBookmarks } from "@/features/bookmarks/repository";
 
 const createSchema = z.object({
@@ -13,13 +13,13 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const user = await requireStudent();
+  const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   return NextResponse.json({ bookmarks: await listStudentBookmarks(user.id, user.schoolId) });
 }
 
 export async function POST(request: Request) {
-  const user = await requireStudent();
+  const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "저장할 답변을 확인해 주세요." } }, { status: 400 });

@@ -13,7 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["STUDENT", "ADMIN"]);
+export const userRole = pgEnum("user_role", ["STUDENT", "TEACHER", "ADMIN"]);
 export const contentStatus = pgEnum("content_status", [
   "DRAFT",
   "DEVELOPER_REVIEWED",

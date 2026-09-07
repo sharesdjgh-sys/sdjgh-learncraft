@@ -1,3 +1,4 @@
+import { homeForRole } from "@/lib/roles";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateCredentials, createSession } from "@/lib/auth";
@@ -38,6 +39,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     user: { name: user.name, role: user.role },
-    redirectTo: user.role === "ADMIN" ? "/admin/dashboard" : "/learn",
+    redirectTo: homeForRole(user.role),
   });
 }

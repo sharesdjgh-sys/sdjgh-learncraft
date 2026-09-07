@@ -23,7 +23,7 @@ export async function listFeedback(user: SessionUser, query: z.infer<typeof feed
   const rows: Stored[] = db
     ? await db.select({ ...feedbackColumns, studentName: users.name, studentExternalId: users.externalId }).from(feedback)
       .innerJoin(users, and(eq(users.id, feedback.studentId), eq(users.schoolId, feedback.schoolId)))
-      .where(and(eq(feedback.schoolId, user.schoolId), user.role === "STUDENT" ? eq(feedback.studentId, user.id) : undefined, query.status === "ALL" ? undefined : eq(feedback.status, query.status)))
+      .where(and(eq(feedback.schoolId, user.schoolId), user.role !== "ADMIN" ? eq(feedback.studentId, user.id) : undefined, query.status === "ALL" ? undefined : eq(feedback.status, query.status)))
       .orderBy(desc(feedback.createdAt), desc(feedback.id)).limit(pageSize + 1).offset(offset)
     : demo().filter((row) => visible(row, user) && (query.status === "ALL" || row.status === query.status))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id)).slice(offset, offset + pageSize + 1);
@@ -31,7 +31,7 @@ export async function listFeedback(user: SessionUser, query: z.infer<typeof feed
 }
 
 export async function createFeedback(user: SessionUser, input: z.infer<typeof createFeedbackSchema>, images: StoredFeedbackImage[] = []) {
-  if (user.role !== "STUDENT") throw new Error("FORBIDDEN");
+  if (user.role !== "STUDENT" && user.role !== "TEACHER") throw new Error("FORBIDDEN");
   if (!db) {
     const existing = demo().find((row) => row.requestId === input.requestId && row.studentId === user.id && row.schoolId === user.schoolId);
     if (existing) return dto(existing);
@@ -72,11 +72,11 @@ const feedbackColumns = {
 };
 
 export async function findFeedback(user: SessionUser, id: string, byRequest = false) {
-  if (!["STUDENT", "ADMIN"].includes(user.role)) return null;
+  if (!["STUDENT", "TEACHER", "ADMIN"].includes(user.role)) return null;
   if (!db) return demo().find((row) => (byRequest ? row.requestId : row.id) === id && visible(row, user)) ?? null;
   return (await db.select().from(feedback).where(and(
     eq(byRequest ? feedback.requestId : feedback.id, id), eq(feedback.schoolId, user.schoolId),
-    user.role === "STUDENT" ? eq(feedback.studentId, user.id) : undefined,
+    user.role !== "ADMIN" ? eq(feedback.studentId, user.id) : undefined,
   )).limit(1))[0] ?? null;
 }
 
@@ -86,7 +86,7 @@ export async function deleteFeedback(user: SessionUser, id: string) {
   // Keep metadata until all objects are deleted, so a failed deletion can be retried.
   const { removeImage } = await import("./image-storage");
   for (const image of row.images) await removeImage(image);
-  if (db) await db.delete(feedback).where(and(eq(feedback.id, id), eq(feedback.schoolId, user.schoolId), user.role === "STUDENT" ? eq(feedback.studentId, user.id) : undefined));
+  if (db) await db.delete(feedback).where(and(eq(feedback.id, id), eq(feedback.schoolId, user.schoolId), user.role !== "ADMIN" ? eq(feedback.studentId, user.id) : undefined));
   else globalStore.learncraftFeedback = demo().filter((item) => item.id !== id);
   return true;
 }

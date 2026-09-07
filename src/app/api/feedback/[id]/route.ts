@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSession();
-  if (!user || !["STUDENT", "ADMIN"].includes(user.role)) return Response.json({ error: { message: "로그인이 필요해요." } }, { status: 401 });
+  if (!user || !["STUDENT", "TEACHER", "ADMIN"].includes(user.role)) return Response.json({ error: { message: "로그인이 필요해요." } }, { status: 401 });
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return Response.json({ error: { message: "피드백을 찾을 수 없어요." } }, { status: 404 });
   try {

@@ -145,7 +145,7 @@ export function StudentProfile({ user }: { user: SessionUser }) {
 
         <aside className="min-w-0 space-y-5">
           <section className="rounded-[16px] border border-line bg-surface/80 p-5">
-            <div className="flex items-center gap-3 border-b border-line pb-5"><span className="font-learning grid size-12 shrink-0 place-items-center rounded-xl bg-brand-soft text-xl font-bold text-brand-dark">{user.name.slice(0, 1)}</span><div><h2 className="text-lg font-bold">{user.name}</h2><p className="mt-0.5 text-[.74rem] text-ink-4">{user.externalId} · 학생</p></div></div>
+            <div className="flex items-center gap-3 border-b border-line pb-5"><span className="font-learning grid size-12 shrink-0 place-items-center rounded-xl bg-brand-soft text-xl font-bold text-brand-dark">{user.name.slice(0, 1)}</span><div><h2 className="text-lg font-bold">{user.name}</h2><p className="mt-0.5 text-[.74rem] text-ink-4">{user.externalId} · {user.role === "TEACHER" ? "선생님" : "학생"}</p></div></div>
             <dl className="mt-4 space-y-4">
               {[{ icon: School, label: "소속 학교", value: user.schoolName }, { icon: GraduationCap, label: "공식 학년", value: grade(user.officialGrade) }, { icon: BookOpenCheck, label: "현재 학습 학년", value: grade(user.learningGrade ?? user.officialGrade) }].map(({ icon: Icon, label, value }) => <div key={label}><dt className="flex items-center gap-2 text-[.72rem] text-ink-4"><Icon size={14} />{label}</dt><dd className="mt-1.5 break-words text-[.84rem] font-semibold">{value}</dd></div>)}
             </dl>

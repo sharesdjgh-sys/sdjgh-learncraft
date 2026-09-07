@@ -1,4 +1,4 @@
-export type UserRole = "STUDENT" | "ADMIN";
+export type UserRole = "STUDENT" | "TEACHER" | "ADMIN";
 export type SubjectCode =
   | "KOREAN"
   | "ENGLISH"

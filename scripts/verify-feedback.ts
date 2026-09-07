@@ -17,7 +17,8 @@ async function main() {
   const schoolIds = [crypto.randomUUID(), crypto.randomUUID()];
   const makeUser = (role: SessionUser["role"], schoolId = schoolIds[0]): SessionUser => ({ id: crypto.randomUUID(), externalId: `feedback-test-${crypto.randomUUID()}`, name: "피드백 자동검증", schoolId, schoolName: "피드백 검증용 학교", role, officialGrade: 1, learningGrade: 1 });
   const student = makeUser("STUDENT"), otherStudent = makeUser("STUDENT"), admin = makeUser("ADMIN"), otherAdmin = makeUser("ADMIN", schoolIds[1]);
-  const actors = [student, otherStudent, admin, otherAdmin];
+  const teacher = makeUser("TEACHER");
+  const actors = [student, otherStudent, admin, otherAdmin, teacher];
   const input = { requestId: crypto.randomUUID(), category: "BUG" as const, title: "피드백 기능 자동검증", content: "등록, 권한 및 처리 상태를 검증하기 위한 임시 자료입니다." };
   const query = { page: 1, status: "ALL" as const };
   try {
@@ -52,6 +53,16 @@ async function main() {
     assert.equal(page1.items.length, 20); assert.equal(page1.hasMore, true);
     assert.equal(page2.items.length, 1); assert.equal(page2.hasMore, false);
     assert.equal(new Set([...page1.items, ...page2.items].map((item) => item.id)).size, 21);
+
+    const teacherFeedback = await createFeedback(teacher, { ...input, requestId: crypto.randomUUID() });
+    assert.equal((await listFeedback(teacher, query)).items.length, 1);
+    assert.equal((await listFeedback(teacher, query)).items[0].id, teacherFeedback.id);
+    const { findFeedback, deleteFeedback } = await import("../src/features/feedback/repository");
+    assert.equal(await findFeedback(teacher, first.id), null);
+    assert.equal(await findFeedback(student, teacherFeedback.id), null);
+    assert.equal(await deleteFeedback(teacher, first.id), false);
+    await assert.rejects(updateFeedback(teacher, teacherFeedback.id, { status: "COMPLETED", reply: "", version: 1 }), /FORBIDDEN/);
+    assert.equal(await deleteFeedback(teacher, teacherFeedback.id), true);
 
     const httpIndex = process.argv.indexOf("--http");
     if (httpIndex >= 0) {

@@ -18,7 +18,7 @@ import {
   reserveAiUsage,
   switchAiUsageModel,
 } from "@/features/usage/repository";
-import { requireStudent } from "@/lib/auth";
+import { requireLearner } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 
 const google = createGoogleGenerativeAI({
@@ -220,8 +220,8 @@ function demoStream(text: string, onDone: () => void, onCancel: () => void) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireStudent();
-  if (!user) return errorResponse("UNAUTHENTICATED", "학생 로그인이 필요합니다.", 401);
+  const user = await requireLearner();
+  if (!user) return errorResponse("UNAUTHENTICATED", "학생 또는 선생님 로그인이 필요합니다.", 401);
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
