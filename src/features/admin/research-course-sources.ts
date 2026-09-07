@@ -79,6 +79,33 @@ const DARAKWON_HIGH_SCHOOL_ART_TOC = [
   ]),
 ] satisfies z.infer<typeof extractedTocEntrySchema>[];
 
+// Visang's official one-page TOC, linked from /detail/153. Verified visually
+// on 2026-09-07: four chapters, 13 sections (3 / 4 / 3 / 3), no third-level titles.
+const VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC_PDF = "https://dn.vivasam.com/vs/promotion2022/830/index/download/%EA%B3%A0%EB%93%B1-%EC%84%B8%EA%B3%84%EC%8B%9C%EB%AF%BC%EA%B3%BC%20%EC%A7%80%EB%A6%AC.pdf";
+const VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC = [
+  ...twoLevelTocEntries("세계시민, 세계화와 지역 이해", [
+    "세계화와 세계시민",
+    "지역 변화의 역동성",
+    "지리정보기술과 세계시민",
+  ]),
+  ...twoLevelTocEntries("모자이크 세계, 세계의 다양한 자연환경과 문화", [
+    "세계의 다양한 기후와 인간 생활",
+    "세계의 주요 지형과 지속가능한 이용",
+    "세계의 종교와 인간 생활",
+    "세계의 다양한 음식과 축제",
+  ]),
+  ...twoLevelTocEntries("네트워크 세계, 세계의 인구와 경제 공간", [
+    "세계의 인구와 국제 이주의 영향",
+    "식량 자원의 생산과 소비",
+    "글로벌 경제 체제와 공간적 불균등",
+  ]),
+  ...twoLevelTocEntries("지속가능한 세계, 세계의 환경 문제와 평화", [
+    "에너지 자원과 지속가능한 생산",
+    "환경 문제와 생태전환적 삶",
+    "지정학적 분쟁과 평화를 위한 노력",
+  ]),
+] satisfies z.infer<typeof extractedTocEntrySchema>[];
+
 function numberTocEntries(entries: z.infer<typeof extractedTocEntrySchema>[]) {
   const seen = new Set<string>();
   let chapterOrder = 0;
@@ -177,13 +204,15 @@ function courseResearchInstructions(
   }
   if (normalized === "세계시민과지리" && normalizedPublisher.includes("비상")) {
     return {
-      publisherHint: "공식 식별 정보는 '2022 개정 고등학교 일반 선택 세계시민과 지리 (대표 저자 박배균, 비상교육)'입니다. 공식 상세 페이지 https://text.vivasam.com/detail/153 를 우선 확인하세요.",
+      publisherHint: "공식 식별 정보는 '2022 개정 고등학교 일반 선택 세계시민과 지리 (대표 저자 박배균, 비상교육)'입니다. 공식 상세 페이지 https://text.vivasam.com/detail/153 에 연결된 교과서 목차 PDF를 직접 확인하세요. 대단원 4개와 중단원 13개(3·4·3·3)인 2단계 목차입니다. PDF에 없는 소단원을 임의로 만들거나 첫 항목만 반환하지 마세요.",
       curriculumTarget: "2022 개정 사회과 교육과정의 고등학교 일반 선택 과목 '세계시민과 지리' 성취기준을 확인하세요. 학교 편성 학년은 검색 일치 조건이 아닙니다.",
       preferredPublisherSource: {
-        title: "비상교육 2022 개정 고등학교 일반 선택 세계시민과 지리 (박배균)",
-        url: "https://text.vivasam.com/detail/153",
+        title: "비상교육 2022 개정 세계시민과 지리 (박배균) 공식 목차 PDF",
+        url: VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC_PDF,
       } satisfies ResearchUrlSource,
-      publisherContextUrls: ["https://text.vivasam.com/detail/153"],
+      publisherContextUrls: ["https://text.vivasam.com/detail/153", VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC_PDF],
+      minimumTocEntries: 13,
+      verifiedTocEntries: VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC,
     };
   }
   if (normalized === "도시의미래탐구" && normalizedPublisher.includes("비상")) {
@@ -260,7 +289,17 @@ function cachedBundleMeetsCourseRequirements(
   bundle: CourseSourceBundle,
   instructions: CourseResearchInstructions,
 ) {
-  return bundle.tocEntries.length >= (instructions.minimumTocEntries ?? 1);
+  if (bundle.tocEntries.length < (instructions.minimumTocEntries ?? 1)) return false;
+  if (!instructions.verifiedTocEntries) return true;
+  const expected = numberTocEntries(instructions.verifiedTocEntries);
+  return bundle.tocEntries.length === expected.length && expected.every((entry, index) => {
+    const actual = bundle.tocEntries[index];
+    return actual.chapterTitle === entry.chapterTitle && actual.chapterOrder === entry.chapterOrder
+      && actual.sectionTitle === entry.sectionTitle && actual.sectionOrder === entry.sectionOrder
+      && actual.topicTitle === entry.topicTitle && actual.topicOrder === entry.topicOrder;
+  }) && bundle.documents.some((document) => document.kind === "PUBLISHER_TOC"
+    && document.url === instructions.preferredPublisherSource?.url);
+
 }
 
 export async function ensureCourseSources(input: CourseSourceIdentity & {
@@ -274,6 +313,25 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
     modelId: null,
     usage: { inputTokens: 0, outputTokens: 0 },
   };
+  // A verified publisher TOC can repair a stale source cache without repeating
+  // the independent national-curriculum research or consuming model tokens.
+  if (cached && researchInstructions.verifiedTocEntries && researchInstructions.preferredPublisherSource) {
+    const source = researchInstructions.preferredPublisherSource;
+    const bundle: CourseSourceBundle = {
+      ...cached,
+      documents: [
+        ...cached.documents.filter((document) => document.kind !== "PUBLISHER_TOC"),
+        { kind: "PUBLISHER_TOC", title: source.title ?? `${input.publisherName} 공식 목차`, url: source.url },
+      ],
+      tocEntries: numberTocEntries(researchInstructions.verifiedTocEntries),
+    };
+    await replaceCourseSourceBundle({
+      offeringId: input.offeringId, identity: input, sourceModel: "verified-publisher-toc",
+      researchExcerpt: `공식 목차 직접 대조: ${source.url}\n${JSON.stringify(researchInstructions.verifiedTocEntries)}`,
+      bundle,
+    });
+    return { bundle, modelId: null, usage: { inputTokens: 0, outputTokens: 0 } };
+  }
   if (!isGeminiConfigured) throw new Error("GEMINI_API_KEY가 설정되어야 공식 교과서 목차를 조사할 수 있습니다.");
   if (!input.publisherName.trim()) {
     throw new Error("실제 교과서 목차를 찾으려면 출판사명이 필요합니다.");

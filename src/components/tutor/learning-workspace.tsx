@@ -38,6 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AI_ANSWER_NOTICE, EXAM_GUIDANCE, LearningGuidance } from "@/components/ui/learning-guidance";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
@@ -1010,11 +1011,16 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                               <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[.67rem] font-bold text-brand-dark">AI 학습 파트너</span>
                               {!message.completed && message.content && <span className="text-[.76rem] font-semibold text-brand">답변 작성 중</span>}
                             </div>
-                            <p className="mt-0.5 truncate text-[.78rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · {selectedUnit.publisherName} 기준</p>
+                            <p className="mt-0.5 truncate text-[.78rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · 교육과정 중심 학습</p>
                           </div>
                         </div>
                         <div>
                           {message.content ? <Markdown collapseHints>{message.content}</Markdown> : <Thinking />}
+                          {message.content && (
+                            <p className="mt-4 break-keep rounded-[10px] bg-surface-2 px-3 py-2 text-[.76rem] leading-5 text-ink-3">
+                              {AI_ANSWER_NOTICE} 정답이 다르면 문제 조건과 해설을 비교하고, 담당 선생님께 근거를 확인해 주세요.
+                            </p>
+                          )}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
@@ -1233,7 +1239,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                 </div>
               </form>
             )}
-            <p className="mt-2 hidden text-center text-[.78rem] text-ink-5 sm:block">AI 답변은 교과서와 선생님께 다시 확인하세요.</p>
+            <p className="mt-2 break-keep text-center text-[.75rem] leading-5 text-ink-3">{AI_ANSWER_NOTICE} {EXAM_GUIDANCE}</p>
           </div>
         </div>}
       </section>
@@ -1636,7 +1642,7 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
 }) {
   const steps = [
     { number: "01", title: "과목 선택", description: "왼쪽 교육과정에서 수강 과목을 직접 선택해요.", icon: BookOpenCheck },
-    { number: "02", title: "주제 선택", description: "교과서 목차에서 지금 공부할 주제를 골라요.", icon: ListTree },
+    { number: "02", title: "주제 선택", description: "과목의 단원에서 지금 공부할 주제를 골라요.", icon: ListTree },
     { number: "03", title: "이해까지 질문", description: "더 쉽게, 더 깊게, 문제로 이어서 물어봐요.", icon: CircleHelp },
   ] as const;
   const questionExamples = [
@@ -1647,7 +1653,7 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
   const studyTips = [
     "이해되지 않은 문장이나 풀이를 그대로 붙여 넣어도 괜찮아요.",
     "답변이 어렵다면 ‘더 쉽게’, 이유가 궁금하면 ‘더 깊게’를 선택하세요.",
-    "다시 볼 설명은 북마크하고, 중요한 내용은 교과서와 함께 확인하세요.",
+    "다시 볼 설명은 북마크하고, 풀이의 근거는 수업 자료·교재와 함께 확인하세요.",
   ] as const;
 
   return (
@@ -1660,7 +1666,7 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
             오늘 공부할 단원을 고르고,<br /><span className="text-brand-dark">궁금한 건 바로 질문하세요</span>
           </h1>
           <p className="mt-6 max-w-[34rem] break-keep text-[.94rem] leading-7 text-ink-3 sm:text-[1.02rem] sm:leading-8">
-            학교 진도에 맞춰 준비된 교과서 목차에서 단원을 선택하세요. 사진 속 문제 풀이부터 쉬운 설명, 핵심 정리, 확인 문제까지 필요한 방식으로 이어서 배울 수 있어요.
+            LearnCraft는 교육과정을 중심으로 개념을 이해하고 스스로 풀이하는 힘을 기르는 AI 학습 도구예요. 단원을 고른 뒤 교과서·참고서·수업 자료의 궁금증을 자유롭게 질문하세요.
           </p>
           <button type="button" onClick={onOpenCurriculum} className="group mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-[12px] border border-brand bg-brand px-5 text-[.88rem] font-bold text-white shadow-[var(--lift-brand)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-brand-dark active:scale-[.98] min-[1024px]:hidden">
             <BookOpen size={18} /> 학습할 과목 선택하기 <ChevronDown size={15} className="-rotate-90 transition-transform group-hover:translate-x-0.5" />
@@ -1680,6 +1686,10 @@ function LearnCraftIntro({ studentName, onOpenCurriculum }: {
           <div className="absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3.5 py-2 text-[.7rem] font-bold text-brand-dark shadow-[var(--lift-2)]"><CheckCircle2 size={13} className="text-ok" /> 교육과정 기반 AI 튜터</div>
         </div>
       </section>
+
+      <div className="relative mt-8">
+        <LearningGuidance />
+      </div>
 
       <div className="relative mt-10 border-t border-line pt-8">
         <p className="text-[.75rem] font-bold tracking-[.06em] text-ink-4">학습은 이렇게 이어져요</p>
