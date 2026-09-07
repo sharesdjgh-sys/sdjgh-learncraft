@@ -8,6 +8,16 @@ export function compactMathScripts(expression: string) {
   let cursor = 0;
 
   while (cursor < expression.length) {
+    // mhchem owns charge/isotope syntax; inserting TeX styles changes its grammar.
+    const chemistry = expression.slice(cursor).match(/^\\(?:ce|pu)\s*\{/);
+    if (chemistry) {
+      const end = matchingBrace(expression, cursor + chemistry[0].length - 1);
+      if (end !== -1) {
+        output += expression.slice(cursor, end + 1);
+        cursor = end + 1;
+        continue;
+      }
+    }
     const character = expression[cursor];
     const escaped = cursor > 0 && expression[cursor - 1] === "\\";
     if ((character !== "^" && character !== "_") || escaped) {

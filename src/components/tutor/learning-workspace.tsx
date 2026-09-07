@@ -1021,7 +1021,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         </div>
                         <div>
-                          {message.content ? <Markdown collapseHints>{message.content}</Markdown> : <Thinking />}
+                          {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <p className="min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">

@@ -1,8 +1,9 @@
 "use client";
 
-import { Children, isValidElement, useMemo, type ReactNode } from "react";
+import { Children, useContext, isValidElement, useMemo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeKatex from "rehype-katex";
+import { RenderingStreamContext } from "./rendering-state";
+import { LearningMath } from "@/components/ui/learning-math";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
@@ -18,11 +19,19 @@ function nodeText(value: ReactNode): string {
 }
 
 function MarkdownPre({ children }: { children?: ReactNode }) {
+  const streaming = useContext(RenderingStreamContext);
   const child = Children.toArray(children)[0];
   if (isValidElement<{ className?: string; children?: ReactNode }>(child)) {
     const language = child.props.className ?? "";
+    if (/\blanguage-(?:math|latex|tex)\b/.test(language)) {
+      return <LearningMath expression={nodeText(child.props.children).trim()} displayMode />;
+    }
+    if (/\blanguage-mermaid\b/.test(language)) {
+      if (streaming) return <p className="text-ink-3">도식 작성 중…</p>;
+      return <p data-render-error="diagram" className="my-4 text-[.85rem] text-danger">도식을 표시하지 못했어요. 그림으로 다시 설명해 달라고 요청해 주세요.</p>;
+    }
     if (/\blanguage-learncraft-visual\b/.test(language)) {
-      return <LearningVisual source={nodeText(child.props.children).trim()} />;
+      return <LearningVisual source={nodeText(child.props.children).trim()} streaming={streaming} />;
     }
     if (/\blanguage-learncraft-figure\b/.test(language)) {
       return <LearningFigure source={nodeText(child.props.children).trim()} />;
@@ -89,7 +98,8 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  code: ({ children, className }) => (
+  code: ({ children, className }) => /\bmath-(?:inline|display)\b/.test(className ?? "")
+    ? <LearningMath expression={nodeText(children)} displayMode={className?.includes("math-display")} /> : (
     <code
       className={`${className ?? ""} rounded-md bg-surface-muted px-1.5 py-0.5 font-mono text-[0.88em] leading-relaxed text-brand-dark [word-break:break-word]`}
     >
@@ -252,7 +262,12 @@ function normalizePlainMath(value: string) {
     /(?<!\\)\\\(([^\r\n]*?)(?<!\\)\\\)/g,
     (match, expression: string) => expression.trim() ? `$${expression.trim()}$` : match,
   );
-  const dimensionalUnitsNormalized = normalizeDimensionalUnits(texInlineDelimiterNormalized);
+  // Protect explicit display math before the loose-equation repair sees its lines.
+  const texDisplayNormalized = normalizeShortDisplayMath(texInlineDelimiterNormalized).replace(
+    /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]/g,
+    (match, expression: string) => expression.trim() ? `\n\n$$\n${expression.trim()}\n$$\n\n` : match,
+  );
+  const dimensionalUnitsNormalized = normalizeDimensionalUnits(texDisplayNormalized);
   const escapedStrongNormalized = normalizeEscapedStrongMarkers(dimensionalUnitsNormalized);
   const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
   const brokenLineMathNormalized = normalizeBrokenLineMath(emphasisNormalized);
@@ -658,20 +673,22 @@ function normalizeShortDisplayMath(value: string) {
     .replace(texDisplayBetweenSentenceText, (_, expression: string) => ` $${expression.trim()}$`);
 }
 
-export function Markdown({ children, collapseHints = false }: { children: string; collapseHints?: boolean }) {
+export function Markdown({ children, collapseHints = false, streaming = false }: { children: string; collapseHints?: boolean; streaming?: boolean }) {
   const normalizedMarkdown = useMemo(() => normalizeMathDelimiters(children), [children]);
 
   return (
+    <RenderingStreamContext.Provider value={streaming}>
     <div className="learncraft-markdown min-w-0 max-w-none break-words text-[0.965rem] leading-[1.78] text-[#303b52] [word-break:keep-all]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={collapseHints ? [rehypeFoldHints, rehypeKatex] : [rehypeKatex]}
+        rehypePlugins={collapseHints ? [rehypeFoldHints] : []}
         components={markdownComponents}
         skipHtml
       >
         {normalizedMarkdown}
       </ReactMarkdown>
     </div>
+    </RenderingStreamContext.Provider>
   );
 }
 
@@ -683,7 +700,6 @@ export function InlineMarkdown({ children }: { children: string }) {
     <span className="learncraft-markdown">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
         components={inlineMarkdownComponents}
         skipHtml
       >

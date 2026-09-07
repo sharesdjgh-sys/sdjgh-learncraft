@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { parseLearningVisual, visualMermaid, type VisualOf } from "@/lib/learning-visual";
+import { restoreMermaidLabelText } from "@/lib/mermaid-label";
 import type { CommonsImage } from "@/lib/commons-media";
 
 function Frame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -41,6 +42,7 @@ function Relationship({ spec }: { spec: VisualOf<"flow"> | VisualOf<"timeline"> 
         const { svg } = await mermaid.render(`visual${id}`, visualMermaid(spec));
         if (cancelled || !host.current) return;
         host.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, FORBID_TAGS: ["foreignObject", "image", "a"] });
+        restoreMermaidLabelText(host.current);
         setStatus("ready");
       } catch { if (!cancelled) setStatus("error"); }
     })(); }, 200);
@@ -137,9 +139,9 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> }) {
 
 const MapVisual = dynamic(() => import("./learning-map").then(module => module.LearningMap), { ssr: false, loading: () => <Pending /> });
 
-export function LearningVisual({ source }: { source: string }) {
+export function LearningVisual({ source, streaming = false }: { source: string; streaming?: boolean }) {
   const spec = useMemo(() => { try { return parseLearningVisual(source); } catch { return null; } }, [source]);
-  if (!spec) return <div className="my-4 rounded-xl border border-line bg-surface-2"><Pending failed={source.endsWith("}")} /></div>;
+  if (!spec) return <div className="my-4 rounded-xl border border-line bg-surface-2"><Pending failed={!streaming} /></div>;
   return <Frame title={spec.title} description={spec.description}>
     {spec.kind === "flow" || spec.kind === "timeline" ? <Relationship key={source} spec={spec} />
       : spec.kind === "music" ? <Music key={source} spec={spec} />

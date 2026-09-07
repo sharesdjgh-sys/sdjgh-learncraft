@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mermaidLabel } from "./mermaid-label";
 
 const text = z.string().trim().min(1).max(240);
 const short = z.string().trim().min(1).max(80);
@@ -56,16 +57,7 @@ export function parseLearningVisual(source: string): LearningVisualSpec {
   return parsed;
 }
 
-// Only labels enter Mermaid syntax; identifiers and diagram structure are generated here.
-function mermaidLabel(value: string) {
-  return Array.from(value).map(char => {
-    // Unicode units and mathematical symbols are safe inside quoted labels.
-    // Encoding them as Mermaid entities can expose literal HTML entities in SVG text.
-    const readable = /[\p{L}\p{N}\p{M} ,.!?()·-]/u.test(char)
-      || (char.codePointAt(0)! > 127 && /\p{S}/u.test(char));
-    return readable ? char : `#${char.codePointAt(0)};`;
-  }).join("");
-}
+// Only labels enter Mermaid syntax; identifiers and structure are generated here.
 export function visualMermaid(spec: VisualOf<"flow"> | VisualOf<"timeline">) {
   if (spec.kind === "timeline") {
     return "flowchart TB\n" + spec.events.map((event, index) => `N${index}["${mermaidLabel(event.date)} · ${mermaidLabel(event.label)}"]`).join("\n")

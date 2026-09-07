@@ -2,7 +2,7 @@
 
 import { useId, useMemo } from "react";
 import { ChartSpline, TriangleAlert } from "lucide-react";
-import katex from "katex";
+import { LearningMath } from "./learning-math";
 import { compactMathScripts } from "@/lib/math-notation";
 
 type Range = [number, number];
@@ -299,21 +299,7 @@ function graphLabelTex(value: string) {
 }
 
 function GraphMathLabel({ value }: { value: string }) {
-  const html = useMemo(() => katex.renderToString(compactMathScripts(graphLabelTex(value)), {
-    displayMode: false,
-    output: "html",
-    strict: "ignore",
-    throwOnError: false,
-  }), [value]);
-
-  return (
-    <span
-      className="graph-math-label"
-      aria-label={value}
-      // KaTeX escapes untrusted text and HTML extensions remain disabled.
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <span className="graph-math-label"><LearningMath expression={compactMathScripts(graphLabelTex(value))} /></span>;
 }
 
 function GraphTitle({ value }: { value: string }) {

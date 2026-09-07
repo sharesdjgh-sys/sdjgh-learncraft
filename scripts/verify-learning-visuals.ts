@@ -1,6 +1,9 @@
+import { restoreMermaidLabelText } from "../src/lib/mermaid-label";
 import assert from "node:assert/strict";
 import { parseLearningVisual, visualMermaid } from "../src/lib/learning-visual";
 import { commonsImages, getCommonsImage, searchCommonsImages } from "../src/lib/commons-media";
+import { mermaidLabel, normalizeMermaidLabel } from "../src/lib/mermaid-label";
+import { mermaidLabelCases } from "./fixtures/mermaid-label-cases";
 
 const base = { title: "학습 자료", description: "검증용 자료입니다." };
 const flow = { ...base, kind: "flow", nodes: [{ id: "a", label: "원인" }, { id: "b", label: "결과" }], edges: [{ from: "a", to: "b", label: "영향" }] };
@@ -21,8 +24,26 @@ assert.equal(malicious.kind, "flow");
 if (malicious.kind === "flow") {
   const syntax = visualMermaid(malicious);
   assert(!syntax.includes("<img>"));
-  assert(!syntax.includes('\nclick'));
-  assert(!syntax.includes("javascript:"));
+  assert(!syntax.includes('x"]'));
+  assert(!syntax.includes('"javascript:'));
+  assert(syntax.includes("#34;"));
+}
+for (const { name, label, expected } of mermaidLabelCases) {
+  assert.equal(normalizeMermaidLabel(label), expected, name);
+  const encoded = mermaidLabel(label);
+  assert(!/["&<>`\\|%]/.test(encoded), `${name}: grammar-sensitive characters are protected`);
+  assert(!encoded.includes("#10;"), `${name}: LF is a line break, not a numeric entity`);
+  assert.equal(encoded.replace(/#(\d+);/g, (_, code) => String.fromCodePoint(Number(code))), expected, `${name}: escaping preserves the normalized text`);
+  const spec = parseLearningVisual(JSON.stringify({ ...flow,
+    nodes: [{ id: "a", label }, { id: "b", label: "결과" }],
+    edges: [{ from: "a", to: "b", label }],
+  }));
+  assert(spec.kind === "flow");
+  assert(visualMermaid(spec).includes(`N0["${encoded}"]`), `${name}: node label`);
+  assert(visualMermaid(spec).includes(`|"${encoded}"|`), `${name}: edge label`);
+  const timeline = parseLearningVisual(JSON.stringify({ ...base, kind: "timeline", events: [{ date: label, label }] }));
+  assert(timeline.kind === "timeline");
+  assert(visualMermaid(timeline).includes(`N0["${encoded} · ${encoded}"]`), `${name}: timeline labels`);
 }
 const unitLabel = "기온 감률 (100m당 약 0.65℃ 하강) · 40° ± 2° → 고산 생활";
 const unitFlow = parseLearningVisual(JSON.stringify({ ...flow,
@@ -82,3 +103,28 @@ async function main() {
   console.log("Learning visual validation, Mermaid escaping, media attribution and request deduplication passed.");
 }
 void main();
+
+// SVG word wrapping may split an entity across arbitrary tspan text nodes.
+function restoredText(parts: string[]) {
+  const nodes = parts.map(nodeValue => ({ nodeValue }));
+  const label = { ownerDocument: { createTreeWalker: () => {
+    let index = 0;
+    return { nextNode: () => nodes[index++] ?? null };
+  } } };
+  restoreMermaidLabelText({ querySelectorAll: () => [label] } as unknown as Element);
+  return nodes.map(node => node.nodeValue);
+}
+for (const [encoded, expected] of [
+  ["앞&#34;인용&#34;뒤", '앞"인용"뒤'],
+  ["&#60;script&#62;alert(1)&#60;/script&#62;", "<script>alert(1)</script>"],
+  ["A&#38; B&#37;", "A& B%"],
+  ["&#x1F321; &NotEqualTilde;", "🌡 ≂̸"],
+  ["&amp;lt;", "&lt;"],
+]) {
+  for (let split = 1; split < encoded.length; split++) {
+    assert.equal(restoredText([encoded.slice(0, split), encoded.slice(split)]).join(""), expected);
+  }
+  assert.equal(restoredText(encoded.split("")).join(""), expected);
+}
+assert.deepEqual(restoredText(["&un", "known; ", "text"]), ["&un", "known; ", "text"]);
+console.log("Mermaid SVG entities restored across text-node boundaries without creating markup.");

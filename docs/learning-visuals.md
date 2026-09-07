@@ -17,6 +17,7 @@
 - d3-geo + topojson-client: Natural Earth 기반 World Atlas 2.0.2 지도.
 - world-atlas: 지도 데이터 원본 패키지. 실제 배포 파일은 public/maps/countries-50m.json.
 - VexFlow: 높은음자리표/낮은음자리표, 2/4·3/4·4/4·6/8박자, 최대 4마디의 음표·쉼표·화음.
+- entities: 라벨의 숫자·이름 문자 코드를 일반 문자로 복원한다. 줄바꿈은 LF로 정규화하고 Mermaid SVG에서 여러 tspan으로 나뉜 문자 코드는 글자 노드만 수정해 복원한다. SVG 태그나 속성을 문자열로 디코딩하지 않는다.
 - DOMPurify: Mermaid 결과 SVG 정리. 외부 이미지·링크·foreignObject를 제외한다.
 - Wikimedia Commons: 서버의 search_learning_images 도구로 검색하고, /api/learning-media에서 파일 메타데이터를 재확인한다.
 - Gemini Nano Banana: generate_learning_illustration 도구로 gemini-3.1-flash-image를 호출하여 학습용 개념 그림을 만든다.
@@ -73,3 +74,5 @@ npm run test:markdown
 npm run build
 
 브라우저는 Microsoft Edge에서 PC·모바일 폭을 확인한다.
+
+Mermaid 라벨 회귀 사례는 scripts/fixtures/mermaid-label-cases.ts에 있다. 줄바꿈, 문자 코드, 단위, 특수기호, HTML·지시문 형태의 라벨을 노드·연결선·연표에 적용해 검증한다.

@@ -23,7 +23,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
     "test:image-generation": "tsx scripts/verify-learning-image-generation.ts",
-    "test:visuals": "tsx scripts/verify-learning-visuals.ts"
+    "test:visuals": "tsx scripts/verify-learning-visuals.ts",
+    "test:rendering": "tsx scripts/verify-subject-rendering.tsx"
   },
   "dependencies": {
     "@ai-sdk/google": "latest",
@@ -35,6 +36,7 @@
     "dompurify": "^3.4.15",
     "dotenv": "latest",
     "drizzle-orm": "latest",
+    "entities": "^6.0.1",
     "jose": "latest",
     "katex": "^0.16.47",
     "lucide-react": "latest",
