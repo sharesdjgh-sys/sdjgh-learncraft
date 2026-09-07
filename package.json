@@ -22,7 +22,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
-    "test:image-generation": "tsx scripts/verify-learning-image-generation.ts",
+    "test:image-generation": "tsx scripts/verify-learning-image-generation.ts && tsx scripts/verify-learning-image-quality.ts",
+    "test:image-intent": "tsx scripts/verify-explicit-image-request.ts",
+    "test:tutor-progress": "tsx scripts/verify-tutor-progress.ts",
     "test:visuals": "tsx scripts/verify-learning-visuals.ts",
     "test:rendering": "tsx scripts/verify-subject-rendering.tsx"
   },

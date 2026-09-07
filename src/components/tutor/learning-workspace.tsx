@@ -2,6 +2,8 @@
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import Image from "next/image";
+import { TutorProgress as Thinking } from "./tutor-progress";
+import { createTutorEventDecoder, TUTOR_STREAM_TYPE, type TutorProgressStage } from "@/lib/tutor-progress";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -418,6 +420,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [attachmentError, setAttachmentError] = useState("");
   const [preparingImages, setPreparingImages] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [progressStage, setProgressStage] = useState<TutorProgressStage>("preparing");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
@@ -802,13 +805,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setAttachmentError("");
     if (textAreaRef.current) textAreaRef.current.style.height = "auto";
     setLoading(true);
+    setProgressStage("preparing");
     setRetryRequest(null);
     setNotice("");
 
     try {
       const response = await fetch("/api/ai/tutor", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: TUTOR_STREAM_TYPE },
         body: JSON.stringify({
           requestId: crypto.randomUUID(),
           unitId: selectedUnit.id,
@@ -835,16 +839,28 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
       const decoder = new TextDecoder();
       let accumulated = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) {
-          accumulated += decoder.decode();
-          break;
+      const framed = response.headers.get("content-type")?.includes(TUTOR_STREAM_TYPE);
+      const receive = createTutorEventDecoder(event => {
+        if (event.type === "status") setProgressStage(event.stage);
+        else accumulated += event.text;
+      });
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          const chunk = done ? decoder.decode() : decoder.decode(value, { stream: true });
+          const previous = accumulated;
+          if (framed) receive(chunk, done);
+          else { accumulated += chunk; if (chunk) setProgressStage("writing"); }
+          if (previous !== accumulated) {
+            const nextContent = accumulated;
+            setMessages(current => current.map(message => message.id === answerId ? { ...message, content: nextContent } : message));
+          }
+          if (done) break;
         }
-        accumulated += decoder.decode(value, { stream: true });
-        const nextContent = accumulated;
-        setMessages((current) => current.map((message) => message.id === answerId ? { ...message, content: nextContent } : message));
-      }
+      } catch (error) {
+        await reader.cancel().catch(() => undefined);
+        throw error;
+      } finally { reader.releaseLock(); }
       if (!accumulated.trim()) throw new Error("비어 있는 답변이 도착했어요.");
       console.log("[LearnCraft AI 답변 완료]", {
         requestId: response.headers.get("X-Request-Id"),
@@ -1015,13 +1031,13 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-[.88rem] font-extrabold text-ink">LearnCraft 튜터</span>
                               <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[.67rem] font-bold text-brand-dark">AI 학습 파트너</span>
-                              {!message.completed && message.content && <span className="text-[.76rem] font-semibold text-brand">답변 작성 중</span>}
+                              {loading && index === messages.length - 1 && message.content && <Thinking stage={progressStage} compact />}
                             </div>
                             <p className="mt-0.5 truncate text-[.78rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · 교육과정 중심 학습</p>
                           </div>
                         </div>
                         <div>
-                          {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking />}
+                          {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <p className="min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">
@@ -2039,8 +2055,4 @@ function Sheet({ id, title, open = true, dismissible = true, onClose, side = "bo
       </div>
     </div>
   );
-}
-
-function Thinking() {
-  return <div className="flex min-h-20 flex-col justify-center gap-3" aria-label="AI 튜터가 답변을 준비하고 있습니다"><div className="flex items-center gap-1.5">{[0, 1, 2].map((item) => <span key={item} className="thinking-dot size-2 rounded-full bg-brand" style={{ animationDelay: `${item * 150}ms` }} />)}<span className="ml-2 text-[.82rem] font-semibold text-ink-4">질문과 단원 내용을 연결하고 있어요</span></div><div className="skeleton-shimmer h-2.5 w-[72%] rounded-full" /><div className="skeleton-shimmer h-2.5 w-[48%] rounded-full" /></div>;
 }

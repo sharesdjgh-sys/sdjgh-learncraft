@@ -1,7 +1,11 @@
+import { requestsGeneratedImage, explicitImageToolStep, finishExplicitImageAnswer, EXPLICIT_IMAGE_GUIDE } from "@/lib/explicit-image-request";
+import { createTutorProgress, withTutorProgress } from "@/lib/tutor-progress-stream";
+import { TUTOR_STREAM_TYPE } from "@/lib/tutor-progress";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, stepCountIs, tool } from "ai";
 import { searchCommonsImages } from "@/lib/commons-media";
-import { generateLearningIllustration, illustrationInputSchema, learningImageDataUrl } from "@/lib/learning-image-generation";
+import { illustrationInputSchema } from "@/lib/learning-image-generation";
+import { generateReviewedLearningIllustration } from "@/lib/learning-image-quality";
 import { inlineLearningImageMarkdown } from "@/lib/inline-learning-image";
 import type { ModelMessage, FinishReason, TextStreamPart, ToolSet } from "ai";
 import { NextResponse } from "next/server";
@@ -107,16 +111,19 @@ function tutorTextStream(
   isAborted: () => boolean,
   onStreamFailure: (code: string, cancelled?: boolean) => Promise<void>,
   drainImages: () => string[],
+  finalizeText?: (text: string) => string,
 ) {
   const encoder = new TextEncoder();
   let iterator = primaryResult.stream[Symbol.asyncIterator]();
   let ended = false;
   let emittedText = false;
   let usingFallback = false;
+  let bufferedText = "";
 
   async function switchToFallback() {
     if (usingFallback || emittedText || !createFallbackResult || isAborted()) return false;
     usingFallback = true;
+    bufferedText = "";
     await iterator.return?.();
     await onFallback();
     iterator = createFallbackResult().stream[Symbol.asyncIterator]();
@@ -139,6 +146,10 @@ function tutorTextStream(
             controller.enqueue(encoder.encode(visual));
           }
           if (next.done) {
+            if (finalizeText) {
+              const text = finalizeText(bufferedText);
+              if (text) controller.enqueue(encoder.encode("\n\n" + text));
+            }
             ended = true;
             controller.close();
             return;
@@ -146,6 +157,7 @@ function tutorTextStream(
 
           const part = next.value;
           if (part.type === "text-delta") {
+            if (finalizeText) { bufferedText += part.text; continue; }
             emittedText = true;
             controller.enqueue(encoder.encode(part.text));
             return;
@@ -253,6 +265,10 @@ export async function POST(request: Request) {
     return errorResponse("VALIDATION_ERROR", "이어갈 튜터 답변이 없습니다.", 400, input.requestId);
   }
 
+  const explicitImage = input.action === "QUESTION" && requestsGeneratedImage(input.message ?? "");
+  if (explicitImage && (!isGeminiConfigured || env.GEMINI_IMAGE_ENABLED !== "true")) {
+    return errorResponse("IMAGE_UNAVAILABLE", "현재 Nano Banana 이미지 생성을 사용할 수 없어요. 잠시 후 다시 요청해 주세요.", 503, input.requestId);
+  }
   const chargesUsage = input.source === "DIRECT";
   const reservation = chargesUsage
     ? await reserveAiUsage({
@@ -306,8 +322,10 @@ export async function POST(request: Request) {
               })),
             ],
           }];
+      const progress = createTutorProgress();
       const pendingImages: string[] = [];
       let imageSearches = 0;
+      let imageDelivered = false;
       const generationAvailable = env.GEMINI_IMAGE_ENABLED === "true";
       const createResult = (modelId: string) => {
         const startedAt = Date.now();
@@ -315,34 +333,41 @@ export async function POST(request: Request) {
           model: google(modelId),
           system: buildTutorSystemPrompt(promptInput) + (generationAvailable
             ? "\n학습용 그림 생성 도구를 사용할 수 있습니다."
-            : "\n현재 학습용 그림 생성은 사용할 수 없습니다. 필요한 시각 자료는 지도·도형·관계도·악보·표 또는 이미지 검색으로 제공하세요."),
+            : "\n현재 학습용 그림 생성은 사용할 수 없습니다. 필요한 시각 자료는 지도·도형·관계도·악보·표 또는 이미지 검색으로 제공하세요.")
+            + (explicitImage ? "\n" + EXPLICIT_IMAGE_GUIDE : ""),
           prompt,
           maxOutputTokens: 4096,
           stopWhen: stepCountIs(4),
-          prepareStep: ({ stepNumber }) => stepNumber >= 3 ? { toolChoice: "none" as const } : {},
+          prepareStep: ({ stepNumber }) => explicitImage ? explicitImageToolStep(stepNumber) : stepNumber >= 3 ? { toolChoice: "none" as const } : {},
           tools: {
             ...(generationAvailable ? {
               generate_learning_illustration: tool({
-                description: "Generate one essential educational concept illustration with Gemini Nano Banana when structured diagrams, maps, charts, notation or reference images cannot adequately explain the concept. Never replace authentic artwork or exact scientific data. Do not include personal details. The application displays each successful image automatically. Explain it in text without repeating an image block. Call again for a different illustration when needed.",
+                description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. The application displays each successful image automatically. Explain it in text without repeating an image block. Call again for a different illustration when needed.",
                 inputSchema: illustrationInputSchema,
-                execute: async ({ title, description, prompt: illustrationPrompt }) => {
+                execute: async (brief) => {
+                  const { title, description } = brief;
+                  const task = progress.begin("image_generating");
                   try {
                     request.signal.throwIfAborted();
-                    const generated = await generateLearningIllustration({
+                    const generated = await generateReviewedLearningIllustration({
                       apiKey: env.GEMINI_API_KEY!, model: env.GEMINI_IMAGE_MODEL_ID,
-                      prompt: illustrationPrompt, signal: request.signal,
+                      brief, reviewModel: modelId, signal: request.signal, onProgress: task.update,
                     });
                     // Images travel directly to the client; model history receives metadata only.
-                    const dataUrl = await learningImageDataUrl(generated.data);
+                    const dataUrl = generated.dataUrl;
+                    imageDelivered = true;
                     pendingImages.push(inlineLearningImageMarkdown({
                       kind: "generated-image", id: crypto.randomUUID(), title, description, dataUrl,
                     }));
                     console.info("learning_image_usage", { model: env.GEMINI_IMAGE_MODEL_ID, usage: generated.usage });
+                    progress.set("writing");
                     return { displayed: true, title, description,
-                      message: "생성 그림이 답변에 자동 표시되었습니다. 이미지 블록을 다시 작성하지 말고 이어서 핵심 개념을 설명하세요. 다른 그림이 필요하면 추가 생성할 수 있습니다. 세부 표현은 직접 관찰하거나 검증하지 않았습니다." };
+                      message: "생성 그림이 답변에 자동 표시되었습니다. 이미지 블록을 다시 작성하지 말고 이어서 핵심 개념을 설명하세요. 다른 그림이 필요하면 추가 생성할 수 있습니다. 자동 이미지 검수를 거쳤지만 사실과 정답의 정확성을 보장하지는 않습니다." };
                   } catch {
-                    return { error: "그림을 생성하지 못했습니다. 없는 그림을 언급하지 말고 가능한 표·도식으로 설명을 이어가세요." };
-                  }
+                    progress.set(explicitImage ? "image_failed" : "image_fallback");
+                    if (explicitImage) return { error: "Nano Banana 이미지 생성 또는 검수에 실패했습니다. 도식·플로차트·표로 대체하지 말고 실패 사실과 재요청 안내만 전달하세요." };
+                    return { error: "그림을 생성하거나 품질을 확인하지 못했습니다. 없는 그림을 언급하지 말고 필요한 내용을 빠짐없이 표·도식과 본문으로 설명하세요." };
+                  } finally { task.end(); }
                 },
               }),
             } : {}),
@@ -351,12 +376,13 @@ export async function POST(request: Request) {
               inputSchema: z.object({ query: z.string().trim().min(2).max(180) }),
               execute: async ({ query }) => {
                 if (++imageSearches > 2) return { images: [], message: "검색 횟수에 도달했습니다. 확보된 자료로 설명하세요." };
+                const task = progress.begin("image_search");
                 try {
                   const images = await searchCommonsImages(query);
                   return { images: images.slice(0, 5).map(({ file, title, description, artist, sourceUrl, license }) => ({ file, title, description, artist: artist.slice(0, 300), sourceUrl, license })), message: "설명과 제목이 질문의 대상과 맞는지 확인하세요. 검색 결과만으로 이미지 세부를 직접 관찰했다고 말하지 마세요." };
                 } catch {
                   return { images: [], message: "이미지 검색이 응답하지 않습니다. URL이나 작품을 지어내지 말고 글과 도식으로 설명하세요." };
-                }
+                } finally { progress.set("writing"); task.end(); }
               },
             }),
           },
@@ -393,17 +419,19 @@ export async function POST(request: Request) {
       );
       const result = createResult(env.GEMINI_PRIMARY_MODEL_ID);
 
-      return new Response(
-        tutorTextStream(
-          result,
-          fallbackEnabled ? () => createResult(env.GEMINI_FALLBACK_MODEL_ID) : null,
-          () => chargesUsage ? switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID) : Promise.resolve(),
-          () => request.signal.aborted,
-          (code, cancelled) => chargesUsage ? refundAiUsage(user, input.requestId, code, cancelled) : Promise.resolve(),
-          () => pendingImages.splice(0),
-        ),
-        { headers },
+      const stream = tutorTextStream(
+        result,
+        fallbackEnabled ? () => createResult(env.GEMINI_FALLBACK_MODEL_ID) : null,
+        async () => { progress.set("retrying"); if (chargesUsage) await switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID); },
+        () => request.signal.aborted,
+        (code, cancelled) => chargesUsage ? refundAiUsage(user, input.requestId, code, cancelled) : Promise.resolve(),
+        () => pendingImages.splice(0),
+        explicitImage ? text => finishExplicitImageAnswer(text, imageDelivered) : undefined,
       );
+      const wantsProgress = request.headers.get("accept")?.includes(TUTOR_STREAM_TYPE);
+      return new Response(wantsProgress ? withTutorProgress(stream, progress) : stream, {
+        headers: { ...headers, ...(wantsProgress ? { "Content-Type": `${TUTOR_STREAM_TYPE}; charset=utf-8` } : {}) },
+      });
     }
 
     const answer = makeDemoAnswer(

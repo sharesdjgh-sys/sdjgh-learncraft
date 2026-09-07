@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { parseLearningVisual, visualMermaid, type VisualOf } from "@/lib/learning-visual";
 import { restoreMermaidLabelText } from "@/lib/mermaid-label";
 import type { CommonsImage } from "@/lib/commons-media";
@@ -125,13 +125,24 @@ function ReferenceImage({ spec }: { spec: VisualOf<"image"> }) {
 }
 
 function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> }) {
+  const dialog = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  // Cached/data-URL images may finish before hydration attaches the load handler.
+  const imageRef = useCallback((element: HTMLImageElement | null) => {
+    if (element?.complete) setStatus(element.naturalWidth > 0 ? "ready" : "error");
+  }, []);
   return <>
     {status !== "ready" && <Pending failed={status === "error"} />}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} loading="eager"
+    <img ref={imageRef} src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} loading="eager"
       onLoad={() => setStatus("ready")} onError={() => setStatus("error")}
       className={`${status === "error" ? "hidden" : ""} mx-auto max-h-[600px] w-auto max-w-full rounded-lg object-contain`} />
+    {status === "ready" && <button type="button" onClick={() => dialog.current?.showModal()} className="mt-3 rounded-lg border border-line px-3 py-2 text-[.8rem] font-semibold text-brand">그림 크게 보기</button>}
+    <dialog ref={dialog} aria-label={spec.title} className="m-auto max-h-[95dvh] w-[96vw] max-w-[1600px] overflow-auto rounded-xl bg-surface p-4 text-ink backdrop:bg-black/65">
+      <div className="sticky top-0 mb-3 flex items-center justify-between gap-4 bg-surface py-2"><p className="font-bold">{spec.title}</p><button type="button" autoFocus onClick={() => dialog.current?.close()} className="shrink-0 rounded-lg border border-line px-4 py-2">닫기</button></div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} className="h-auto w-full" />
+    </dialog>
     <p className="mt-3 text-[.76rem] font-semibold leading-5 text-ink-3">LearnCraft AI 생성 그림 · 학습용 예시</p>
     <p className="mt-1 text-[.74rem] leading-5 text-ink-4">그림의 세부 표현은 실제와 다를 수 있어요. 핵심 개념은 본문 설명과 함께 확인하세요.</p>
   </>;

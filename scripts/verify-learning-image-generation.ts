@@ -18,6 +18,8 @@ async function main() {
     assert.equal(new Headers(init?.headers).get("x-goog-api-key"), "test-key");
     const body = JSON.parse(String(init?.body));
     assert.deepEqual(body.generationConfig.responseModalities, ["IMAGE"]);
+    assert.deepEqual(body.generationConfig.imageConfig, { imageSize: "2K", aspectRatio: "4:3" });
+    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "High");
     assert(init?.signal);
     return Response.json(payload);
   };
@@ -69,6 +71,9 @@ async function main() {
   for (const bad of ["https://evil.example/image", "data:image/svg+xml;base64,AAAA", "data:image/webp;base64,<script>"]) {
     assert.throws(() => parseLearningVisual(JSON.stringify({ ...examples[0], dataUrl: bad })));
   }
+  const largePng = await sharp({ create: { width: 2048, height: 1536, channels: 3, background: "#f0ede8" } }).png().toBuffer();
+  const fullSize = await learningImageDataUrl(largePng);
+  assert.equal((await sharp(Buffer.from(fullSize.split(",")[1], "base64")).metadata()).width, 2048, "Do not shrink 2K lettering to 1536 pixels");
   await assert.rejects(learningImageDataUrl(Buffer.from("not an image")));
   console.log("PASS: provider validation, failures, abort, bounded response, multiple inline images without Blob, bookmark roundtrip and metadata-only context");
 }
