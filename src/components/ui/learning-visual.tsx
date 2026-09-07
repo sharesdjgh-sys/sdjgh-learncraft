@@ -141,13 +141,16 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
       <p className="text-[.8rem] text-ink-3">{spec.stage === "image_failed" ? "그림을 완성하지 못했어요. 다시 요청해 주세요." : "설명을 계속 읽어보세요. 완성되면 이 자리에 표시돼요."}</p>
     </div> : <>
     {status !== "ready" && <Pending failed={status === "error"} />}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img ref={imageRef} src={src} alt={spec.description} loading="eager"
-      onLoad={() => setStatus("ready")} onError={() => setStatus("error")}
-      className={`${status === "error" ? "hidden" : ""} ${spec.aspectRatio ? "absolute inset-0 h-full w-full" : "mx-auto max-h-[600px] w-auto max-w-full"} rounded-lg object-contain`} />
+    <button type="button" disabled={status !== "ready"} onClick={() => dialog.current?.showModal()}
+      aria-label={`${spec.title} 그림 확대`} aria-haspopup="dialog" title="클릭하여 확대"
+      className={`${status === "error" ? "hidden" : "block"} ${spec.aspectRatio ? "absolute inset-0 h-full w-full" : "mx-auto max-w-full"} cursor-zoom-in rounded-lg border-0 bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand disabled:cursor-default`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img ref={imageRef} src={src} alt={spec.description} loading="eager"
+        onLoad={() => setStatus("ready")} onError={() => setStatus("error")}
+        className={`${spec.aspectRatio ? "h-full w-full" : "mx-auto max-h-[600px] w-auto max-w-full"} rounded-lg object-contain`} />
+    </button>
     </>}
     </div>
-    <div className="flex h-14 items-center">{!pending && status === "ready" && <button type="button" onClick={() => dialog.current?.showModal()} className="rounded-lg border border-line px-3 py-2 text-[.8rem] font-semibold text-brand">그림 크게 보기</button>}</div>
     {!pending && <dialog ref={dialog} aria-label={spec.title} className="m-auto max-h-[95dvh] w-[96vw] max-w-[1600px] overflow-auto rounded-xl bg-surface p-4 text-ink backdrop:bg-black/65">
       <div className="sticky top-0 mb-3 flex items-center justify-between gap-4 bg-surface py-2"><p className="font-bold">{spec.title}</p><button type="button" autoFocus onClick={() => dialog.current?.close()} className="shrink-0 rounded-lg border border-line px-4 py-2">닫기</button></div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
