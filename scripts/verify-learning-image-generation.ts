@@ -55,6 +55,13 @@ async function main() {
   assert.equal(restored, answer, "Bookmark roundtrip retains images");
   const context = learningTextContext(answer);
   assert(!context.includes("base64")); assert(context.includes("생성 그림 4")); assert(context.endsWith("뒤 설명"));
+  const longText = "마지막까지 복사해야 하는 설명입니다.\n".repeat(5000);
+  const largeImage = { ...examples[0], dataUrl: "data:image/webp;base64," + "A".repeat(1_000_000) };
+  const copied = learningTextContext("처음 설명" + inlineLearningImageMarkdown(largeImage) + longText + "답변 끝");
+  assert(copied.startsWith("처음 설명"));
+  assert(copied.endsWith(longText + "답변 끝"), "Copy must retain the entire body following image data");
+  assert(!copied.includes("base64"));
+  assert.equal(learningTextContext(longText), longText, "Plain answers must not be truncated");
   const dataUrl = examples[0].dataUrl;
   const image = await sharp(Buffer.from(dataUrl.split(",")[1], "base64")).metadata();
   assert.equal(image.format, "webp"); assert.equal(image.width, 40);

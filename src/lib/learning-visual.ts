@@ -58,7 +58,13 @@ export function parseLearningVisual(source: string): LearningVisualSpec {
 
 // Only labels enter Mermaid syntax; identifiers and diagram structure are generated here.
 function mermaidLabel(value: string) {
-  return Array.from(value).map(char => /[\p{L}\p{N} ,.!?()·-]/u.test(char) ? char : `#${char.codePointAt(0)};`).join("");
+  return Array.from(value).map(char => {
+    // Unicode units and mathematical symbols are safe inside quoted labels.
+    // Encoding them as Mermaid entities can expose literal HTML entities in SVG text.
+    const readable = /[\p{L}\p{N}\p{M} ,.!?()·-]/u.test(char)
+      || (char.codePointAt(0)! > 127 && /\p{S}/u.test(char));
+    return readable ? char : `#${char.codePointAt(0)};`;
+  }).join("");
 }
 export function visualMermaid(spec: VisualOf<"flow"> | VisualOf<"timeline">) {
   if (spec.kind === "timeline") {

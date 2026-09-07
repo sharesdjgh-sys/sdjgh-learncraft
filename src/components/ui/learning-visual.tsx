@@ -50,10 +50,10 @@ function Relationship({ spec }: { spec: VisualOf<"flow"> | VisualOf<"timeline"> 
     {status !== "ready" && <Pending failed={status === "error"} />}
     <div ref={host} role="img" aria-label={`${spec.title}. ${spec.description}`} className="overflow-x-auto [&>svg]:mx-auto [&>svg]:h-auto [&>svg]:max-w-full" />
     {spec.kind === "timeline" && <p className="mt-2 text-[.75rem] text-ink-4">시간 순서로 정리한 연표 · 간격은 실제 기간에 비례하지 않습니다.</p>}
-    <details className="mt-2 text-[.78rem] text-ink-3"><summary className="cursor-pointer py-2">그림의 내용을 글로 보기</summary>
+    <div className="sr-only">
       <ul className="space-y-1 pl-4">{spec.kind === "timeline" ? spec.events.map((event, i) => <li key={i}>{event.date}: {event.label}</li>)
         : <>{spec.nodes.map(node => <li key={node.id}>{node.label}</li>)}{spec.edges.map((edge, i) => <li key={`edge${i}`}>{spec.nodes.find(n => n.id === edge.from)?.label} → {spec.nodes.find(n => n.id === edge.to)?.label}{edge.label ? `: ${edge.label}` : ""}</li>)}</>}</ul>
-    </details>
+    </div>
   </>;
 }
 

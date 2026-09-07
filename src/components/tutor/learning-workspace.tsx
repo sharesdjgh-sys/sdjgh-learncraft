@@ -894,15 +894,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   async function copyMessage(message: TutorMessage) {
     if (!message.completed || !message.content) return;
 
+    const copyText = learningTextContext(message.content);
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(copyText);
     } catch {
       const textArea = document.createElement("textarea");
-      textArea.value = message.content;
+      textArea.value = copyText;
       textArea.style.position = "fixed";
       textArea.style.opacity = "0";
       document.body.appendChild(textArea);
+      textArea.focus();
       textArea.select();
+      textArea.setSelectionRange(0, copyText.length);
       const copied = document.execCommand("copy");
       textArea.remove();
       if (!copied) {
@@ -989,7 +992,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                 {messages.map((message, index) => (
                   <article id={`tutor-message-${message.id}`} key={message.id} className={cn("flex scroll-mt-4", message.role === "user" ? "justify-end" : "justify-start")}>
                     {message.role === "user" ? (
-                      <div className="font-learning max-w-[88%] rounded-[16px_16px_4px_16px] border border-line border-r-brand/35 bg-brand-page px-4 py-3 text-[1.01rem] leading-7 text-ink shadow-[var(--lift-1)] sm:max-w-[78%]">
+                      <div className="min-w-0 max-w-[88%] rounded-[16px_16px_4px_16px] border border-line border-r-brand/35 bg-brand-page px-4 py-3 shadow-[var(--lift-1)] sm:max-w-[78%]">
                         {message.imageNames && message.imageNames.length > 0 && (
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {message.imageNames.map((name, imageIndex) => (
@@ -1000,7 +1003,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             ))}
                           </div>
                         )}
-                        <div>{message.content}</div>
+                        <Markdown>{message.content}</Markdown>
                       </div>
                     ) : (
                       <div className="w-full">

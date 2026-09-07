@@ -24,6 +24,19 @@ if (malicious.kind === "flow") {
   assert(!syntax.includes('\nclick'));
   assert(!syntax.includes("javascript:"));
 }
+const unitLabel = "기온 감률 (100m당 약 0.65℃ 하강) · 40° ± 2° → 고산 생활";
+const unitFlow = parseLearningVisual(JSON.stringify({ ...flow,
+  nodes: [{ id: "a", label: unitLabel }, { id: "b", label: "고산 도시" }],
+  edges: [{ from: "a", to: "b", label: "기온 −0.65℃" }],
+}));
+assert(unitFlow.kind === "flow");
+const unitSyntax = visualMermaid(unitFlow);
+assert(unitSyntax.includes(unitLabel));
+assert(unitSyntax.includes("기온 −0.65℃"));
+assert(!unitSyntax.includes("#8451;"));
+const unitTimeline = parseLearningVisual(JSON.stringify({ ...base, kind: "timeline", events: [{ date: "현재", label: "기온 20℃ · 면적 1㎢" }] }));
+assert(unitTimeline.kind === "timeline");
+assert(visualMermaid(unitTimeline).includes("기온 20℃ · 면적 1㎢"));
 const raw = { query: { pages: [{ title: "File:Example.jpg", imageinfo: [{
   mime: "image/jpeg", thumburl: "https://upload.wikimedia.org/example.jpg", thumbwidth: 800, thumbheight: 600,
   descriptionurl: "https://commons.wikimedia.org/wiki/File:Example.jpg",
