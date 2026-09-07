@@ -44,13 +44,16 @@ const music = z.object({
   }
 });
 const image = z.object({ kind: z.literal("image"), ...base, file: z.string().trim().min(6).max(240).regex(/^File:[^\r\n<>]+$/) });
-export const learningVisualSchema = z.discriminatedUnion("kind", [flow, timeline, map, music, image]);
+const generatedImage = z.object({ kind: z.literal("generated-image"), ...base, id: z.string().uuid(), dataUrl: z.string().max(1_400_000).regex(/^data:image\/webp;base64,[A-Za-z0-9+/]+={0,2}$/).optional() });
+export const learningVisualSchema = z.discriminatedUnion("kind", [flow, timeline, map, music, image, generatedImage]);
 export type LearningVisualSpec = z.infer<typeof learningVisualSchema>;
 export type VisualOf<K extends LearningVisualSpec["kind"]> = Extract<LearningVisualSpec, { kind: K }>;
 
 export function parseLearningVisual(source: string): LearningVisualSpec {
-  if (source.length > 16000) throw new Error("시각 자료가 너무 큽니다.");
-  return learningVisualSchema.parse(JSON.parse(source));
+  if (source.length > 1_410_000) throw new Error("시각 자료가 너무 큽니다.");
+  const parsed = learningVisualSchema.parse(JSON.parse(source));
+  if (parsed.kind !== "generated-image" && source.length > 16000) throw new Error("시각 자료가 너무 큽니다.");
+  return parsed;
 }
 
 // Only labels enter Mermaid syntax; identifiers and diagram structure are generated here.

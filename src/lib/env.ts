@@ -10,6 +10,8 @@ const envSchema = z.object({
   GEMINI_MODEL_ID: z.string().optional(),
   GEMINI_PRIMARY_MODEL_ID: z.string().optional(),
   GEMINI_FALLBACK_MODEL_ID: z.string().default("gemini-3.6-flash"),
+  GEMINI_IMAGE_MODEL_ID: z.string().default("gemini-3.1-flash-image"),
+  GEMINI_IMAGE_ENABLED: z.enum(["true", "false"]).default("true"),
   APP_TIMEZONE: z.string().default("Asia/Seoul"),
 });
 
@@ -23,6 +25,8 @@ const parsed = envSchema.safeParse({
   GEMINI_MODEL_ID: process.env.GEMINI_MODEL_ID,
   GEMINI_PRIMARY_MODEL_ID: process.env.GEMINI_PRIMARY_MODEL_ID,
   GEMINI_FALLBACK_MODEL_ID: process.env.GEMINI_FALLBACK_MODEL_ID,
+  GEMINI_IMAGE_MODEL_ID: process.env.GEMINI_IMAGE_MODEL_ID,
+  GEMINI_IMAGE_ENABLED: process.env.GEMINI_IMAGE_ENABLED,
   APP_TIMEZONE: process.env.APP_TIMEZONE,
 });
 

@@ -9,7 +9,7 @@ const createSchema = z.object({
   unitId: z.string().min(1).max(100),
   answerMode: z.enum(["QUESTION", "EASIER", "DEEPER", "REVEAL", "QUIZ"]),
   title: z.string().trim().min(1).max(100),
-  answerMarkdown: z.string().trim().min(1).max(12000),
+  answerMarkdown: z.string().trim().min(1).max(4_000_000),
 });
 
 export async function GET() {

@@ -122,6 +122,19 @@ function ReferenceImage({ spec }: { spec: VisualOf<"image"> }) {
   </>;
 }
 
+function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> }) {
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  return <>
+    {status !== "ready" && <Pending failed={status === "error"} />}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} loading="eager"
+      onLoad={() => setStatus("ready")} onError={() => setStatus("error")}
+      className={`${status === "error" ? "hidden" : ""} mx-auto max-h-[600px] w-auto max-w-full rounded-lg object-contain`} />
+    <p className="mt-3 text-[.76rem] font-semibold leading-5 text-ink-3">LearnCraft AI 생성 그림 · 학습용 예시</p>
+    <p className="mt-1 text-[.74rem] leading-5 text-ink-4">그림의 세부 표현은 실제와 다를 수 있어요. 핵심 개념은 본문 설명과 함께 확인하세요.</p>
+  </>;
+}
+
 const MapVisual = dynamic(() => import("./learning-map").then(module => module.LearningMap), { ssr: false, loading: () => <Pending /> });
 
 export function LearningVisual({ source }: { source: string }) {
@@ -130,6 +143,7 @@ export function LearningVisual({ source }: { source: string }) {
   return <Frame title={spec.title} description={spec.description}>
     {spec.kind === "flow" || spec.kind === "timeline" ? <Relationship key={source} spec={spec} />
       : spec.kind === "music" ? <Music key={source} spec={spec} />
-      : spec.kind === "map" ? <MapVisual spec={spec} /> : <ReferenceImage key={spec.file} spec={spec} />}
+      : spec.kind === "map" ? <MapVisual spec={spec} />
+      : spec.kind === "generated-image" ? <GeneratedImage key={spec.id} spec={spec} /> : <ReferenceImage key={spec.file} spec={spec} />}
   </Frame>;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { learningTextContext } from "@/lib/inline-learning-image";
 import Image from "next/image";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -562,13 +563,16 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         messages: completedSessionMessages(messages),
       });
     }
-    sessionStorage.setItem(learningCacheKey, JSON.stringify({
+    try { sessionStorage.setItem(learningCacheKey, JSON.stringify({
       version: 2,
       activeUnitId: selectedUnitId,
       grade,
       courseOverviewOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
-    } satisfies SavedLearningCache));
+    } satisfies SavedLearningCache)); } catch {
+      // Large inline images can exceed the browser tab cache. Keep the live chat usable.
+      sessionStorage.removeItem(learningCacheKey);
+    }
   }, [courseOverviewOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
@@ -786,7 +790,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     const recentMessages = baseMessages
       .filter((message) => message.content && message.completed)
       .slice(-6)
-      .map(({ role, content }) => ({ role, content: content.slice(0, 3000) }));
+      .map(({ role, content }) => ({ role, content: learningTextContext(content).slice(0, 3000) }));
 
     streamingAnswerRef.current = true;
     autoScrollRef.current = false;

@@ -3,7 +3,7 @@ import { LEARNING_VISUAL_GUIDE } from "./visual-prompt";
 import { LEARNING_FIGURE_GUIDE } from "./figure-prompt";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 19;
+export const TUTOR_PROMPT_VERSION = 21;
 
 type TutorPromptInput = {
   unit: LearningUnit;

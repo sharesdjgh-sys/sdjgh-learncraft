@@ -153,7 +153,7 @@ export function StudentProfile({ user }: { user: SessionUser }) {
           <section className="rounded-[16px] bg-surface-2 p-5">
             <LockKeyhole size={19} className="text-brand" />
             <h2 className="mt-3 text-[.9rem] font-bold">내 대화는 나에게만</h2>
-            <p className="mt-2 text-[.78rem] leading-6 text-ink-3">이 통계는 질문 내용이 아닌 사용 횟수로 만들어요. 일반 질문과 AI 답변은 서버에 저장하지 않습니다.</p>
+            <p className="mt-2 text-[.78rem] leading-6 text-ink-3">이 통계는 질문 내용이 아닌 사용 횟수로 만들어요. 일반 질문과 답변의 텍스트는 서버에 저장하지 않습니다. 생성 그림도 북마크할 때만 답변과 함께 저장합니다.</p>
             <details className="mt-4 border-t border-line pt-3"><summary className="cursor-pointer py-1 text-[.76rem] font-semibold text-brand">학습 데이터 보관 안내</summary><p className="mt-2 text-[.75rem] leading-6 text-ink-4">단원별 사용 횟수, 모델 토큰과 예상 비용을 운영 목적으로 기록해요. 직접 고른 답변만 학습 북마크에 남으며, 관리자와 교사는 북마크 내용을 볼 수 없어요.</p></details>
           </section>
         </aside>

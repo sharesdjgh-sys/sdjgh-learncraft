@@ -44,7 +44,7 @@ export function AdminDashboard() {
         <Metric icon={Gauge} label="AI 요청" value={formatNumber(metrics.summary.requests)} note="지난 7일" delta="12.4%" />
         <Metric icon={UsersRound} label="이용 학생" value={`${formatNumber(metrics.summary.students)}명`} note="기간 내 활성 학생" delta="5.8%" />
         <Metric icon={Clock3} label="평균 응답 시간" value={`${(metrics.summary.averageLatencyMs / 1000).toFixed(1)}초`} note="목표 3초 이내" />
-        <Metric icon={CircleDollarSign} label="예상 API 비용" value={formatUsd(metrics.summary.estimatedCostUsd)} note="실제 청구와 다를 수 있음" delta="8.1%" />
+        <Metric icon={CircleDollarSign} label="예상 텍스트 API 비용" value={formatUsd(metrics.summary.estimatedCostUsd)} note="실제 청구와 다를 수 있음" delta="8.1%" />
       </section>
 
       <section className="mt-9 grid gap-8 xl:grid-cols-[1.4fr_1fr]">
@@ -62,7 +62,7 @@ export function AdminDashboard() {
         <div className="flex items-center justify-between border-b border-line px-5 py-5 sm:px-7"><div><h2 className="text-lg font-extrabold">학생별 사용량</h2><p className="mt-1 text-[.82rem] text-ink-4">질문 원문은 수집하거나 표시하지 않습니다.</p></div><button className="flex min-h-10 items-center gap-1.5 rounded-[10px] px-3 text-[.82rem] font-bold text-brand transition hover:bg-brand-soft">전체 보기 <ArrowUpRight size={15} /></button></div>
         <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead className="bg-surface-2 text-[.76rem] font-bold text-ink-4"><tr><th className="px-7 py-3">학생</th><th className="px-4 py-3">학년</th><th className="px-4 py-3">오늘 사용량</th><th className="px-4 py-3">토큰</th><th className="px-4 py-3">예상 비용</th><th className="px-7 py-3 text-right">상태</th></tr></thead><tbody className="divide-y divide-line">{metrics.studentUsage.map((student) => <tr key={student.name} className="text-[.88rem] hover:bg-surface-2"><td className="px-7 py-4 font-bold">{student.name}</td><td className="px-4 py-4 text-ink-3">{student.grade}학년</td><td className="px-4 py-4"><div className="flex items-center gap-3"><div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-3"><div className={cn("h-full rounded-full", student.requests >= 18 ? "bg-warn" : "bg-brand")} style={{ width: `${(student.requests / student.limit) * 100}%` }} /></div><span className="figure text-[.8rem] font-semibold">{student.requests}/{student.limit}</span></div></td><td className="figure px-4 py-4 text-ink-3">{formatNumber(student.tokens)}</td><td className="figure px-4 py-4 font-semibold">{formatUsd(student.cost)}</td><td className="px-7 py-4 text-right"><span className={cn("rounded-full px-2.5 py-1 text-[.76rem] font-bold", student.requests >= 18 ? "bg-[var(--warn-page)] text-warn" : "bg-[var(--ok-page)] text-ok")}>{student.requests >= 18 ? "한도 임박" : "정상"}</span></td></tr>)}</tbody></table></div>
       </section>
-      <p className="mt-4 text-right text-[.78rem] text-ink-5">예상 비용은 등록 단가로 계산되며 실제 청구액과 다를 수 있습니다.</p>
+      <p className="mt-4 text-right text-[.78rem] text-ink-5">예상 비용은 텍스트 API의 등록 단가로 계산하며 이미지 생성 비용은 포함하지 않습니다. 실제 청구액과 다를 수 있습니다.</p>
     </div>
   );
 }
