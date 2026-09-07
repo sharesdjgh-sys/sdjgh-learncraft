@@ -14,6 +14,9 @@ const pass = illustrationReviewSchema.parse({ readableKorean: true, exactText: t
   relationshipsCorrect: true, meaningfulVisuals: true, issues: [] });
 const args = { apiKey: "test", model: "gemini-3.1-flash-image", reviewModel: "test-review", brief };
 async function main() {
+  for (const aspectRatio of ["4:3", "1:1"]) assert(illustrationInputSchema.safeParse({ ...brief, aspectRatio }).success);
+  for (const aspectRatio of ["3:4", "16:9", "9:16"]) assert(!illustrationInputSchema.safeParse({ ...brief, aspectRatio }).success);
+  assert.equal(illustrationInputSchema.parse({ ...brief, aspectRatio: undefined }).aspectRatio, "4:3");
   assert(!illustrationInputSchema.safeParse({ title: "물", description: "물", prompt: "물에 대한 간단한 그림 하나를 예쁘게 만들어 주세요." }).success, "Reject content-free briefs");
   let generations = 0;
   let reviews = 0;

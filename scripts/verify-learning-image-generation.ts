@@ -18,11 +18,15 @@ async function main() {
     assert.equal(new Headers(init?.headers).get("x-goog-api-key"), "test-key");
     const body = JSON.parse(String(init?.body));
     assert.deepEqual(body.generationConfig.responseModalities, ["IMAGE"]);
-    assert.deepEqual(body.generationConfig.imageConfig, { imageSize: "2K", aspectRatio: "4:3" });
+    assert.deepEqual(body.generationConfig.imageConfig, { imageSize: "1K", aspectRatio: "4:3" });
     assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "High");
     assert(init?.signal);
     return Response.json(payload);
   };
+  await generateLearningIllustration({ ...args, aspectRatio: "1:1" }, async (_, init) => {
+    assert.deepEqual(JSON.parse(String(init?.body)).generationConfig.imageConfig, { imageSize: "1K", aspectRatio: "1:1" });
+    return Response.json(payload);
+  });
   const result = await generateLearningIllustration(args, mock);
   assert.deepEqual(result.data, png, "Do not select the thought image");
   assert.equal(result.usage.candidatesTokenCount, 1120);

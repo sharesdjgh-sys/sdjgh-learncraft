@@ -1,12 +1,14 @@
 import sharp from "sharp";
 import { z } from "zod";
 
+export const illustrationAspectRatioSchema = z.enum(["4:3", "1:1"]);
+
 export const illustrationInputSchema = z.object({
   title: z.string().trim().min(1).max(80),
   description: z.string().trim().min(1).max(240),
   prompt: z.string().trim().min(20).max(4000),
   learningGoal: z.string().trim().min(10).max(240),
-  aspectRatio: z.enum(["4:3", "3:4", "16:9", "1:1"]),
+  aspectRatio: illustrationAspectRatioSchema.default("4:3"),
   sections: z.array(z.object({
     heading: z.string().trim().min(1).max(32),
     explanation: z.string().trim().min(10).max(120),
@@ -32,9 +34,10 @@ const responseSchema = z.object({
 });
 
 export async function generateLearningIllustration(input: {
-  apiKey: string; model: string; prompt: string; aspectRatio?: "4:3" | "3:4" | "16:9" | "1:1"; signal?: AbortSignal;
+  apiKey: string; model: string; prompt: string; aspectRatio?: z.infer<typeof illustrationAspectRatioSchema>; signal?: AbortSignal;
 }, fetcher: typeof fetch = fetch) {
   if (!/^gemini-[a-z0-9.-]+image(?:-preview)?$/.test(input.model)) throw new Error("Invalid image model");
+  const aspectRatio = illustrationAspectRatioSchema.parse(input.aspectRatio ?? "4:3");
   const response = await fetcher(`https://generativelanguage.googleapis.com/v1/models/${input.model}:generateContent`, {
     method: "POST",
     headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json" },
@@ -54,7 +57,7 @@ export async function generateLearningIllustration(input: {
       }] }],
       generationConfig: {
         responseModalities: ["IMAGE"], candidateCount: 1,
-        imageConfig: { imageSize: "2K", aspectRatio: input.aspectRatio ?? "4:3" },
+        imageConfig: { imageSize: "1K", aspectRatio },
         ...(/^gemini-3\.1-flash-image(?:-preview)?$/.test(input.model)
           ? { thinkingConfig: { thinkingLevel: "High" } } : {}),
       },
@@ -85,7 +88,7 @@ export async function generateLearningIllustration(input: {
 }
 
 export async function learningImageDataUrl(data: Buffer) {
-  // Preserve 2K output dimensions; bound transport size without shrinking text to 1536px.
+  // Preserve native dimensions without upscaling; retain compatibility with earlier 2K images.
   const source = sharp(data, { limitInputPixels: 20_000_000, animated: false })
     .rotate().resize({ width: 3072, height: 3072, fit: "inside", withoutEnlargement: true });
   for (const quality of [94, 90, 86]) {
