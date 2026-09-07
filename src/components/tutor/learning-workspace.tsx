@@ -38,7 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AI_ANSWER_NOTICE, EXAM_GUIDANCE, LearningGuidance } from "@/components/ui/learning-guidance";
+import { LearningGuidance } from "@/components/ui/learning-guidance";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
@@ -407,7 +407,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
   const [homeOpen, setHomeOpen] = useState(true);
   const [courseOverviewOpen, setCourseOverviewOpen] = useState(false);
-  const [learningLevel, setLearningLevel] = useState<LearningLevel>("STANDARD");
+  const [learningLevel, setLearningLevel] = useState<LearningLevel>("FOUNDATION");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [wideView, setWideView] = useState(false);
@@ -625,6 +625,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }
 
   function selectUnit(unitId: string) {
+    setLearningLevel("FOUNDATION");
     autoScrollRef.current = true;
     setHomeOpen(false);
     setCourseOverviewOpen(false);
@@ -633,7 +634,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     });
     if (unitId === selectedUnitId) {
       const currentSession = unitSessionsRef.current.get(unitId);
-      setLearningLevel(currentSession?.learningLevel ?? learningLevel);
       setMessages(currentSession?.messages ?? messages);
       setConversationOpen(false);
       setDrawerOpen(false);
@@ -647,7 +647,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     }
     const nextSession = unitSessionsRef.current.get(unitId);
     setSelectedUnitId(unitId);
-    setLearningLevel(nextSession?.learningLevel ?? "STANDARD");
     setMessages(nextSession?.messages ?? []);
     setConversationOpen(false);
     setInput("");
@@ -672,7 +671,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setSelectedUnitId(unitId);
     setHomeOpen(false);
     setCourseOverviewOpen(true);
-    setLearningLevel("STANDARD");
+    setLearningLevel("FOUNDATION");
     setMessages([]);
     setConversationOpen(false);
     setInput("");
@@ -1016,15 +1015,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                         </div>
                         <div>
                           {message.content ? <Markdown collapseHints>{message.content}</Markdown> : <Thinking />}
-                          {message.content && (
-                            <p className="mt-4 break-keep rounded-[10px] bg-surface-2 px-3 py-2 text-[.76rem] leading-5 text-ink-3">
-                              {AI_ANSWER_NOTICE} 정답이 다르면 문제 조건과 해설을 비교하고, 담당 선생님께 근거를 확인해 주세요.
-                            </p>
-                          )}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                              <span className="text-[.8rem] text-ink-4">답변 완료 · 이 대화는 서버에 저장되지 않아요</span>
-                              <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+                              <p className="min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">
+                                LearnCraft AI는 틀릴 수 있어요. 정답은 선생님께 확인하세요.
+                              </p>
+                              <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
                                 {index === messages.length - 1 && (
                                   <button onClick={() => resetConversation()} disabled={loading} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-brand/20 bg-brand-page px-2.5 text-[.74rem] font-semibold text-brand-dark transition-all duration-300 hover:-translate-y-px hover:border-brand/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label="새 대화 시작">
                                     <Plus className="size-3.5 sm:size-4" />
@@ -1239,7 +1235,6 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                 </div>
               </form>
             )}
-            <p className="mt-2 break-keep text-center text-[.75rem] leading-5 text-ink-3">{AI_ANSWER_NOTICE} {EXAM_GUIDANCE}</p>
           </div>
         </div>}
       </section>

@@ -1,8 +1,9 @@
 import "server-only";
+import { LEARNING_VISUAL_GUIDE } from "./visual-prompt";
 import { LEARNING_FIGURE_GUIDE } from "./figure-prompt";
 import type { LearningUnit, LearningLevel, SessionUser, TutorAction, TutorContextMessage } from "@/types";
 
-export const TUTOR_PROMPT_VERSION = 18;
+export const TUTOR_PROMPT_VERSION = 19;
 
 type TutorPromptInput = {
   unit: LearningUnit;
@@ -312,6 +313,8 @@ ${actionGuides[action]}
 \`\`\`
 
 ${LEARNING_FIGURE_GUIDE}
+
+${LEARNING_VISUAL_GUIDE}
 
 ## 12. 답변 품질 기준
 - 짧게 끝내는 것보다 학생이 혼자 복습할 수 있을 만큼 완결된 설명을 우선합니다.

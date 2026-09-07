@@ -6,6 +6,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
+import { LearningVisual } from "@/components/ui/learning-visual";
 import { LearningFigure } from "@/components/ui/learning-figure";
 import { compactDollarMath } from "@/lib/math-notation";
 import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
@@ -20,6 +21,9 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
   const child = Children.toArray(children)[0];
   if (isValidElement<{ className?: string; children?: ReactNode }>(child)) {
     const language = child.props.className ?? "";
+    if (/\blanguage-learncraft-visual\b/.test(language)) {
+      return <LearningVisual source={nodeText(child.props.children).trim()} />;
+    }
     if (/\blanguage-learncraft-figure\b/.test(language)) {
       return <LearningFigure source={nodeText(child.props.children).trim()} />;
     }
@@ -373,6 +377,7 @@ function separateKoreanFromDollarMath(value: string) {
 function looksLikeMathExpression(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0
+    && !/(?:\*\*|__)/.test(trimmed)
     && !/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(trimmed)
     && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
 }
@@ -617,15 +622,24 @@ function normalizeDollarDisplayMath(value: string) {
 }
 
 /**
- * CommonMark does not close emphasis when its content ends in punctuation and
- * a Korean particle immediately follows it: **각도(입력값)**에. A skipped HTML
- * comment gives the parser a punctuation boundary without adding a visible
- * space between the noun and its particle.
+ * Repair model-generated strong spans with inner padding or punctuation next
+ * to a word. Skipped comments establish CommonMark delimiter boundaries without
+ * adding visible spaces between a title/formula and the surrounding sentence.
+ * Code spans and fenced blocks are excluded by normalizeMathDelimiters.
  */
 function normalizeKoreanEmphasisBoundaries(value: string) {
   return value.replace(
-    /(\*\*[^*\r\n]+?\*\*)(?=[가-힣])/g,
-    "$1<!--learncraft-emphasis-boundary-->",
+    /(?<![\*])\*\*([^*\r\n]+?)\*\*(?!\*)/g,
+    (match, content: string, offset: number) => {
+      const trimmed = content.trim();
+      if (!trimmed) return match;
+      const before = value.slice(0, offset).at(-1) ?? "";
+      const after = value[offset + match.length] ?? "";
+      const boundary = "<!--learncraft-emphasis-boundary-->";
+      const opening = /[\p{L}\p{N}]/u.test(before) && /^[\p{P}\p{S}]/u.test(trimmed) ? boundary : "";
+      const closing = /[\p{L}\p{N}]/u.test(after) && /[\p{P}\p{S}]$/u.test(trimmed) ? boundary : "";
+      return `${opening}**${trimmed}**${closing}`;
+    },
   );
 }
 

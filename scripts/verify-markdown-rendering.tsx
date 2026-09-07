@@ -3,6 +3,16 @@ import assert from "node:assert/strict";
 import { InlineMarkdown, Markdown } from "../src/components/ui/markdown";
 
 const strongCases = [
+  "**진경산수화(정선의 《인왕제색도》)**",
+  "**진경산수화(정선의 《인왕제색도》)**는 실제 경치를 담아요.",
+  "**진경산수화(정선의 《인왕제색도》) **",
+  "작품**《인왕제색도》**는 실제 경치를 담아요.",
+  "작품**《인왕제색도》**와 **《금강전도》**를 비교해요.",
+  "** H₂O **",
+  "**NaCl**",
+  "**이산화탄소(CO₂)**는",
+  "기호**(NaCl)**은",
+  "**공유 결합(Covalent Bond)**은",
   "**돈(화폐)**",
   "**돈(화폐)**의 기능",
   String.raw`\*\*돈(화폐)\*\*`,
@@ -26,7 +36,7 @@ for (const markdown of strongCases) {
     if (!output.includes("<strong")) {
       throw new Error(`${renderer} Markdown에서 굵게 문법을 렌더링하지 못했습니다: ${markdown}`);
     }
-    if (output.includes("**돈(화폐)**") || output.includes(String.raw`\*\*돈(화폐)\*\*`)) {
+    if (output.includes("**") || output.includes(String.raw`\*\*돈(화폐)\*\*`)) {
       throw new Error(`${renderer} Markdown에 굵게 표시 문자가 그대로 남았습니다: ${markdown}`);
     }
     if (output.includes("∗∗") || output.includes("＊＊") || output.includes("katex-display")) {
@@ -34,6 +44,13 @@ for (const markdown of strongCases) {
     }
   }
 }
+
+for (const markdown of ["`** NaCl **`", "\n```text\n작품**《인왕제색도》**는\n```"]) {
+  const output = renderToStaticMarkup(<Markdown>{markdown}</Markdown>);
+  assert.doesNotMatch(output, /<strong/);
+  assert.match(output, /\*\*/);
+}
+assert.match(renderToStaticMarkup(<Markdown>{"**진경산수화(정선의 《인왕제색도》)**"}</Markdown>), /<strong[^>]*>진경산수화\(정선의 《인왕제색도》\)<\/strong>/);
 
 console.log(`Markdown 렌더링 검증 완료: 굵게 문법 ${strongCases.length}개 입력 × 2개 렌더러`);
 
