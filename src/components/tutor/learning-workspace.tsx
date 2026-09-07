@@ -1,9 +1,10 @@
 "use client";
+import { fillImageSlots } from "@/lib/image-slots";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import Image from "next/image";
-import { TutorProgress as Thinking } from "./tutor-progress";
-import { createTutorEventDecoder, TUTOR_STREAM_TYPE, type TutorProgressStage } from "@/lib/tutor-progress";
+import { TutorProgress as Thinking, PendingIllustration } from "./tutor-progress";
+import { createTutorEventDecoder, isIllustrationPending, TUTOR_STREAM_TYPE, type TutorProgressStage } from "@/lib/tutor-progress";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -812,7 +813,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     try {
       const response = await fetch("/api/ai/tutor", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: TUTOR_STREAM_TYPE },
+        headers: { "Content-Type": "application/json", Accept: TUTOR_STREAM_TYPE, "X-LearnCraft-Image-Slots": "1" },
         body: JSON.stringify({
           requestId: crypto.randomUUID(),
           unitId: selectedUnit.id,
@@ -839,10 +840,16 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
       const decoder = new TextDecoder();
       let accumulated = "";
+      let template = "";
+      const imageUpdates = new Map<string, string>();
       const framed = response.headers.get("content-type")?.includes(TUTOR_STREAM_TYPE);
       const receive = createTutorEventDecoder(event => {
         if (event.type === "status") setProgressStage(event.stage);
-        else accumulated += event.text;
+        else {
+          if (event.type === "image") imageUpdates.set(event.id, event.markdown);
+          else template += event.text;
+          accumulated = fillImageSlots(template, imageUpdates);
+        }
       });
       try {
         while (true) {
@@ -1031,13 +1038,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-[.88rem] font-extrabold text-ink">LearnCraft 튜터</span>
                               <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[.67rem] font-bold text-brand-dark">AI 학습 파트너</span>
-                              {loading && index === messages.length - 1 && message.content && <Thinking stage={progressStage} compact />}
+                              {loading && index === messages.length - 1 && message.content && !isIllustrationPending(progressStage) && <Thinking stage={progressStage} compact />}
                             </div>
                             <p className="mt-0.5 truncate text-[.78rem] text-ink-4">{levelConfig.find((item) => item.level === learningLevel)?.label} · 교육과정 중심 학습</p>
                           </div>
                         </div>
                         <div>
                           {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                          {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <p className="min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">

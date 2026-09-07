@@ -2,7 +2,7 @@ export const EXPLICIT_IMAGE_FAILURE = "요청하신 Nano Banana 이미지를 생
 export const EXPLICIT_IMAGE_GUIDE = `이번 요청은 Nano Banana로 실제 생성 이미지를 만드는 요청입니다. 일반 시각자료 선택 규칙보다 이 요청을 우선합니다.
 - 반드시 generate_learning_illustration을 호출합니다. 플로차트, Mermaid, flow, timeline, learncraft-figure, learncraft-graph, map, music, Markdown 표, ASCII 도식, 웹 검색 이미지로 대체하지 않습니다.
 - 도구 호출 전에 정확한 내용과 문구를 구성하고, 생성용 prompt에는 평면적인 상자·화살표 도식이나 아이콘 나열 대신 설명을 담은 일러스트/인포그래픽을 요청합니다.
-- 성공한 이미지는 앱이 표시합니다. 본문에는 그 이미지를 읽는 데 필요한 짧은 설명만 씁니다. 코드 블록과 별도 이미지는 출력하지 않습니다.
+- 도구가 scheduled:true를 반환하면 이미지 생성은 별도로 진행 중입니다. 기다리지 말고 핵심 개념과 원리를 본문으로 먼저 충분히 설명합니다. 실제 그림을 보았거나 완성됐다고 말하지 않습니다. 성공한 이미지는 검수 후 앱이 답변에 표시합니다. 도구가 placementMarker를 반환하면 관련 설명 직후의 독립된 줄에 그 표식을 정확히 한 번 출력하고 설명을 이어갑니다. 코드 블록과 별도 이미지는 출력하지 않습니다.
 - 실패하면 Nano Banana 이미지 생성 또는 검수 실패를 정확히 알리고 다시 요청하도록 안내합니다. 도식이나 표를 대신 만들거나 생성이 완료됐다고 말하지 않습니다.
 - 실제 원본이나 공식 정답으로 가장하지 않고 학습용 생성 이미지로 설명합니다.`;
 
@@ -29,17 +29,29 @@ export function explicitImageToolStep(stepNumber: number) {
     : { toolChoice: stepNumber >= 3 ? "none" as const : "auto" as const, activeTools: ["generate_learning_illustration" as const] };
 }
 
-/** Only server-inserted image blocks are allowed; never display a model's substitute visual. */
-export function finishExplicitImageAnswer(text: string, imageDelivered: boolean) {
-  if (!imageDelivered) return EXPLICIT_IMAGE_FAILURE;
+/** Line-framed filter: show prose while generation runs, but never leak partial visual fences. */
+export function createExplicitImageTextFilter() {
+  let pending = "";
   let fence: { char: string; length: number } | undefined;
-  return text.split("\n").filter(line => {
-    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (fence) {
-      if (marker && marker[1][0] === fence.char && marker[1].length >= fence.length && !marker[2].trim()) fence = undefined;
-      return false;
+  return (chunk: string, final = false) => {
+    pending += chunk;
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    if (final && pending) { lines.push(pending); pending = ""; }
+    const result: string[] = [];
+    for (const line of lines) {
+      const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (fence) {
+        if (marker && marker[1][0] === fence.char && marker[1].length >= fence.length && !marker[2].trim()) fence = undefined;
+        continue;
+      }
+      if (marker) { fence = { char: marker[1][0], length: marker[1].length }; continue; }
+      result.push(line.replace(/!\[[^\]]*\]\([^)]*\)/g, ""));
     }
-    if (marker) { fence = { char: marker[1][0], length: marker[1].length }; return false; }
-    return true;
-  }).join("\n").replace(/!\[[^\]]*\]\([^)]*\)/g, "").trim();
+    return result.length ? result.join("\n") + "\n" : "";
+  };
+}
+
+export function finishExplicitImageAnswer(text: string, imageDelivered: boolean) {
+  return imageDelivered ? createExplicitImageTextFilter()(text, true).trim() : EXPLICIT_IMAGE_FAILURE;
 }

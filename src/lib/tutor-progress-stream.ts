@@ -6,7 +6,14 @@ export function createTutorProgress() {
   const listeners = new Set<(stage: TutorProgressStage) => void>();
   const current = () => [...tasks.values()].at(-1) ?? base;
   const notify = () => listeners.forEach(listener => listener(current()));
+  const images = new Map<string, string>();
+  const imageListeners = new Set<(event: Extract<TutorStreamEvent, { type: "image" }>) => void>();
   return {
+    image(id: string, markdown: string) { images.set(id, markdown); imageListeners.forEach(listener => listener({ type: "image", id, markdown })); },
+    subscribeImages(listener: (event: Extract<TutorStreamEvent, { type: "image" }>) => void) {
+      imageListeners.add(listener); images.forEach((markdown, id) => listener({ type: "image", id, markdown }));
+      return () => { imageListeners.delete(listener); };
+    },
     set(stage: TutorProgressStage) { base = stage; notify(); },
     begin(stage: TutorProgressStage) {
       const id = Symbol(); tasks.set(id, stage); notify();
@@ -35,9 +42,11 @@ export function withTutorProgress(source: ReadableStream<Uint8Array>, progress: 
         if (!ended) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
       };
       let last: TutorProgressStage | undefined;
-      unsubscribe = progress.subscribe(stage => {
+      const unsubscribeStatus = progress.subscribe(stage => {
         if (stage !== last) { last = stage; send({ type: "status", stage }); }
       });
+      const unsubscribeImages = progress.subscribeImages(send);
+      unsubscribe = () => { unsubscribeStatus(); unsubscribeImages(); };
       void (async () => {
         try {
           while (!ended) {

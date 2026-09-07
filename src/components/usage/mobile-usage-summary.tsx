@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, Clock, Sparkles, X } from "lucide-react";
 
 type CourseUsage = {
@@ -25,14 +25,33 @@ export function MobileUsageSummary() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef<AbortController | null>(null);
+
   const loadUsage = useCallback(async () => {
+    if (request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setError(null);
     setLoading(true);
     try {
-      const response = await fetch("/api/usage", { cache: "no-store" });
-      if (!response.ok) return;
-      setUsage(await response.json() as UsageSummary);
+      const response = await fetch("/api/usage", { cache: "no-store", signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (response.status === 401) {
+        setUsage(null);
+        setError("로그인 상태를 확인해 주세요.");
+        return;
+      }
+      if (!response.ok) throw new Error("Usage request failed");
+      const nextUsage = await response.json() as UsageSummary;
+      if (!controller.signal.aborted) setUsage(nextUsage);
+    } catch {
+      if (!controller.signal.aborted) setError("사용 내역을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      if (request.current === controller) {
+        request.current = null;
+        if (!controller.signal.aborted) setLoading(false);
+      }
     }
   }, []);
 
@@ -47,6 +66,8 @@ export function MobileUsageSummary() {
     window.addEventListener("focus", refreshOnFocus);
     return () => {
       window.clearTimeout(initialLoadTimer);
+      request.current?.abort();
+      request.current = null;
       window.removeEventListener("learncraft:usage-updated", updateRemaining);
       window.removeEventListener("focus", refreshOnFocus);
     };
@@ -61,7 +82,7 @@ export function MobileUsageSummary() {
         aria-label={`오늘 남은 AI 질문 ${usage?.remaining ?? "-"}/${usage?.limit ?? "-"}회, 사용 내역 보기`}
       >
         <Sparkles size={17} strokeWidth={1.9} className={open ? "text-[#3217c9]" : "text-[#996bf5]"} aria-hidden="true" />
-        <span className={`figure rounded-full px-1.5 py-px text-[.64rem] font-bold leading-4 text-white shadow-[0_2px_7px_rgba(82,57,157,.22)] ${open ? "bg-[#3217c9]" : "bg-[#8064ef]"}`}>{usage ? `${usage.remaining}/${usage.limit}회` : "확인 중"}</span>
+        <span className={`figure rounded-full px-1.5 py-px text-[.64rem] font-bold leading-4 text-white shadow-[0_2px_7px_rgba(82,57,157,.22)] ${open ? "bg-[#3217c9]" : "bg-[#8064ef]"}`}>{usage ? `${usage.remaining}/${usage.limit}회` : error ? "확인 필요" : "확인 중"}</span>
       </button>
 
       {open && (
@@ -87,6 +108,10 @@ export function MobileUsageSummary() {
             </div>
 
             <div className="mt-5 flex items-center gap-2 text-[.78rem] font-bold text-ink"><Activity size={15} className="text-brand" /> 과목별 질문</div>
+            {error && <div className="mt-3 text-[.78rem] text-ink-4" role="status">
+              <p>{error}</p>
+              <button type="button" onClick={() => void loadUsage()} disabled={loading} className="mt-2 rounded-lg border border-line px-3 py-2 font-semibold text-brand">다시 시도</button>
+            </div>}
             {loading && !usage ? (
               <p className="py-8 text-center text-[.78rem] text-ink-5">사용 내역을 불러오고 있어요.</p>
             ) : usage?.byCourse.length ? (
@@ -102,9 +127,9 @@ export function MobileUsageSummary() {
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : !error ? (
               <div className="mt-2 rounded-[13px] border border-dashed border-line px-4 py-7 text-center text-[.78rem] text-ink-4">오늘 직접 질문한 기록이 아직 없어요.</div>
-            )}
+            ) : null}
             <p className="mt-4 text-[.68rem] leading-5 text-ink-5">직접 입력해 전송한 AI 질문만 집계합니다. 이어서 학습하기 버튼은 질문 횟수에 포함되지 않아요.</p>
           </section>
         </div>

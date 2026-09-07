@@ -10,7 +10,7 @@ export function learningTextContext(markdown: string) {
   return markdown.replace(/```learncraft-visual\s*\n([\s\S]*?)```/g, (block, source: string) => {
     try {
       const spec = JSON.parse(source);
-      if (spec.kind !== "generated-image") return block;
+      if (spec.kind !== "generated-image" && spec.kind !== "image-slot") return block;
       return `[학습용 생성 그림: ${String(spec.title ?? "")} — ${String(spec.description ?? "")}]`;
     } catch { return block; }
   });

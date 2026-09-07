@@ -1,4 +1,7 @@
-import { requestsGeneratedImage, explicitImageToolStep, finishExplicitImageAnswer, EXPLICIT_IMAGE_GUIDE } from "@/lib/explicit-image-request";
+import { createImageSlotPlacement, imageSlotMarkdown, imageSlotMarker } from "@/lib/image-slots";
+import { type VisualOf } from "@/lib/learning-visual";
+import { createDeferredIllustrations, appendDeferredIllustrations } from "@/lib/deferred-illustrations";
+import { requestsGeneratedImage, explicitImageToolStep, createExplicitImageTextFilter, EXPLICIT_IMAGE_GUIDE, EXPLICIT_IMAGE_FAILURE } from "@/lib/explicit-image-request";
 import { createTutorProgress, withTutorProgress } from "@/lib/tutor-progress-stream";
 import { TUTOR_STREAM_TYPE } from "@/lib/tutor-progress";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -110,20 +113,19 @@ function tutorTextStream(
   onFallback: () => Promise<void>,
   isAborted: () => boolean,
   onStreamFailure: (code: string, cancelled?: boolean) => Promise<void>,
-  drainImages: () => string[],
-  finalizeText?: (text: string) => string,
+  createTextFilter?: typeof createExplicitImageTextFilter,
 ) {
   const encoder = new TextEncoder();
   let iterator = primaryResult.stream[Symbol.asyncIterator]();
   let ended = false;
   let emittedText = false;
   let usingFallback = false;
-  let bufferedText = "";
+  let filterText = createTextFilter?.();
 
   async function switchToFallback() {
     if (usingFallback || emittedText || !createFallbackResult || isAborted()) return false;
     usingFallback = true;
-    bufferedText = "";
+    filterText = createTextFilter?.();
     await iterator.return?.();
     await onFallback();
     iterator = createFallbackResult().stream[Symbol.asyncIterator]();
@@ -141,14 +143,10 @@ function tutorTextStream(
             if (await switchToFallback()) continue;
             throw streamError();
           }
-          for (const visual of drainImages()) {
-            emittedText = true;
-            controller.enqueue(encoder.encode(visual));
-          }
           if (next.done) {
-            if (finalizeText) {
-              const text = finalizeText(bufferedText);
-              if (text) controller.enqueue(encoder.encode("\n\n" + text));
+            if (filterText) {
+              const text = filterText("", true);
+              if (text) controller.enqueue(encoder.encode(text));
             }
             ended = true;
             controller.close();
@@ -157,9 +155,10 @@ function tutorTextStream(
 
           const part = next.value;
           if (part.type === "text-delta") {
-            if (finalizeText) { bufferedText += part.text; continue; }
+            const text = filterText ? filterText(part.text) : part.text;
+            if (!text) continue;
             emittedText = true;
-            controller.enqueue(encoder.encode(part.text));
+            controller.enqueue(encoder.encode(text));
             return;
           }
 
@@ -322,10 +321,13 @@ export async function POST(request: Request) {
               })),
             ],
           }];
+      const wantsProgress = request.headers.get("accept")?.includes(TUTOR_STREAM_TYPE);
+      const useImageSlots = wantsProgress && request.headers.get("X-LearnCraft-Image-Slots") === "1";
+      const slots = new Map<string, VisualOf<"image-slot">>();
+      const slotKeys = new Map<string, string>();
       const progress = createTutorProgress();
-      const pendingImages: string[] = [];
+      const imageJobs = createDeferredIllustrations(request.signal, EXPLICIT_IMAGE_FAILURE);
       let imageSearches = 0;
-      let imageDelivered = false;
       const generationAvailable = env.GEMINI_IMAGE_ENABLED === "true";
       const createResult = (modelId: string) => {
         const startedAt = Date.now();
@@ -342,32 +344,43 @@ export async function POST(request: Request) {
           tools: {
             ...(generationAvailable ? {
               generate_learning_illustration: tool({
-                description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. The application displays each successful image automatically. Explain it in text without repeating an image block. Call again for a different illustration when needed.",
+                description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. This tool schedules generation and returns immediately. Explain the learning content while it runs; do not claim to see a finished image. When a placementMarker is returned, output it once on its own line at the relevant point within your explanation. The application fills that reserved space with the reviewed image. Call again for a different illustration when needed.",
                 inputSchema: illustrationInputSchema,
-                execute: async (brief) => {
-                  const { title, description } = brief;
-                  const task = progress.begin("image_generating");
-                  try {
-                    request.signal.throwIfAborted();
-                    const generated = await generateReviewedLearningIllustration({
-                      apiKey: env.GEMINI_API_KEY!, model: env.GEMINI_IMAGE_MODEL_ID,
-                      brief, reviewModel: modelId, signal: request.signal, onProgress: task.update,
-                    });
-                    // Images travel directly to the client; model history receives metadata only.
-                    const dataUrl = generated.dataUrl;
-                    imageDelivered = true;
-                    pendingImages.push(inlineLearningImageMarkdown({
-                      kind: "generated-image", id: crypto.randomUUID(), title, description, dataUrl,
-                    }));
-                    console.info("learning_image_usage", { model: env.GEMINI_IMAGE_MODEL_ID, usage: generated.usage });
-                    progress.set("writing");
-                    return { displayed: true, title, description,
-                      message: "생성 그림이 답변에 자동 표시되었습니다. 이미지 블록을 다시 작성하지 말고 이어서 핵심 개념을 설명하세요. 다른 그림이 필요하면 추가 생성할 수 있습니다. 자동 이미지 검수를 거쳤지만 사실과 정답의 정확성을 보장하지는 않습니다." };
-                  } catch {
-                    progress.set(explicitImage ? "image_failed" : "image_fallback");
-                    if (explicitImage) return { error: "Nano Banana 이미지 생성 또는 검수에 실패했습니다. 도식·플로차트·표로 대체하지 말고 실패 사실과 재요청 안내만 전달하세요." };
-                    return { error: "그림을 생성하거나 품질을 확인하지 못했습니다. 없는 그림을 언급하지 말고 필요한 내용을 빠짐없이 표·도식과 본문으로 설명하세요." };
-                  } finally { task.end(); }
+                execute: (brief) => {
+                  request.signal.throwIfAborted();
+                  const { title, description, aspectRatio } = brief;
+                  const key = JSON.stringify(brief);
+                  const id = slotKeys.get(key) ?? crypto.randomUUID();
+                  slotKeys.set(key, id);
+                  const slot: VisualOf<"image-slot"> = { kind: "image-slot", id, title, description, aspectRatio, stage: "image_generating" };
+                  if (useImageSlots && !slots.has(id)) slots.set(id, slot);
+                  imageJobs.schedule(key, async signal => {
+                    const task = progress.begin("image_generating");
+                    try {
+                      const generated = await generateReviewedLearningIllustration({
+                        apiKey: env.GEMINI_API_KEY!, model: env.GEMINI_IMAGE_MODEL_ID,
+                        brief, reviewModel: modelId, signal, onProgress: stage => {
+                          task.update(stage);
+                          if (useImageSlots && (stage === "image_generating" || stage === "image_processing" || stage === "image_reviewing" || stage === "image_revising" || stage === "image_failed")) progress.image(id, imageSlotMarkdown({ ...slot, stage }));
+                        },
+                      });
+                      console.info("learning_image_usage", { model: env.GEMINI_IMAGE_MODEL_ID, usage: generated.usage });
+                      const markdown = inlineLearningImageMarkdown({
+                        kind: "generated-image", id, title, description, aspectRatio, dataUrl: generated.dataUrl,
+                      });
+                      if (useImageSlots) { progress.image(id, markdown); return ""; }
+                      return markdown;
+                    } catch (error) {
+                      if (!signal.aborted) {
+                        progress.set("image_failed");
+                        if (useImageSlots) { progress.image(id, imageSlotMarkdown({ ...slot, stage: "image_failed" })); return ""; }
+                      }
+                      throw error;
+                    } finally { task.end(); }
+                  });
+                  return { scheduled: true, title, description,
+                    ...(useImageSlots ? { placementMarker: imageSlotMarker(id), placementInstruction: "관련 개념 설명 직후, 이어지는 설명 앞의 독립된 줄에 placementMarker를 정확히 한 번 출력하세요. 코드 블록으로 감싸지 마세요. 앱이 그 자리에 공간을 확보하고 완성된 그림을 채웁니다." } : {}),
+                    message: "그림 생성과 검수는 별도로 진행 중이며 앱이 완료 후 답변에 표시합니다. placementMarker가 있으면 반드시 관련 설명 사이에 배치하세요. 기다리지 말고 학생에게 핵심 개념과 원리를 본문으로 먼저 충분히 설명하세요. 그림을 이미 보았거나 완성됐다고 말하지 마세요. 같은 그림을 다시 호출하거나 이미지 블록을 출력하지 마세요. 실패 안내도 앱이 처리합니다." };
                 },
               }),
             } : {}),
@@ -419,16 +432,15 @@ export async function POST(request: Request) {
       );
       const result = createResult(env.GEMINI_PRIMARY_MODEL_ID);
 
-      const stream = tutorTextStream(
+      const textStream = tutorTextStream(
         result,
         fallbackEnabled ? () => createResult(env.GEMINI_FALLBACK_MODEL_ID) : null,
         async () => { progress.set("retrying"); if (chargesUsage) await switchAiUsageModel(user, input.requestId, env.GEMINI_FALLBACK_MODEL_ID); },
         () => request.signal.aborted,
         (code, cancelled) => chargesUsage ? refundAiUsage(user, input.requestId, code, cancelled) : Promise.resolve(),
-        () => pendingImages.splice(0),
-        explicitImage ? text => finishExplicitImageAnswer(text, imageDelivered) : undefined,
+        explicitImage ? createExplicitImageTextFilter : undefined,
       );
-      const wantsProgress = request.headers.get("accept")?.includes(TUTOR_STREAM_TYPE);
+      const stream = appendDeferredIllustrations(useImageSlots ? textStream.pipeThrough(createImageSlotPlacement(slots)) : textStream, imageJobs, explicitImage ? EXPLICIT_IMAGE_FAILURE : undefined);
       return new Response(wantsProgress ? withTutorProgress(stream, progress) : stream, {
         headers: { ...headers, ...(wantsProgress ? { "Content-Type": `${TUTOR_STREAM_TYPE}; charset=utf-8` } : {}) },
       });

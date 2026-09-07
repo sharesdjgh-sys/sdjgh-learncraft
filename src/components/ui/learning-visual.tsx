@@ -1,4 +1,5 @@
 "use client";
+import { TutorProgress } from "@/components/tutor/tutor-progress";
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -124,25 +125,34 @@ function ReferenceImage({ spec }: { spec: VisualOf<"image"> }) {
   </>;
 }
 
-function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> }) {
+function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf<"image-slot"> }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   // Cached/data-URL images may finish before hydration attaches the load handler.
   const imageRef = useCallback((element: HTMLImageElement | null) => {
     if (element?.complete) setStatus(element.naturalWidth > 0 ? "ready" : "error");
   }, []);
+  const pending = spec.kind === "image-slot";
+  const src = pending ? undefined : spec.dataUrl ?? `/api/learning-images/${spec.id}`;
   return <>
+    <div className="relative mx-auto w-full" style={spec.aspectRatio ? { aspectRatio: spec.aspectRatio.replace(":", "/") } : undefined}>
+    {pending ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-brand-page p-4 text-center" role="status">
+      <TutorProgress stage={spec.stage} compact />
+      <p className="text-[.8rem] text-ink-3">{spec.stage === "image_failed" ? "그림을 완성하지 못했어요. 다시 요청해 주세요." : "설명을 계속 읽어보세요. 완성되면 이 자리에 표시돼요."}</p>
+    </div> : <>
     {status !== "ready" && <Pending failed={status === "error"} />}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img ref={imageRef} src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} loading="eager"
+    <img ref={imageRef} src={src} alt={spec.description} loading="eager"
       onLoad={() => setStatus("ready")} onError={() => setStatus("error")}
-      className={`${status === "error" ? "hidden" : ""} mx-auto max-h-[600px] w-auto max-w-full rounded-lg object-contain`} />
-    {status === "ready" && <button type="button" onClick={() => dialog.current?.showModal()} className="mt-3 rounded-lg border border-line px-3 py-2 text-[.8rem] font-semibold text-brand">그림 크게 보기</button>}
-    <dialog ref={dialog} aria-label={spec.title} className="m-auto max-h-[95dvh] w-[96vw] max-w-[1600px] overflow-auto rounded-xl bg-surface p-4 text-ink backdrop:bg-black/65">
+      className={`${status === "error" ? "hidden" : ""} ${spec.aspectRatio ? "absolute inset-0 h-full w-full" : "mx-auto max-h-[600px] w-auto max-w-full"} rounded-lg object-contain`} />
+    </>}
+    </div>
+    <div className="flex h-14 items-center">{!pending && status === "ready" && <button type="button" onClick={() => dialog.current?.showModal()} className="rounded-lg border border-line px-3 py-2 text-[.8rem] font-semibold text-brand">그림 크게 보기</button>}</div>
+    {!pending && <dialog ref={dialog} aria-label={spec.title} className="m-auto max-h-[95dvh] w-[96vw] max-w-[1600px] overflow-auto rounded-xl bg-surface p-4 text-ink backdrop:bg-black/65">
       <div className="sticky top-0 mb-3 flex items-center justify-between gap-4 bg-surface py-2"><p className="font-bold">{spec.title}</p><button type="button" autoFocus onClick={() => dialog.current?.close()} className="shrink-0 rounded-lg border border-line px-4 py-2">닫기</button></div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={spec.dataUrl ?? `/api/learning-images/${spec.id}`} alt={spec.description} className="h-auto w-full" />
-    </dialog>
+      <img src={src} alt={spec.description} className="h-auto w-full" />
+    </dialog>}
     <p className="mt-3 text-[.76rem] font-semibold leading-5 text-ink-3">LearnCraft AI 생성 그림 · 학습용 예시</p>
     <p className="mt-1 text-[.74rem] leading-5 text-ink-4">그림의 세부 표현은 실제와 다를 수 있어요. 핵심 개념은 본문 설명과 함께 확인하세요.</p>
   </>;
@@ -157,6 +167,6 @@ export function LearningVisual({ source, streaming = false }: { source: string; 
     {spec.kind === "flow" || spec.kind === "timeline" ? <Relationship key={source} spec={spec} />
       : spec.kind === "music" ? <Music key={source} spec={spec} />
       : spec.kind === "map" ? <MapVisual spec={spec} />
-      : spec.kind === "generated-image" ? <GeneratedImage key={spec.id} spec={spec} /> : <ReferenceImage key={spec.file} spec={spec} />}
+      : spec.kind === "generated-image" || spec.kind === "image-slot" ? <GeneratedImage key={spec.id} spec={spec} /> : <ReferenceImage key={spec.file} spec={spec} />}
   </Frame>;
 }
