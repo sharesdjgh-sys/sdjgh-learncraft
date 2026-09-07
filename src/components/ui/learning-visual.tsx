@@ -27,7 +27,17 @@ function Relationship({ spec }: { spec: VisualOf<"flow"> | VisualOf<"timeline"> 
         const [{ default: mermaid }, { default: DOMPurify }] = await Promise.all([import("mermaid"), import("dompurify")]);
         await document.fonts.ready;
         if (cancelled) return;
-        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral", htmlLabels: false, fontFamily: "sans-serif", flowchart: { htmlLabels: false, useMaxWidth: true }, maxEdges: 40 });
+        const fontFamily = getComputedStyle(host.current ?? document.body).fontFamily;
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "neutral",
+          htmlLabels: false,
+          fontFamily,
+          themeVariables: { fontFamily, fontSize: "14px" },
+          flowchart: { htmlLabels: false, useMaxWidth: true },
+          maxEdges: 40,
+        });
         const { svg } = await mermaid.render(`visual${id}`, visualMermaid(spec));
         if (cancelled || !host.current) return;
         host.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, FORBID_TAGS: ["foreignObject", "image", "a"] });
