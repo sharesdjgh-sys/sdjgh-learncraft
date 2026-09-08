@@ -11,7 +11,7 @@ export const learningImageFailureMessages: Record<LearningImageFailureCode, stri
   PROVIDER_UNAVAILABLE: "이미지 서비스가 일시적으로 응답하지 않아요. 잠시 후 다시 요청해 주세요.",
   CONTENT_BLOCKED: "요청한 그림을 이미지 서비스에서 생성하지 못했어요. 표현을 바꾸어 요청해 주세요.",
   NO_IMAGE: "이미지 서비스가 완성된 그림을 반환하지 않았어요. 다시 요청해 주세요.",
-  QUALITY_REJECTED: "그림을 만들었지만 글자나 내용 검수를 통과하지 못했어요. 내용을 나누어 다시 요청해 주세요.",
+  QUALITY_REJECTED: "그림의 핵심 내용이나 관계에 오류가 있어 표시하지 못했어요. 다시 요청해 주세요.",
   REVIEW_FAILED: "그림 검수를 완료하지 못했어요. 잠시 후 다시 요청해 주세요.",
   ENCODING_FAILED: "그림을 표시할 수 있는 크기와 형식으로 정리하지 못했어요. 다시 요청해 주세요.",
   UNKNOWN: "그림을 완성하지 못했어요. 다시 요청해 주세요.",

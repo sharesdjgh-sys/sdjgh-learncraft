@@ -5,7 +5,7 @@ export const tutorProgressLabels = {
   image_search: "설명에 필요한 시각 자료를 찾고 있어요",
   image_generating: "학습용 그림을 그리고 있어요",
   image_processing: "그림의 해상도와 선명도를 정리하고 있어요",
-  image_reviewing: "그림의 한글과 설명 내용을 검수하고 있어요",
+  image_reviewing: "그림의 핵심 내용이 왜곡되지 않았는지 확인하고 있어요",
   image_revising: "검수에서 발견한 문제를 반영해 그림을 다시 그리고 있어요",
   image_failed: "이미지 생성 실패를 안내하고 있어요",
   image_fallback: "그림 대신 이해하기 쉬운 설명과 도식을 준비하고 있어요",
