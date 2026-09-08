@@ -73,6 +73,18 @@ async function main() {
       description: "학습용 예시", dataUrl: await learningImageDataUrl(generated.data) };
   }));
   assert.equal(calls, 5);
+  const textContent = { sections: [{ heading: "증발", explanation: "물이 에너지를 얻어 수증기가 됩니다." }], connections: ["수증기가 냉각되면 물방울로 응결합니다."] };
+  const withText = inlineLearningImageMarkdown({ ...examples[0], textContent });
+  const persistedText = JSON.parse(JSON.stringify({ answerMarkdown: withText })).answerMarkdown;
+  const textSpec = parseLearningVisual(persistedText.match(/```learncraft-visual\s*\n([\s\S]*?)```/)![1]);
+  assert(textSpec.kind === "generated-image");
+  assert.deepEqual(textSpec.textContent, textContent, "Bookmark retains the original readable concept text");
+  const textCopy = learningTextContext(persistedText);
+  assert(textCopy.includes(textContent.sections[0].explanation));
+  assert(textCopy.includes(textContent.connections[0]));
+  assert(!textCopy.includes("base64"));
+  const brokenImageBlock = '\n```learncraft-visual\n' + JSON.stringify({ ...examples[0], id: "invalid", textContent }) + '\n```';
+  assert(!learningTextContext(brokenImageBlock).includes("base64"), "Invalid image metadata must not leak image bytes into context");
   const answer = "앞 설명" + examples.map(inlineLearningImageMarkdown).join("") + "뒤 설명";
   assert.equal((answer.match(/data:image\/webp;base64,/g) ?? []).length, 4);
   const restored = JSON.parse(JSON.stringify({ answerMarkdown: answer })).answerMarkdown;

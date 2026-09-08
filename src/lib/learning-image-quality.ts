@@ -18,10 +18,12 @@ export function illustrationReviewPassed(review: IllustrationReview) {
 
 export function buildIllustrationBrief(brief: IllustrationBrief) {
   return JSON.stringify({
-    title: brief.title, learningGoal: brief.learningGoal,
-    sections: brief.sections, connections: brief.connections,
+    title: brief.title,
+    visibleLabels: brief.sections.map((section) => section.heading),
+    visualPlan: brief.sections.map((section) => ({ label: section.heading, scene: section.visual, meaningForContextOnly: section.explanation })),
+    contextOnly: { learningGoal: brief.learningGoal, relationshipsToDepict: brief.connections },
     composition: brief.prompt,
-    instructions: "Preserve the core educational meaning, key concepts and relationships. Use visual fields to draw explanatory content. Korean captions may be shortened or paraphrased without changing their meaning. Do not render JSON field names. Use qualified descriptions for historical overlap and avoid unsupported causal arrows.",
+    instructions: "Draw a picture-led infographic with large explanatory scenes and ample whitespace. Select 2-4 core/basic concepts and show a short title, key labels and, where useful, one brief line explaining each basic concept. Keep basic meaning understandable; omit advanced details, derivations, exceptions and secondary examples. meaningForContextOnly and contextOnly are background to summarize visually, NOT text to copy in full. The surrounding answer provides the detailed explanation. No paragraphs or dense explanation cards. Preserve key concepts and relationships; avoid unsupported causal arrows. Do not render JSON field names.",
   });
 }
 

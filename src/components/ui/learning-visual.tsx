@@ -157,6 +157,23 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={spec.description} className="h-auto w-full" />
     </dialog>}
+    {spec.textContent && <details className="group mt-3 rounded-xl border border-line bg-surface-2">
+      <summary className="cursor-pointer rounded-xl px-4 py-3 text-[.82rem] font-semibold text-ink-2 outline-none focus-visible:ring-2 focus-visible:ring-brand">그림의 글·핵심 개념 보기</summary>
+      <div className="space-y-4 border-t border-line px-4 py-4 text-[.82rem] leading-7 text-ink-2">
+        <p className="text-[.75rem] leading-6 text-ink-4">그림을 만들 때 사용한 핵심 개념 설명입니다.</p>
+        <p className="font-bold">{spec.title}</p>
+        <dl className="space-y-3">
+          {spec.textContent.sections.map((section, index) => <div key={index}>
+            <dt className="break-words font-semibold">{section.heading}</dt>
+            <dd className="mt-1 whitespace-pre-wrap break-words">{section.explanation}</dd>
+          </div>)}
+        </dl>
+        {spec.textContent.connections.length > 0 && <div>
+          <p className="font-semibold">개념 사이의 관계</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">{spec.textContent.connections.map((connection, index) => <li key={index} className="whitespace-pre-wrap break-words">{connection}</li>)}</ul>
+        </div>}
+      </div>
+    </details>}
     <p className="mt-3 text-[.76rem] font-semibold leading-5 text-ink-3">LearnCraft AI 생성 그림 · 학습용 예시</p>
     <p className="mt-1 text-[.74rem] leading-5 text-ink-4">그림의 세부 표현은 실제와 다를 수 있어요. 핵심 개념은 본문 설명과 함께 확인하세요.</p>
   </>;

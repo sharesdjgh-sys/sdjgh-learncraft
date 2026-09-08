@@ -11,11 +11,11 @@ export const illustrationInputSchema = z.object({
   learningGoal: z.string().trim().min(10).max(240),
   aspectRatio: illustrationAspectRatioSchema.default("4:3"),
   sections: z.array(z.object({
-    heading: z.string().trim().min(1).max(32),
-    explanation: z.string().trim().min(10).max(120),
+    heading: z.string().trim().min(1).max(32).describe("Short key label, preferably 2-8 Korean characters; not a sentence."),
+    explanation: z.string().trim().min(10).max(120).describe("Meaning for the illustrator to understand, NOT text to print inside the image. Detailed explanation belongs in the answer body."),
     visual: z.string().trim().min(10).max(240),
   })).min(2).max(6),
-  connections: z.array(z.string().trim().min(5).max(120)).min(1).max(6),
+  connections: z.array(z.string().trim().min(5).max(120)).min(1).max(6).describe("Relationships to depict visually; not mandatory captions to print."),
 });
 
 const responseSchema = z.object({
@@ -49,8 +49,12 @@ export async function generateLearningIllustration(input: {
         "Create one publication-quality educational illustration or infographic matching the requested format for Korean high school students. "
         + "Do not render a flowchart, box-and-arrow diagram, or a row of decorative icon cards. Draw an integrated explanatory illustration. "
         + "Use meaningful explanatory illustrations: comparisons, mechanisms, causes and consequences, not decorative icons. "
-        + "Preserve the meaning of the supplied title, section explanations and relationships in Korean. "
-        + "Shorten or paraphrase captions when helpful, without changing the core concepts, quantities or causal relationships. Use large legible Korean sans-serif lettering, strong contrast, "
+        + "Make the picture the primary explanation: devote most of the canvas to large meaningful scenes, structures and comparisons, with ample whitespace. "
+        + "The accompanying answer already contains the full concept explanation. Do NOT repeat it inside the image. "
+        + "Focus on 2-4 core/basic concepts: include a short Korean title, key labels, and at most one concise line explaining each basic concept when needed. "
+        + "Keep enough basic explanation to understand the picture; omit advanced details, long definitions, derivations, exceptions, extra examples, paragraphs and text-heavy cards. "
+        + "The brief's learning goal, meaning notes and relationships are context to DRAW, not copy to print. Convey relationships through the illustration itself. "
+        + "Preserve core concepts, quantities and causal relationships. Use large legible Korean sans-serif labels, strong contrast, "
         + "consistent typography, generous margins and a clear reading order. Allocate enough space for each caption. "
         + "Show WHY and HOW, not just names and arrows. Avoid misleading historical replacement or causal claims. "
         + "Do not invent official answers, statistics or authentic artworks. No personal information. "

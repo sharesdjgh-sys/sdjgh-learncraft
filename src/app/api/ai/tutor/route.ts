@@ -353,7 +353,9 @@ export async function POST(request: Request) {
                   const key = JSON.stringify(brief);
                   const id = slotKeys.get(key) ?? crypto.randomUUID();
                   slotKeys.set(key, id);
-                  const slot: VisualOf<"image-slot"> = { kind: "image-slot", id, title, description, aspectRatio, stage: "image_generating" };
+                  const slot: VisualOf<"image-slot"> = { kind: "image-slot", id, title, description, aspectRatio, stage: "image_generating",
+                    textContent: { sections: brief.sections.map(({ heading, explanation }) => ({ heading, explanation })), connections: brief.connections },
+                  };
                   if (useImageSlots && !slots.has(id)) slots.set(id, slot);
                   imageJobs.schedule(key, async signal => {
                     const task = progress.begin("image_generating");
@@ -370,7 +372,7 @@ export async function POST(request: Request) {
                       });
                       console.info("learning_image_usage", { model: env.GEMINI_IMAGE_MODEL_ID, usage: generated.usage });
                       const markdown = inlineLearningImageMarkdown({
-                        kind: "generated-image", id, title, description, aspectRatio, dataUrl: generated.dataUrl,
+                        kind: "generated-image", id, title, description, aspectRatio, dataUrl: generated.dataUrl, textContent: slot.textContent,
                       });
                       if (useImageSlots) { progress.image(id, markdown); return ""; }
                       return markdown;

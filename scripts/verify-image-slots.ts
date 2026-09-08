@@ -8,6 +8,7 @@ import type { VisualOf } from "../src/lib/learning-visual";
 async function main() {
  const a: VisualOf<"image-slot"> = {kind:"image-slot",id:"12345678-1234-4234-8234-123456789012", title:"물의 순환",description:"태양과 중력의 역할",aspectRatio:"4:3",stage:"image_generating"};
  const b = {...a,id:"12345678-1234-4234-8234-123456789013",title:"침투",aspectRatio:"1:1" as const};
+ a.textContent = { sections: [{ heading: "증발", explanation: "물이 수증기로 변합니다." }], connections: ["수증기가 냉각되어 물방울이 됩니다."] };
  const slots = new Map([[a.id,a],[b.id,b]]);
  const text = `첫 설명\n${imageSlotMarker(a.id)}\n중간 설명\n${imageSlotMarker(b.id)}\n끝 설명\n${imageSlotMarker(a.id)}\n[[learncraft-image:unknown]]`;
  let template = "";
@@ -27,6 +28,7 @@ async function main() {
  assert(answer.indexOf("data:image")<answer.indexOf("중간 설명"));
  assert(answer.indexOf("image_failed")>answer.indexOf("중간 설명"));
  assert(!learningTextContext(answer).includes("base64"));
+ assert(learningTextContext(answer).includes("물이 수증기로 변합니다."), "Slot completion retains readable text");
  assert(!learningTextContext(answer).includes("image-slot"));
  assert.equal(fillImageSlots(JSON.parse(JSON.stringify(template)),updates),answer);
  const events = [{type:"image",id:a.id,markdown:image},{type:"text",text:template}];
