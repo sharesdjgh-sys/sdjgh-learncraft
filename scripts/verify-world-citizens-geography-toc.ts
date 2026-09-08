@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { curriculumTitle } from "../src/lib/curriculum-title";
+import * as tocValidation from "../src/lib/course-toc-validation";
+import * as publisherSources from "../src/data/publisher-sources";
 import type { CourseSourceBundle, CourseSourceIdentity } from "../src/data/course-generation-sources";
 
 async function main() {
@@ -19,7 +21,8 @@ async function main() {
     "server-only": {}, "@ai-sdk/google": { createGoogleGenerativeAI: () => ({}) },
     "ai": {}, "zod": await import("zod"),
     "@/data/course-generation-sources": { getCourseSourceBundle: async () => cache, replaceCourseSourceBundle: async (input: { bundle: CourseSourceBundle }) => { writes++; cache = input.bundle; } },
-    "@/data/publisher-sources": {}, "@/lib/curriculum-title": { curriculumTitle },
+    "@/data/publisher-sources": publisherSources, "@/lib/curriculum-title": { curriculumTitle },
+    "@/lib/course-toc-validation": tocValidation,
     "@/lib/env": { env: {}, isGeminiConfigured: false }, "@/lib/gemini-response-retry": {},
   };
   const exported: { ensureCourseSources?: (input: CourseSourceIdentity & { offeringId: string }) => Promise<{ bundle: CourseSourceBundle; usage: { inputTokens: number; outputTokens: number } }> } = {};
@@ -50,7 +53,7 @@ async function main() {
   cache.tocEntries.pop();
   await research({ ...input, courseTitle: "세계 시민과 지리", publisherName: "비상교육(박배균)" });
   assert.equal(writes, 4, "Spacing and publisher-author aliases must still use the verified TOC");
-  await research({ ...input, publisherName: "미래엔" });
+  await assert.rejects(research({ ...input, publisherName: "미래엔" }), /GEMINI_API_KEY/);
   assert.equal(writes, 4, "Other publishers must not receive Visang's correction");
   console.log("World-citizens geography TOC checks passed: 4 chapters / 13 sections, two-level hierarchy, exact cache validation, stale-cache repair without AI research.");
 }

@@ -1397,7 +1397,8 @@ function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, 
         seen.add(unit.courseCode);
         return true;
       })
-      .sort((a, b) => a.courseOrder - b.courseOrder);
+      .sort((a, b) => a.courseTitle.localeCompare(b.courseTitle, "ko", { numeric: true })
+        || a.courseOrder - b.courseOrder);
   }, [units]);
   const courseUnits = useMemo(
     () => units.filter((unit) => unit.courseCode === selectedCourseCode),

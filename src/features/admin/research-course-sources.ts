@@ -18,6 +18,7 @@ import {
   resolvePublisherSourceGuide,
 } from "@/data/publisher-sources";
 import { curriculumTitle } from "@/lib/curriculum-title";
+import { hasCompleteTocCoverage, isTextbookTocSource } from "@/lib/course-toc-validation";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { runGeminiWithEmptyResponseFallback } from "@/lib/gemini-response-retry";
 
@@ -41,6 +42,43 @@ function twoLevelTocEntries(chapterTitle: string, sectionTitles: string[]) {
     topicTitle: sectionTitle,
   }));
 }
+
+function threeLevelTocEntries(chapterTitle: string, sectionTitle: string, topicTitles: string[]) {
+  return topicTitles.map((topicTitle) => ({ chapterTitle, sectionTitle, topicTitle }));
+}
+
+// Official 2022 Visang /detail/191 TOC PDF, visually verified 2026-09-08.
+// 4 chapters / 9 sections / 26 numbered topics; reviews and appendices excluded.
+const VISANG_AI_BASICS_TOC_PDF = "https://dn.vivasam.com/vs/promotion2022/830/index/download/%EA%B3%A0%EB%93%B1-%EC%9D%B8%EA%B3%B5%EC%A7%80%EB%8A%A5%EA%B8%B0%EC%B4%88.pdf";
+const VISANG_AI_BASICS_TOC = [
+  ...threeLevelTocEntries("인공지능의 이해", "인공지능의 발전과 활용", [
+    "인공지능의 원리", "인공지능 활용과 문제 해결",
+  ]),
+  ...threeLevelTocEntries("인공지능의 이해", "탐색과 추론", [
+    "인공지능과 탐색", "지능적 탐색 방법", "지식 표현과 추론",
+  ]),
+  ...threeLevelTocEntries("인공지능과 학습", "기계학습의 이해와 원리", [
+    "기계학습의 이해", "기계학습과 데이터", "기계학습의 유형과 알고리즘", "기계학습 알고리즘을 활용한 문제 해결",
+  ]),
+  ...threeLevelTocEntries("인공지능과 학습", "기계학습의 실제", [
+    "기계학습을 위한 확증적 데이터 분석", "기계학습을 위한 탐색적 데이터 분석", "회귀 모델을 활용한 문제 해결", "분류 모델을 활용한 문제 해결",
+  ]),
+  ...threeLevelTocEntries("인공지능과 학습", "딥러닝의 이해와 실제", [
+    "인공 신경망의 원리와 문제 해결", "딥러닝을 활용한 문제 해결", "딥러닝의 활용",
+  ]),
+  ...threeLevelTocEntries("인공지능의 사회적 영향", "인공지능과 사회", [
+    "인공지능과 사회 변화", "인공지능과 진로 탐색", "인공지능과의 공존",
+  ]),
+  ...threeLevelTocEntries("인공지능의 사회적 영향", "인공지능 윤리", [
+    "편향성", "윤리적 딜레마", "사회적 책임과 공정성",
+  ]),
+  ...threeLevelTocEntries("인공지능 프로젝트", "인공지능과 문제 해결", [
+    "인공지능 프로젝트 계획하기", "인공지능과 지속 가능 발전 목표",
+  ]),
+  ...threeLevelTocEntries("인공지능 프로젝트", "인공지능 프로젝트 실습", [
+    "수면과 건강 관리", "식량 자원의 효율적 관리",
+  ]),
+] satisfies z.infer<typeof extractedTocEntrySchema>[];
 
 const DARAKWON_HIGH_SCHOOL_ART_TOC = [
   ...twoLevelTocEntries("Ⅰ. 미술과 삶", [
@@ -170,6 +208,16 @@ function courseResearchInstructions(
 ): CourseResearchInstructions {
   const normalized = normalizedCourseTitle(courseTitle);
   const normalizedPublisher = publisherName.normalize("NFKC").replace(/[\s()[\]{}·ㆍ_.\-/]/g, "");
+  if (normalized === "인공지능기초" && normalizedPublisher.includes("비상")) {
+    return {
+      publisherHint: "2022 개정 고등학교 진로 선택 인공지능 기초(대표 저자 임희석, 비상교육)입니다. /list/high?subjectCd=DH720 은 목록이며 목차 출처가 아닙니다. /detail/191에 연결된 공식 목차 PDF를 확인하세요. 대단원 4개·중단원 9개·번호가 붙은 소단원 26개(5·11·6·4)입니다. 2015 개정 목차와 혼동하거나 프로젝트 단원을 누락하지 마세요.",
+      curriculumTarget: "2022 개정 정보과 교육과정의 고등학교 진로 선택 '인공지능 기초' 성취기준 코드와 원문을 확인하세요. 학교 편성 학년은 교과서 식별 조건이 아닙니다.",
+      preferredPublisherSource: { title: "비상교육 2022 개정 인공지능 기초 (임희석) 공식 목차 PDF", url: VISANG_AI_BASICS_TOC_PDF },
+      publisherContextUrls: ["https://text.vivasam.com/detail/191", VISANG_AI_BASICS_TOC_PDF],
+      minimumTocEntries: 26,
+      verifiedTocEntries: VISANG_AI_BASICS_TOC,
+    };
+  }
   if (normalized === "미술" && normalizedPublisher.includes("다락원")) {
     return {
       publisherHint: "공식 식별 정보는 '2022 개정 고등학교 미술 (다락원)'입니다. 공식 교과서 상세 페이지 https://textbook.darakwon.co.kr/textbook/book/?pm1=7&pm2=668 를 우선 확인하세요. 이 페이지의 단원별 자료 트리에는 대단원만 3개가 아니라 Ⅰ. 미술과 삶 아래 10개, Ⅱ. 표현과 매체 아래 10개, Ⅲ. 감상과 미술 문화 아래 8개로 총 28개의 하위 학습 항목이 표시됩니다. [창의·융합]과 [생각 키우기] 항목도 공식 목차에 포함하고, 대단원 3개만 반환하지 마세요.",
@@ -288,7 +336,12 @@ function uniqueUrlSources(sources: ResearchUrlSource[]) {
 function cachedBundleMeetsCourseRequirements(
   bundle: CourseSourceBundle,
   instructions: CourseResearchInstructions,
+  publisherName: string,
 ) {
+  const guide = resolvePublisherSourceGuide(publisherName);
+  if (!guide) return false;
+  if (!bundle.documents.some((document) => document.kind === "PUBLISHER_TOC"
+    && isPublisherOfficialUrl(document.url, guide) && isTextbookTocSource(document.url))) return false;
   if (bundle.tocEntries.length < (instructions.minimumTocEntries ?? 1)) return false;
   if (!instructions.verifiedTocEntries) return true;
   const expected = numberTocEntries(instructions.verifiedTocEntries);
@@ -308,7 +361,7 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
 }) {
   const researchInstructions = courseResearchInstructions(input.courseTitle, input.publisherName);
   const cached = input.refreshSources ? null : await getCourseSourceBundle(input.offeringId, input);
-  if (cached && cachedBundleMeetsCourseRequirements(cached, researchInstructions)) return {
+  if (cached && cachedBundleMeetsCourseRequirements(cached, researchInstructions, input.publisherName)) return {
     bundle: cached,
     modelId: null,
     usage: { inputTokens: 0, outputTokens: 0 },
@@ -386,6 +439,7 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
         "출판사 공식 자료에서 대단원·중단원·소단원 제목과 순서를 빠짐없이 확인하세요.",
         "출판사 메인 화면이나 교과서 목록은 교재를 찾는 용도로만 사용하고, 목차 출처는 해당 교재 상세 페이지나 그 페이지가 직접 제공하는 공식 목차·차례 PDF로 확정하세요.",
         "공식 자료에서 확인할 수 없는 항목은 만들지 말고 무엇이 부족한지 밝히세요.",
+        "목차 전체 페이지를 확인하고 모든 대단원별 최하위 학습 항목 개수를 별도로 집계해 조사문에 기록하세요. 대단원명만 확인했거나 마지막 단원까지 보지 못했다면 전체 확인 실패로 명시하세요. 목차에 원래 두 계층만 있다면 소단원을 만들어 늘리지 마세요.",
       ].filter(Boolean).join("\n"),
       maxOutputTokens: 8_000,
     })),
@@ -447,6 +501,7 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
         "정확한 과목명이 본문에 표시된 교과서 상세 페이지를 우선하고, 상세 페이지가 검색되지 않으면 그 과목명이 표시된 공식 고등학교 교과서 목록을 찾으세요.",
         "공식 목록에서 교재를 찾았으면 해당 교재의 상세 페이지로 들어가 목차·차례 PDF 또는 미리보기를 확인하세요. 목록이나 메인 화면에 노출된 일부 문구만 전체 목차로 확정하지 마세요.",
         "찾은 페이지에서 목차·차례·단원 정보를 확인하고, 동일하거나 비슷한 이름의 다른 학교급 과목은 제외하세요.",
+        "목차의 마지막 페이지와 마지막 단원까지 확인했는지 밝히고 모든 대단원의 최하위 학습 항목 개수를 각각 집계하세요. 일부 예시만 확인했다면 전체 목차 미확인으로 명시하세요.",
       ].join("\n"),
       maxOutputTokens: 8_000,
     }));
@@ -490,6 +545,11 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
     curriculumSourceNumber: z.number().int().min(1).max(urlSources.length),
     tocEntries: z.array(extractedTocEntrySchema).min(1).max(120),
     achievementStandards: z.array(extractedStandardSchema).min(1).max(100),
+    tocCoverage: z.object({
+      allChaptersReviewed: z.boolean(),
+      sourceKind: z.enum(["TOC_DOCUMENT", "BOOK_DETAIL", "CATALOG_OR_UNKNOWN"]),
+      chapters: z.array(z.object({ chapterTitle: z.string().min(1), topicCount: z.number().int().positive() })).max(120),
+    }).nullable(),
   });
   const numberedSources = urlSources.map((source, index) => (
     `${index + 1}. ${source.title ?? "제목 없음"}\n${source.url}`
@@ -505,6 +565,7 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
         "tocSourceNumber와 curriculumSourceNumber는 반드시 아래 인용 출처 번호 중 하나여야 합니다.",
         "목차의 대·중·소단원 계층이 일부 생략된 경우 상위 제목을 반복하여 모든 학습 항목에 세 계층을 채우세요.",
         "목차에 실제로 존재하는 배열 순서와 제목을 그대로 유지하고 순서 번호는 반환하지 마세요.",
+        "tocCoverage는 조사문에서 독립적으로 집계한 전체 대단원별 최하위 학습 항목 수를 기록합니다. 출력한 tocEntries의 개수를 보고 역산하지 마세요. 전체 페이지 확인 또는 단원별 개수가 조사문에 없으면 null로 반환하세요. 목차 근거가 목록·메인 페이지이면 CATALOG_OR_UNKNOWN으로 표시하세요.",
         researchInstructions.minimumTocEntries
           ? `이 교재의 공식 자료에서 최소 ${researchInstructions.minimumTocEntries}개 이상의 학습 항목을 확인해야 합니다. 그보다 적으면 예시나 일부 페이지만 본 것이므로 전체 목차를 다시 확인하세요.`
           : "",
@@ -533,11 +594,16 @@ export async function ensureCourseSources(input: CourseSourceIdentity & {
   const tocEntries = numberTocEntries(
     researchInstructions.verifiedTocEntries ?? extracted.output.tocEntries,
   );
+  if (!researchInstructions.verifiedTocEntries
+    && !hasCompleteTocCoverage(tocEntries, extracted.output.tocCoverage)) {
+    throw new Error("공식 목차 전체 확인에 실패했습니다. 모든 대단원과 하위 학습 항목 수를 확인할 수 있는 교재 상세 페이지 또는 목차 PDF가 필요합니다. 일부 목차로 재생성하지 않았습니다.");
+  }
   if (
     !tocSource
     || !curriculumSource
     || tocSource.url === curriculumSource.url
     || !isPublisherOfficialUrl(tocSource.url, publisherGuide)
+    || !isTextbookTocSource(tocSource.url)
     || !isCurriculumAuthorityUrl(curriculumSource.url)
     || tocEntries.length < (researchInstructions.minimumTocEntries ?? 1)
   ) {
