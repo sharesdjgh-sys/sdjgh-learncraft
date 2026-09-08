@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { illustrationInputSchema } from "./learning-illustration-brief";
 import { learningImageFailureCodes } from "./learning-image-failure";
 import { mermaidLabel } from "./mermaid-label";
 
@@ -51,8 +52,8 @@ const illustrationText = z.object({
   connections: z.array(z.string().trim().min(1).max(120)).max(6),
 });
 const generatedImage = z.object({ kind: z.literal("generated-image"), ...base, id: z.string().uuid(), aspectRatio: z.enum(["4:3", "1:1"]).optional(), dataUrl: z.string().max(1_400_000).regex(/^data:image\/webp;base64,[A-Za-z0-9+/]+={0,2}$/).optional(), textContent: illustrationText.optional() });
-const imageSlot = z.object({ kind: z.literal("image-slot"), ...base, id: z.string().uuid(), aspectRatio: z.enum(["4:3", "1:1"]), stage: z.enum(["image_generating", "image_processing", "image_reviewing", "image_revising", "image_failed"]), failureCode: z.enum(learningImageFailureCodes).optional(), textContent: illustrationText.optional() });
-export const learningVisualSchema = z.discriminatedUnion("kind", [flow, timeline, map, music, image, generatedImage, imageSlot]);
+export const imageSlotSchema = z.object({ kind: z.literal("image-slot"), ...base, id: z.string().uuid(), aspectRatio: z.enum(["4:3", "1:1"]), stage: z.enum(["image_generating", "image_processing", "image_reviewing", "image_revising", "image_failed"]), failureCode: z.enum(learningImageFailureCodes).optional(), retryBrief: illustrationInputSchema.optional(), textContent: illustrationText.optional() });
+export const learningVisualSchema = z.discriminatedUnion("kind", [flow, timeline, map, music, image, generatedImage, imageSlotSchema]);
 export type LearningVisualSpec = z.infer<typeof learningVisualSchema>;
 export type VisualOf<K extends LearningVisualSpec["kind"]> = Extract<LearningVisualSpec, { kind: K }>;
 

@@ -1,5 +1,6 @@
 "use client";
-import { fillImageSlots } from "@/lib/image-slots";
+import { fillImageSlots, validImageUpdate } from "@/lib/image-slots";
+import { ImageRetryContext } from "@/components/tutor/image-retry-context";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import Image from "next/image";
@@ -1070,7 +1071,26 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         </div>
                         <div>
-                          {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                          <ImageRetryContext.Provider value={{ disabled: loading, retry: async (slot, signal) => {
+                            const response = await fetch("/api/ai/illustrations/retry", {
+                              method: "POST", signal, headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ requestId: crypto.randomUUID(), unitId: selectedUnitId, slot }),
+                            });
+                            if (response.headers.has("X-Remaining-Usage")) {
+                              const nextRemaining = Number(response.headers.get("X-Remaining-Usage"));
+                              if (Number.isFinite(nextRemaining)) {
+                                setRemaining(nextRemaining);
+                                window.dispatchEvent(new CustomEvent("learncraft:usage-updated", { detail: { remaining: nextRemaining } }));
+                              }
+                            }
+                            const payload = await response.json().catch(() => null);
+                            if (!response.ok) throw new Error(payload?.error?.message ?? "그림을 다시 생성하지 못했어요.");
+                            if (typeof payload?.markdown !== "string" || !validImageUpdate(slot.id, payload.markdown)) throw new Error("완성된 그림을 받지 못했어요. 다시 시도해 주세요.");
+                            signal.throwIfAborted();
+                            setMessages(current => current.map(item => item.id === message.id ? { ...item, content: fillImageSlots(item.content, new Map([[slot.id, payload.markdown]])) } : item));
+                          } }}>
+                            {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                          </ImageRetryContext.Provider>
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">

@@ -1,9 +1,10 @@
 "use client";
-import { TutorProgress } from "@/components/tutor/tutor-progress";
+import { IllustrationPendingStatus, TutorProgress } from "@/components/tutor/tutor-progress";
 import { learningImageFailureMessages } from "@/lib/learning-image-failure";
+import { ImageRetryContext } from "@/components/tutor/image-retry-context";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { parseLearningVisual, visualMermaid, type VisualOf } from "@/lib/learning-visual";
 import { restoreMermaidLabelText } from "@/lib/mermaid-label";
 import type { CommonsImage } from "@/lib/commons-media";
@@ -127,6 +128,24 @@ function ReferenceImage({ spec }: { spec: VisualOf<"image"> }) {
 }
 
 function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf<"image-slot"> }) {
+  const retryContext = useContext(ImageRetryContext);
+  const retryController = useRef<AbortController | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
+  useEffect(() => () => { retryController.current?.abort(); }, []);
+  async function retry() {
+    if (!retryContext || retryContext.disabled || retryController.current || spec.kind !== "image-slot" || spec.stage !== "image_failed") return;
+    const controller = new AbortController();
+    retryController.current = controller;
+    setRetrying(true);
+    setRetryError("");
+    try { await retryContext.retry(spec, controller.signal); }
+    catch (error) { if (!controller.signal.aborted) setRetryError(error instanceof Error ? error.message : "다시 생성하지 못했어요. 잠시 후 다시 시도해 주세요."); }
+    finally {
+      retryController.current = null;
+      if (!controller.signal.aborted) setRetrying(false);
+    }
+  }
   const dialog = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   // Cached/data-URL images may finish before hydration attaches the load handler.
@@ -137,9 +156,16 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
   const src = pending ? undefined : spec.dataUrl ?? `/api/learning-images/${spec.id}`;
   return <>
     <div className="relative mx-auto w-full" style={spec.aspectRatio ? { aspectRatio: spec.aspectRatio.replace(":", "/") } : undefined}>
-    {pending ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-brand-page p-4 text-center" role="status">
-      <TutorProgress stage={spec.stage} compact />
-      <p className="text-[.8rem] text-ink-3">{spec.stage === "image_failed" ? learningImageFailureMessages[spec.failureCode ?? "UNKNOWN"] : "설명을 계속 읽어보세요. 완성되면 이 자리에 표시돼요."}</p>
+    {pending ? <div className="absolute inset-0 overflow-hidden rounded-lg bg-brand-page">
+      {spec.stage === "image_failed" && !retrying ? <div className="flex h-full flex-col items-center justify-center gap-3 overflow-auto p-4 text-center">
+        <TutorProgress stage={spec.stage} compact />
+        <p role="status" className="text-[.8rem] text-ink-3">{retryError || learningImageFailureMessages[spec.failureCode ?? "UNKNOWN"]}</p>
+        {retryContext && <div>
+          <button type="button" onClick={() => void retry()} disabled={retryContext.disabled}
+            className="min-h-10 cursor-pointer rounded-xl border border-brand/25 bg-surface px-4 py-2 text-[.82rem] font-bold text-brand-dark transition hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50">다시 생성</button>
+          <p className="mt-1 text-[.7rem] text-ink-4">질문 1회 사용 · 실패하면 반환돼요</p>
+        </div>}
+      </div> : <IllustrationPendingStatus stage={retrying ? "image_generating" : spec.stage} />}
     </div> : <>
     {status !== "ready" && <Pending failed={status === "error"} />}
     <button type="button" disabled={status !== "ready"} onClick={() => dialog.current?.showModal()}

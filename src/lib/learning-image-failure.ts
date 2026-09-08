@@ -5,7 +5,7 @@ export const learningImageFailureCodes = [
 export type LearningImageFailureCode = typeof learningImageFailureCodes[number];
 
 export const learningImageFailureMessages: Record<LearningImageFailureCode, string> = {
-  TIMEOUT: "그림 생성 또는 검수 시간이 초과됐어요. 잠시 후 다시 요청해 주세요.",
+  TIMEOUT: "그림 생성 또는 처리 시간이 초과됐어요. 잠시 후 다시 요청해 주세요.",
   RATE_LIMITED: "이미지 서비스의 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요.",
   PROVIDER_CONFIGURATION: "이미지 서비스 연결 설정을 확인해야 해요. 관리자에게 알려주세요.",
   PROVIDER_UNAVAILABLE: "이미지 서비스가 일시적으로 응답하지 않아요. 잠시 후 다시 요청해 주세요.",

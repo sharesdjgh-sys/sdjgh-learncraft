@@ -368,6 +368,33 @@ button:active, a:active { transition-duration: 80ms; }
 
 .app-enter { animation: fade-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .thinking-dot { animation: pulse-soft 1.15s ease-in-out infinite; }
+.illustration-drawing-line {
+  stroke-dasharray: 1;
+  animation: illustration-draw 4.8s linear infinite;
+}
+.illustration-drawing-pencil { animation: illustration-pencil 4.8s linear infinite; }
+.illustration-drawing-sun { animation: illustration-sun 4.8s ease-in-out infinite; transform-origin: 167px 74px; }
+.illustration-drawing-spark { animation: pulse-soft 2.4s ease-in-out infinite; }
+.illustration-drawing-spark-late { animation-delay: 1.2s; }
+@keyframes illustration-draw {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  80%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes illustration-pencil {
+  0% { transform: translate(78px, 136px); }
+  20.6% { transform: translate(105px, 103px); }
+  35.3% { transform: translate(125px, 126px); }
+  55% { transform: translate(148px, 93px); }
+  80% { transform: translate(178px, 136px); }
+  90% { transform: translate(183px, 123px) rotate(-6deg); }
+  100% { transform: translate(78px, 136px); }
+}
+@keyframes illustration-sun {
+  0%, 35% { opacity: .3; transform: scale(.7); }
+  60%, 90% { opacity: 1; transform: scale(1); }
+  100% { opacity: .3; transform: scale(.7); }
+}
 .skeleton-shimmer {
   border-radius: 999px;
   background: linear-gradient(90deg, #ecebf6 20%, #fbfbff 45%, #ecebf6 70%);
@@ -386,6 +413,9 @@ button:active, a:active { transition-duration: 80ms; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .illustration-drawing-line { animation: none !important; stroke-dashoffset: 0; }
+  .illustration-drawing-pencil { animation: none !important; transform: translate(178px, 136px); }
+  .illustration-drawing-sun, .illustration-drawing-spark { animation: none !important; opacity: 1; }
   *, *::before, *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;

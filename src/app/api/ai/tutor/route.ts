@@ -8,7 +8,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, stepCountIs, tool } from "ai";
 import { searchCommonsImages } from "@/lib/commons-media";
 import { illustrationInputSchema } from "@/lib/learning-image-generation";
-import { generateReviewedLearningIllustration } from "@/lib/learning-image-quality";
+import { generatePreparedLearningIllustration } from "@/lib/learning-image-pipeline";
 import { learningImageFailure, learningImageFailureMessages } from "@/lib/learning-image-failure";
 import { inlineLearningImageMarkdown } from "@/lib/inline-learning-image";
 import type { ModelMessage, FinishReason, TextStreamPart, ToolSet } from "ai";
@@ -345,7 +345,7 @@ export async function POST(request: Request) {
           tools: {
             ...(generationAvailable ? {
               generate_learning_illustration: tool({
-                description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. This tool schedules generation and returns immediately. Explain the learning content while it runs; do not claim to see a finished image. When a placementMarker is returned, output it once on its own line at the relevant point within your explanation. The application fills that reserved space with the reviewed image. Call again for a different illustration when needed.",
+                description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. This tool schedules generation and returns immediately. Explain the learning content while it runs; do not claim to see a finished image. When a placementMarker is returned, output it once on its own line at the relevant point within your explanation. The application fills that reserved space with the generated image. Call again for a different illustration when needed.",
                 inputSchema: illustrationInputSchema,
                 execute: (brief) => {
                   request.signal.throwIfAborted();
@@ -353,7 +353,7 @@ export async function POST(request: Request) {
                   const key = JSON.stringify(brief);
                   const id = slotKeys.get(key) ?? crypto.randomUUID();
                   slotKeys.set(key, id);
-                  const slot: VisualOf<"image-slot"> = { kind: "image-slot", id, title, description, aspectRatio, stage: "image_generating",
+                  const slot: VisualOf<"image-slot"> = { kind: "image-slot", id, title, description, aspectRatio, stage: "image_generating", retryBrief: brief,
                     textContent: { sections: brief.sections.map(({ heading, explanation }) => ({ heading, explanation })), connections: brief.connections },
                   };
                   if (useImageSlots && !slots.has(id)) slots.set(id, slot);
@@ -362,12 +362,12 @@ export async function POST(request: Request) {
                     let imageStage = "image_generating";
                     const imageStartedAt = Date.now();
                     try {
-                      const generated = await generateReviewedLearningIllustration({
+                      const generated = await generatePreparedLearningIllustration({
                         apiKey: env.GEMINI_API_KEY!, model: env.GEMINI_IMAGE_MODEL_ID,
-                        brief, reviewModel: modelId, signal, onProgress: stage => {
+                        brief, signal, onProgress: stage => {
                           imageStage = stage;
                           task.update(stage);
-                          if (useImageSlots && (stage === "image_generating" || stage === "image_processing" || stage === "image_reviewing" || stage === "image_revising" || stage === "image_failed")) progress.image(id, imageSlotMarkdown({ ...slot, stage }));
+                          if (useImageSlots && (stage === "image_generating" || stage === "image_processing")) progress.image(id, imageSlotMarkdown({ ...slot, stage }));
                         },
                       });
                       console.info("learning_image_usage", { model: env.GEMINI_IMAGE_MODEL_ID, usage: generated.usage });
@@ -380,7 +380,7 @@ export async function POST(request: Request) {
                       if (!signal.aborted) {
                         const failure = learningImageFailure(error, imageStage);
                         console.error("learning_image_failure", {
-                          imageId: id, model: env.GEMINI_IMAGE_MODEL_ID, reviewModel: modelId,
+                          imageId: id, model: env.GEMINI_IMAGE_MODEL_ID,
                           stage: imageStage, elapsedMs: Date.now() - imageStartedAt, ...failure,
                         });
                         progress.set("image_failed");
@@ -392,7 +392,7 @@ export async function POST(request: Request) {
                   });
                   return { scheduled: true, title, description,
                     ...(useImageSlots ? { placementMarker: imageSlotMarker(id), placementInstruction: "관련 개념 설명 직후, 이어지는 설명 앞의 독립된 줄에 placementMarker를 정확히 한 번 출력하세요. 코드 블록으로 감싸지 마세요. 앱이 그 자리에 공간을 확보하고 완성된 그림을 채웁니다." } : {}),
-                    message: "그림 생성과 검수는 별도로 진행 중이며 앱이 완료 후 답변에 표시합니다. placementMarker가 있으면 반드시 관련 설명 사이에 배치하세요. 기다리지 말고 학생에게 핵심 개념과 원리를 본문으로 먼저 충분히 설명하세요. 그림을 이미 보았거나 완성됐다고 말하지 마세요. 같은 그림을 다시 호출하거나 이미지 블록을 출력하지 마세요. 실패 안내도 앱이 처리합니다." };
+                    message: "그림 생성과 이미지 정리는 별도로 진행 중이며 앱이 완료 후 답변에 표시합니다. placementMarker가 있으면 반드시 관련 설명 사이에 배치하세요. 기다리지 말고 학생에게 핵심 개념과 원리를 본문으로 먼저 충분히 설명하세요. 그림을 이미 보았거나 완성됐다고 말하지 마세요. 같은 그림을 다시 호출하거나 이미지 블록을 출력하지 마세요. 실패 안내도 앱이 처리합니다." };
                 },
               }),
             } : {}),
