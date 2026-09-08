@@ -268,6 +268,8 @@ type TutorRequestSource = "DIRECT" | "FOLLOW_UP";
 
 type SavedLearningCache = {
   version: 2;
+  homeOpen?: boolean;
+  conversationOpen?: boolean;
   activeUnitId: string;
   grade?: SupportedGrade;
   courseOverviewOpen?: boolean;
@@ -304,6 +306,8 @@ function isSavedLearningCache(value: unknown): value is SavedLearningCache {
     && typeof candidate.activeUnitId === "string"
     && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
     && (candidate.courseOverviewOpen === undefined || typeof candidate.courseOverviewOpen === "boolean")
+    && (candidate.homeOpen === undefined || typeof candidate.homeOpen === "boolean")
+    && (candidate.conversationOpen === undefined || typeof candidate.conversationOpen === "boolean")
     && Boolean(candidate.sessions)
     && typeof candidate.sessions === "object"
     && Object.values(candidate.sessions).every(isCachedUnitSession);
@@ -534,7 +538,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         }
       }
     } catch {
-      sessionStorage.removeItem(learningCacheKey);
+      try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
     }
 
     const restoreTimer = window.setTimeout(() => {
@@ -553,6 +557,20 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         });
       }
 
+      if (savedUnit) {
+        const restored = unitSessionsRef.current.get(savedUnit.id);
+        const restoredHome = savedCache?.homeOpen ?? false;
+        const restoredOverview = !restoredHome && (savedCache?.courseOverviewOpen ?? false);
+        setGrade(supportedGrade(savedUnit.grade));
+        setSubject(savedUnit.subjectCode);
+        setSelectedUnitId(savedUnit.id);
+        setHomeOpen(restoredHome);
+        setCourseOverviewOpen(restoredOverview);
+        setLearningLevel(restored?.learningLevel ?? "FOUNDATION");
+        setMessages(restored?.messages ?? []);
+        setConversationOpen(!restoredHome && !restoredOverview
+          && (savedCache?.conversationOpen ?? Boolean(restored?.messages.length)));
+      }
       setSessionReady(true);
     }, 0);
 
@@ -560,24 +578,32 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }, [units]);
 
   useEffect(() => {
-    if (!sessionReady || homeOpen || !selectedUnitId) return;
+    if (!sessionReady || !selectedUnitId) return;
     if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
         learningLevel,
         messages: completedSessionMessages(messages),
       });
     }
-    try { sessionStorage.setItem(learningCacheKey, JSON.stringify({
+    const cache: SavedLearningCache = {
       version: 2,
       activeUnitId: selectedUnitId,
       grade,
+      homeOpen,
+      conversationOpen,
       courseOverviewOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
-    } satisfies SavedLearningCache)); } catch {
-      // Large inline images can exceed the browser tab cache. Keep the live chat usable.
-      sessionStorage.removeItem(learningCacheKey);
+    };
+    try { sessionStorage.setItem(learningCacheKey, JSON.stringify(cache)); } catch {
+      // Preserve navigation even when inline images exceed the tab's storage quota.
+      try { sessionStorage.setItem(learningCacheKey, JSON.stringify({
+        ...cache, conversationOpen: false,
+        sessions: { [selectedUnitId]: { learningLevel, messages: [] } },
+      } satisfies SavedLearningCache)); } catch {
+        try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
+      }
     }
-  }, [courseOverviewOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
+  }, [conversationOpen, courseOverviewOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
