@@ -1,5 +1,6 @@
 "use client";
 import { TutorProgress } from "@/components/tutor/tutor-progress";
+import { learningImageFailureMessages } from "@/lib/learning-image-failure";
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -138,7 +139,7 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
     <div className="relative mx-auto w-full" style={spec.aspectRatio ? { aspectRatio: spec.aspectRatio.replace(":", "/") } : undefined}>
     {pending ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-brand-page p-4 text-center" role="status">
       <TutorProgress stage={spec.stage} compact />
-      <p className="text-[.8rem] text-ink-3">{spec.stage === "image_failed" ? "그림을 완성하지 못했어요. 다시 요청해 주세요." : "설명을 계속 읽어보세요. 완성되면 이 자리에 표시돼요."}</p>
+      <p className="text-[.8rem] text-ink-3">{spec.stage === "image_failed" ? learningImageFailureMessages[spec.failureCode ?? "UNKNOWN"] : "설명을 계속 읽어보세요. 완성되면 이 자리에 표시돼요."}</p>
     </div> : <>
     {status !== "ready" && <Pending failed={status === "error"} />}
     <button type="button" disabled={status !== "ready"} onClick={() => dialog.current?.showModal()}

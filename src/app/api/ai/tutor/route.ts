@@ -9,6 +9,7 @@ import { streamText, stepCountIs, tool } from "ai";
 import { searchCommonsImages } from "@/lib/commons-media";
 import { illustrationInputSchema } from "@/lib/learning-image-generation";
 import { generateReviewedLearningIllustration } from "@/lib/learning-image-quality";
+import { learningImageFailure, learningImageFailureMessages } from "@/lib/learning-image-failure";
 import { inlineLearningImageMarkdown } from "@/lib/inline-learning-image";
 import type { ModelMessage, FinishReason, TextStreamPart, ToolSet } from "ai";
 import { NextResponse } from "next/server";
@@ -356,10 +357,13 @@ export async function POST(request: Request) {
                   if (useImageSlots && !slots.has(id)) slots.set(id, slot);
                   imageJobs.schedule(key, async signal => {
                     const task = progress.begin("image_generating");
+                    let imageStage = "image_generating";
+                    const imageStartedAt = Date.now();
                     try {
                       const generated = await generateReviewedLearningIllustration({
                         apiKey: env.GEMINI_API_KEY!, model: env.GEMINI_IMAGE_MODEL_ID,
                         brief, reviewModel: modelId, signal, onProgress: stage => {
+                          imageStage = stage;
                           task.update(stage);
                           if (useImageSlots && (stage === "image_generating" || stage === "image_processing" || stage === "image_reviewing" || stage === "image_revising" || stage === "image_failed")) progress.image(id, imageSlotMarkdown({ ...slot, stage }));
                         },
@@ -372,8 +376,14 @@ export async function POST(request: Request) {
                       return markdown;
                     } catch (error) {
                       if (!signal.aborted) {
+                        const failure = learningImageFailure(error, imageStage);
+                        console.error("learning_image_failure", {
+                          imageId: id, model: env.GEMINI_IMAGE_MODEL_ID, reviewModel: modelId,
+                          stage: imageStage, elapsedMs: Date.now() - imageStartedAt, ...failure,
+                        });
                         progress.set("image_failed");
-                        if (useImageSlots) { progress.image(id, imageSlotMarkdown({ ...slot, stage: "image_failed" })); return ""; }
+                        if (useImageSlots) { progress.image(id, imageSlotMarkdown({ ...slot, stage: "image_failed", failureCode: failure.code })); return ""; }
+                        return learningImageFailureMessages[failure.code];
                       }
                       throw error;
                     } finally { task.end(); }

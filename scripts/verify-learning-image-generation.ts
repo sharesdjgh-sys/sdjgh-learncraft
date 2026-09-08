@@ -3,6 +3,8 @@ import sharp from "sharp";
 import { generateLearningIllustration, learningImageDataUrl } from "../src/lib/learning-image-generation";
 import { inlineLearningImageMarkdown, learningTextContext } from "../src/lib/inline-learning-image";
 import { parseLearningVisual } from "../src/lib/learning-visual";
+import { LearningImageError, learningImageFailure } from "../src/lib/learning-image-failure";
+import { imageSlotMarkdown, validImageUpdate } from "../src/lib/image-slots";
 
 async function main() {
   const png = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#cfdef0" } }).png().toBuffer();
@@ -31,8 +33,24 @@ async function main() {
   assert.deepEqual(result.data, png, "Do not select the thought image");
   assert.equal(result.usage.candidatesTokenCount, 1120);
   for (const status of [400, 429, 500]) {
-    await assert.rejects(generateLearningIllustration(args, async () => new Response(null, { status })));
+    await assert.rejects(generateLearningIllustration(args, async () => new Response(null, { status })), error => {
+      assert(error instanceof LearningImageError);
+      assert.equal(error.code, status === 400 ? "PROVIDER_CONFIGURATION" : status === 429 ? "RATE_LIMITED" : "PROVIDER_UNAVAILABLE");
+      assert.equal(error.status, status);
+      return true;
+    });
   }
+  await assert.rejects(generateLearningIllustration(args, async () => Response.json({ promptFeedback: { blockReason: "SAFETY" } })), error => error instanceof LearningImageError && error.code === "CONTENT_BLOCKED");
+  assert.equal(learningImageFailure(new DOMException("expired", "TimeoutError"), "image_generating").code, "TIMEOUT");
+  assert.equal(learningImageFailure(new Error("private review response"), "image_reviewing").code, "REVIEW_FAILED");
+  assert.equal(learningImageFailure(new Error("private image bytes"), "image_processing").code, "ENCODING_FAILED");
+  assert.deepEqual(learningImageFailure({ statusCode: 429, message: "secret" }, "image_reviewing"), { code: "RATE_LIMITED", status: 429 });
+  assert.equal(learningImageFailure(new LearningImageError("QUALITY_REJECTED", "rejected"), "image_reviewing").code, "QUALITY_REJECTED");
+  const slot = { kind: "image-slot" as const, id: "11111111-1111-4111-8111-111111111111", title: "그림", description: "학습 그림", aspectRatio: "4:3" as const, stage: "image_failed" as const, failureCode: "TIMEOUT" as const };
+  assert(validImageUpdate(slot.id, imageSlotMarkdown(slot)));
+  const parsedSlot = parseLearningVisual(JSON.stringify(slot));
+  assert(parsedSlot.kind === "image-slot" && parsedSlot.failureCode === "TIMEOUT");
+  assert.throws(() => parseLearningVisual(JSON.stringify({ ...slot, failureCode: "private error message" })));
   for (const content of [
     { candidates: [{ finishReason: "SAFETY" }] },
     { candidates: [{ finishReason: "STOP", content: { parts: [] } }] },

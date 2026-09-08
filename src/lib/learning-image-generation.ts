@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { z } from "zod";
+import { LearningImageError, learningImageFailure } from "./learning-image-failure";
 
 export const illustrationAspectRatioSchema = z.enum(["4:3", "1:1"]);
 
@@ -18,6 +19,7 @@ export const illustrationInputSchema = z.object({
 });
 
 const responseSchema = z.object({
+  promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
   candidates: z.array(z.object({
     finishReason: z.string().optional(),
     content: z.object({ parts: z.array(z.object({
@@ -63,7 +65,11 @@ export async function generateLearningIllustration(input: {
       },
     }),
   });
-  if (!response.ok) throw new Error(`Image provider HTTP ${response.status}`);
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new LearningImageError(learningImageFailure({ status: response.status }, "image_generating").code,
+      `Image provider HTTP ${response.status}`, response.status);
+  }
   // Bound streamed JSON before decoding potentially large base64 output.
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Empty image response");
@@ -80,10 +86,13 @@ export async function generateLearningIllustration(input: {
   } finally { await reader.cancel().catch(() => undefined); }
   const payload = responseSchema.parse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
   const candidate = payload.candidates?.[0];
-  if (candidate?.finishReason !== "STOP") throw new Error("Image generation did not finish");
+  if (payload.promptFeedback?.blockReason || ["SAFETY", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "PROHIBITED_CONTENT", "BLOCKLIST"].includes(candidate?.finishReason ?? "")) {
+    throw new LearningImageError("CONTENT_BLOCKED", "Image generation blocked");
+  }
+  if (candidate?.finishReason !== "STOP") throw new LearningImageError("NO_IMAGE", "Image generation did not finish");
   const part = candidate.content?.parts.find(part => !part.thought && part.inlineData)?.inlineData;
   if (!part || !["image/png", "image/jpeg", "image/webp"].includes(part.mimeType)
-    || !/^[A-Za-z0-9+/]+={0,2}$/.test(part.data)) throw new Error("No usable generated image");
+    || !/^[A-Za-z0-9+/]+={0,2}$/.test(part.data)) throw new LearningImageError("NO_IMAGE", "No usable generated image");
   return { data: Buffer.from(part.data, "base64"), usage: payload.usageMetadata ?? {} };
 }
 
