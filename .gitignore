@@ -52,3 +52,9 @@ Desktop.ini
 .feedback-uploads/
 
 .learning-images/
+
+# Local browser inspection artifacts
+/.playwright-mcp/
+
+# Generated posters, prompts, and delivery bundles
+/output/
