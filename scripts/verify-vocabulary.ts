@@ -42,8 +42,17 @@ async function main() {
   assert.notEqual(key, vocabularyCacheKey("school-a", { ...unit, summary: "수정된 설명" }, "응결"));
   const owner = await claimExplanation(key, "school-a"); assert(owner);
   assert.equal(await claimExplanation(key, "school-a"), null);
-  const explanation = vocabularyExplanationSchema.parse({ content: "차가운 컵 바깥에 물방울이 맺힌 적 있죠? 공기 속 수증기가 식어서 **액체 물방울로 바뀌는 것**이 응결이에요.\n\n컵 안의 물이 새어 나온 건 아니에요." });
-  assert.equal(content.vocabularyExplanationMarkdown("응결", explanation), explanation.content);
+  const explanation = vocabularyExplanationSchema.parse({
+    oneLineMeaning: "공기 속 수증기가 식어서 액체 물방울로 바뀌는 현상이에요.",
+    story: "차가운 컵 바깥에 물방울이 맺힌 장면을 떠올려 보세요. 컵 안의 물이 새어 나온 것이 아니라 공기 속 수증기가 변한 거예요.",
+    example: { sentence: "차가운 표면에서 수증기가 응결한다.", meaning: "기체 상태의 물이 액체로 바뀐다는 뜻이에요." },
+    memoryCue: "기체가 액체로 모여 물방울이 되는 장면을 기억하세요.",
+    caution: "액체가 기체로 바뀌는 증발과 방향이 반대예요.",
+    quickCheck: "차가운 안경에 김이 서리는 현상을 응결이라고 할 수 있을까요?",
+  });
+  const explanationMarkdown = content.vocabularyExplanationMarkdown("응결", explanation);
+  assert(explanationMarkdown.startsWith("```learncraft-vocabulary\n"));
+  assert(explanationMarkdown.includes('"term":"응결"'));
   const differentChapter = { ...other, id: "unit-c", chapterTitle: "운동", chapterOrder: 2, keywords: ["속력"] };
   const chapters = content.buildChapterVocabulary([unit, other, differentChapter]);
   assert.equal(chapters.length, 2);
