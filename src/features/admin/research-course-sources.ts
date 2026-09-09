@@ -144,21 +144,41 @@ const VISANG_WORLD_CITIZENS_GEOGRAPHY_TOC = [
   ]),
 ] satisfies z.infer<typeof extractedTocEntrySchema>[];
 
-// T셀파의 2022 개정 고등 물리학(최혁준) 상세 페이지에서 직접 확인한
-// '교과서 단원별 자료' 트리. 확인일: 2026-09-09.
+// T셀파의 2022 개정 고등 물리학(최혁준) 상세 페이지와 각 중단원의
+// '수업 자료 > 스마트 교과서' 목록에서 직접 확인한 19개 상세 차시.
+// 확인일: 2026-09-09.
 const CHUNJAE_PHYSICS_TOC_URL = "https://mh.tsherpa.co.kr/curri/schoolbookdata.html?id=817709";
 const CHUNJAE_PHYSICS_TOC = [
-  ...twoLevelTocEntries("Ⅰ. 힘과 에너지", [
-    "1. 힘과 운동",
-    "2. 에너지와 열",
+  ...threeLevelTocEntries("Ⅰ. 힘과 에너지", "1. 힘과 운동", [
+    "01. 평형과 안정성",
+    "02. 힘과 가속도",
+    "03. 작용 반작용",
+    "04. 운동량 보존",
   ]),
-  ...twoLevelTocEntries("Ⅱ. 전기와 자기", [
-    "1. 전기",
-    "2. 자기",
+  ...threeLevelTocEntries("Ⅰ. 힘과 에너지", "2. 에너지와 열", [
+    "01. 역학적 에너지 보존",
+    "02. 에너지 보존",
+    "03. 열에너지의 전환",
   ]),
-  ...twoLevelTocEntries("Ⅲ. 빛과 물질", [
-    "1. 빛의 성질과 이중성",
-    "2. 반도체·상대성 이론",
+  ...threeLevelTocEntries("Ⅱ. 전기와 자기", "1. 전기", [
+    "01. 전기장과 전위차",
+    "02. 소비 전력",
+    "03. 축전기의 활용",
+  ]),
+  ...threeLevelTocEntries("Ⅱ. 전기와 자기", "2. 자기", [
+    "01. 자성체",
+    "02. 전류의 자기 작용",
+    "03. 전자기 유도",
+  ]),
+  ...threeLevelTocEntries("Ⅲ. 빛과 물질", "1. 빛의 성질과 이중성", [
+    "01. 빛의 중첩과 간섭",
+    "02. 빛의 굴절과 렌즈",
+    "03. 빛과 물질의 이중성",
+  ]),
+  ...threeLevelTocEntries("Ⅲ. 빛과 물질", "2. 반도체·상대성 이론", [
+    "01. 에너지 준위",
+    "02. 에너지띠와 반도체",
+    "03. 시간 팽창과 길이 수축",
   ]),
 ] satisfies z.infer<typeof extractedTocEntrySchema>[];
 
@@ -238,14 +258,14 @@ function courseResearchInstructions(
   }
   if (normalized === "물리학" && normalizedPublisher.includes("천재")) {
     return {
-      publisherHint: `공식 식별 정보는 '2022 개정 고등학교 물리학 (대표 저자 최혁준, 천재교과서)'입니다. T셀파 중고등의 교재별 상세 페이지 ${CHUNJAE_PHYSICS_TOC_URL} 에 표시된 '교과서 단원별 자료' 트리를 실제 목차로 사용하세요. 천재교과서 회사 홈페이지, text.tsherpa.co.kr, www.tsherpa.co.kr 메인 화면이나 국가 교육과정 영역명을 교과서 목차로 대신하지 마세요. 공식 트리는 3개 대단원과 각 2개 하위 단원, 총 6개 항목입니다.`,
+      publisherHint: `공식 식별 정보는 '2022 개정 고등학교 물리학 (대표 저자 최혁준, 천재교과서)'입니다. T셀파 중고등의 교재별 상세 페이지 ${CHUNJAE_PHYSICS_TOC_URL} 에 표시된 '교과서 단원별 자료' 트리와 각 중단원의 '수업 자료 > 스마트 교과서' 제목을 함께 확인해 실제 목차로 사용하세요. 천재교과서 회사 홈페이지, text.tsherpa.co.kr, www.tsherpa.co.kr 메인 화면이나 국가 교육과정 영역명을 교과서 목차로 대신하지 마세요. 공식 구성은 3개 대단원, 6개 중단원, 19개 상세 차시입니다.`,
       curriculumTarget: "2022 개정 과학과 교육과정의 고등학교 일반 선택 과목 '물리학' 성취기준 코드와 원문을 확인하세요. 학교 편성 학년은 교과서 식별 조건이 아닙니다.",
       preferredPublisherSource: {
         title: "T셀파 2022 개정 고등학교 물리학 (최혁준)",
         url: CHUNJAE_PHYSICS_TOC_URL,
       },
       publisherContextUrls: [CHUNJAE_PHYSICS_TOC_URL],
-      minimumTocEntries: 6,
+      minimumTocEntries: 19,
       verifiedTocEntries: CHUNJAE_PHYSICS_TOC,
     };
   }
@@ -349,7 +369,7 @@ function courseResearchInstructions(
   }
   if (normalizedPublisher.includes("천재")) {
     return {
-      publisherHint: "천재교과서·천재교육의 2022 개정 고등학교 교과서는 T셀파 중고등의 교재별 상세 페이지(https://mh.tsherpa.co.kr/curri/schoolbookdata.html?id=교재ID)를 우선 찾으세요. 상세 페이지 상단에서 과목명·대표 저자를 확인하고, '교과서 단원별 자료' 트리의 전체 대단원과 하위 단원을 마지막 항목까지 실제 목차로 기록하세요. 회사 홈페이지나 T셀파 메인 화면, 국가 교육과정 영역명은 교과서 목차 출처로 사용하지 마세요.",
+      publisherHint: "천재교과서·천재교육의 2022 개정 고등학교 교과서는 T셀파 중고등의 교재별 상세 페이지(https://mh.tsherpa.co.kr/curri/schoolbookdata.html?id=교재ID)를 우선 찾으세요. 상세 페이지 상단에서 과목명·대표 저자를 확인하고, '교과서 단원별 자료' 트리의 전체 대단원과 중단원을 확인한 뒤 각 중단원의 '수업 자료 > 스마트 교과서' 또는 교수학습지도안 제목에 붙은 차시명을 상세 목차로 수집하세요. 화면의 왼쪽 단원 트리만 보고 중단원에서 수집을 끝내지 마세요. 회사 홈페이지나 T셀파 메인 화면, 국가 교육과정 영역명은 교과서 목차 출처로 사용하지 마세요.",
       curriculumTarget: `2022 개정 교육과정의 '${courseTitle}' 과목 성취기준 코드와 원문을 확인하세요.`,
       preferredPublisherSource: undefined,
       publisherContextUrls: [],

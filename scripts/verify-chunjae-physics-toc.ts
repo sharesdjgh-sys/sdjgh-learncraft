@@ -91,15 +91,27 @@ async function main() {
   function verify(bundle: CourseSourceBundle) {
     assert.equal(bundle.documents.find((document) => document.kind === "PUBLISHER_TOC")?.url, officialUrl);
     assert.deepEqual(JSON.parse(JSON.stringify(bundle.tocEntries.map((entry) => [entry.chapterTitle, entry.sectionTitle, entry.topicTitle]))), [
-      ["힘과 에너지", "힘과 운동", "힘과 운동"],
-      ["힘과 에너지", "에너지와 열", "에너지와 열"],
-      ["전기와 자기", "전기", "전기"],
-      ["전기와 자기", "자기", "자기"],
-      ["빛과 물질", "빛의 성질과 이중성", "빛의 성질과 이중성"],
-      ["빛과 물질", "반도체·상대성 이론", "반도체·상대성 이론"],
+      ["힘과 에너지", "힘과 운동", "평형과 안정성"],
+      ["힘과 에너지", "힘과 운동", "힘과 가속도"],
+      ["힘과 에너지", "힘과 운동", "작용 반작용"],
+      ["힘과 에너지", "힘과 운동", "운동량 보존"],
+      ["힘과 에너지", "에너지와 열", "역학적 에너지 보존"],
+      ["힘과 에너지", "에너지와 열", "에너지 보존"],
+      ["힘과 에너지", "에너지와 열", "열에너지의 전환"],
+      ["전기와 자기", "전기", "전기장과 전위차"],
+      ["전기와 자기", "전기", "소비 전력"],
+      ["전기와 자기", "전기", "축전기의 활용"],
+      ["전기와 자기", "자기", "자성체"],
+      ["전기와 자기", "자기", "전류의 자기 작용"],
+      ["전기와 자기", "자기", "전자기 유도"],
+      ["빛과 물질", "빛의 성질과 이중성", "빛의 중첩과 간섭"],
+      ["빛과 물질", "빛의 성질과 이중성", "빛의 굴절과 렌즈"],
+      ["빛과 물질", "빛의 성질과 이중성", "빛과 물질의 이중성"],
+      ["빛과 물질", "반도체·상대성 이론", "에너지 준위"],
+      ["빛과 물질", "반도체·상대성 이론", "에너지띠와 반도체"],
+      ["빛과 물질", "반도체·상대성 이론", "시간 팽창과 길이 수축"],
     ]);
-    assert.deepEqual(Array.from(bundle.tocEntries, (entry) => entry.chapterOrder), [1, 1, 2, 2, 3, 3]);
-    assert.deepEqual(Array.from(bundle.tocEntries, (entry) => entry.sectionOrder), [1, 2, 1, 2, 1, 2]);
+    assert.deepEqual(Array.from(bundle.tocEntries, (entry) => entry.topicOrder), [1, 2, 3, 4, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]);
   }
 
   const beforeRefreshReads = reads;
@@ -116,7 +128,7 @@ async function main() {
   assert.equal(validation.isTextbookTocSource(officialUrl), true);
   assert.equal(validation.isTextbookTocSource("https://mh.tsherpa.co.kr/curri/schoolbookdata.html"), false);
   assert.equal(validation.isTextbookTocSource("https://mh.tsherpa.co.kr/"), false);
-  console.log("Chunjae physics TOC checks passed: official T셀파 detail source, exact 3 chapters / 6 sections, refresh and stale-cache repair.");
+  console.log("Chunjae physics TOC checks passed: official T셀파 source, exact 3 chapters / 6 sections / 19 lessons, refresh and stale-cache repair.");
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
