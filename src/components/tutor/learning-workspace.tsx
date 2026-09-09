@@ -4,6 +4,8 @@ import { ImageRetryContext } from "@/components/tutor/image-retry-context";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import Image from "next/image";
+import { UnitVocabulary } from "./unit-vocabulary";
+import { buildChapterVocabulary, chapterVocabularyContext, unitVocabularyTerms, vocabularyExplanationSchema, vocabularyExplanationMarkdown, vocabularyTermKey } from "@/features/vocabulary/content";
 import { TutorProgress as Thinking, PendingIllustration } from "./tutor-progress";
 import { createTutorEventDecoder, isIllustrationPending, TUTOR_STREAM_TYPE, type TutorProgressStage } from "@/lib/tutor-progress";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -21,6 +23,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   CircleHelp,
   Copy,
   ExternalLink,
@@ -61,6 +64,37 @@ const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: stri
 ];
 
 const followUpOrder: TutorAction[] = ["QUIZ", "EASIER", "DEEPER", "REVEAL"];
+
+const vocabularyFollowUps = [
+  {
+    label: "예문으로 익히기",
+    icon: BookOpenCheck,
+    tone: "border-[#cfe6df] bg-[#f1faf7] text-[#356f65] shadow-[0_4px_12px_rgba(53,111,101,.06)] hover:border-[#bddbd2] hover:bg-[#e8f7f2]",
+    displayMessage: "이 단어가 실제 문장에서 어떻게 쓰이는지 예문과 함께 알려 주세요.",
+    prompt: "방금 설명한 핵심 어휘가 현재 대단원 맥락에서 자연스럽게 쓰이는 짧은 예문을 세 개 보여 주세요. 각 문장에서 어떤 뜻으로 쓰였는지도 한 줄씩 풀어 주세요.",
+  },
+  {
+    label: "비슷한 말과 비교",
+    icon: Languages,
+    tone: "border-[#ddd3f3] bg-[#f7f3ff] text-[#624b91] shadow-[0_4px_12px_rgba(98,75,145,.06)] hover:border-[#cfc1ec] hover:bg-[#f1ebff]",
+    displayMessage: "이 단어와 헷갈리기 쉬운 말은 무엇이고, 뜻이 어떻게 다른가요?",
+    prompt: "방금 설명한 핵심 어휘와 학생이 헷갈리기 쉬운 관련 어휘 한두 개를 골라 공통점과 차이를 짧고 정확하게 비교해 주세요. 억지로 비교할 단어를 만들지는 마세요.",
+  },
+  {
+    label: "기억에 남게 정리",
+    icon: Lightbulb,
+    tone: "border-[#eadfca] bg-[#fff9ed] text-[#735f35] shadow-[0_4px_12px_rgba(113,88,42,.06)] hover:border-[#decda9] hover:bg-[#fff5df]",
+    displayMessage: "이 단어의 뜻을 오래 기억할 수 있도록 이해하기 쉽게 정리해 주세요.",
+    prompt: "방금 설명한 핵심 어휘를 뜻을 왜곡하지 않는 짧은 비유, 말의 구성, 기억 문장 중 가장 알맞은 방법 하나로 기억하기 쉽게 정리해 주세요. 불확실한 어원은 사용하지 마세요.",
+  },
+  {
+    label: "어휘 확인 문제",
+    icon: CircleHelp,
+    tone: "border-[#cfc1ef] bg-[linear-gradient(135deg,#f7f3ff_0%,#eee8ff_100%)] text-[#594083] shadow-[0_7px_18px_rgba(91,65,143,.1)] hover:border-[#bfaee6] hover:bg-[linear-gradient(135deg,#f2ecff_0%,#e8deff_100%)]",
+    displayMessage: "이 단어의 뜻과 쓰임을 제대로 이해했는지 확인하는 문제를 내 주세요.",
+    prompt: "방금 설명한 핵심 어휘의 뜻과 쓰임을 확인할 수 있는 짧은 문제를 하나 내 주세요. 학생이 먼저 생각할 수 있도록 정답과 해설은 아직 보여 주지 마세요.",
+  },
+] as const;
 
 const followUpRequestText: Record<Exclude<TutorAction, "QUESTION">, string> = {
   EASIER: "방금 설명한 내용 중 이해하기 어려운 개념과 용어를 쉬운 말로 바꾸고, 간단한 비유와 예시를 활용해 처음 배우는 학생도 이해할 수 있도록 다시 설명해 주세요.",
@@ -274,6 +308,7 @@ type SavedLearningCache = {
   activeUnitId: string;
   grade?: SupportedGrade;
   courseOverviewOpen?: boolean;
+  vocabularyOpen?: boolean;
   sessions: Record<string, CachedUnitSession>;
 };
 
@@ -307,6 +342,7 @@ function isSavedLearningCache(value: unknown): value is SavedLearningCache {
     && typeof candidate.activeUnitId === "string"
     && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
     && (candidate.courseOverviewOpen === undefined || typeof candidate.courseOverviewOpen === "boolean")
+    && (candidate.vocabularyOpen === undefined || typeof candidate.vocabularyOpen === "boolean")
     && (candidate.homeOpen === undefined || typeof candidate.homeOpen === "boolean")
     && (candidate.conversationOpen === undefined || typeof candidate.conversationOpen === "boolean")
     && Boolean(candidate.sessions)
@@ -416,6 +452,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId);
   const [homeOpen, setHomeOpen] = useState(true);
   const [courseOverviewOpen, setCourseOverviewOpen] = useState(false);
+  const [vocabularyOpen, setVocabularyOpen] = useState(false);
+  const [activeVocabularyTerm, setActiveVocabularyTerm] = useState("");
   const [learningLevel, setLearningLevel] = useState<LearningLevel>("FOUNDATION");
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
@@ -436,7 +474,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
-  const [retryRequest, setRetryRequest] = useState<{ action: TutorAction; preset?: string; source: TutorRequestSource } | null>(null);
+  const [retryRequest, setRetryRequest] = useState<{ action: TutorAction; preset?: string; source: TutorRequestSource; vocabularyTerm?: string; displayMessage?: string } | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const conceptTriggerRef = useRef<HTMLButtonElement>(null);
@@ -466,6 +504,33 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     () => loadedCourse ?? filteredUnits.filter((unit) => unit.courseCode === courseCode),
     [filteredUnits, courseCode, loadedCourse],
   );
+
+  const vocabularyChapters = useMemo(() => buildChapterVocabulary(selectedCourseUnits), [selectedCourseUnits]);
+  const vocabularyChapter = chapterVocabularyContext(selectedCourseUnits, selectedUnit);
+  const inferredVocabularyTerm = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role !== "user") continue;
+      const match = message.content.match(/^‘([^’]{1,80})’/);
+      if (match) return match[1].trim();
+    }
+    return "";
+  }, [messages]);
+  const currentVocabularyTerm = activeVocabularyTerm || inferredVocabularyTerm;
+  const vocabularySections = useMemo(() => {
+    const chapterUnits = selectedCourseUnits.filter(unit => unit.chapterOrder === vocabularyChapter.chapterOrder
+      && unit.chapterTitle === vocabularyChapter.chapterTitle);
+    const chapterTerms = new Set<string>();
+    return chapterUnits.map(unit => {
+      const terms = unitVocabularyTerms(unit).filter(term => {
+        const termKey = vocabularyTermKey(term);
+        if (chapterTerms.has(termKey)) return false;
+        chapterTerms.add(termKey);
+        return true;
+      });
+      return { id: unit.id, title: unit.title, terms };
+    }).filter(group => group.terms.length > 0);
+  }, [selectedCourseUnits, vocabularyChapter.chapterOrder, vocabularyChapter.chapterTitle]);
 
   useEffect(() => {
     if (homeOpen || loadedCourse || failedCourse === courseCode) return;
@@ -567,6 +632,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         setSelectedUnitId(savedUnit.id);
         setHomeOpen(restoredHome);
         setCourseOverviewOpen(restoredOverview);
+        setVocabularyOpen(!restoredHome && !restoredOverview && Boolean(savedCache?.vocabularyOpen));
         setLearningLevel(restored?.learningLevel ?? "FOUNDATION");
         setMessages(restored?.messages ?? []);
         setConversationOpen(!restoredHome && !restoredOverview
@@ -593,6 +659,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       homeOpen,
       conversationOpen,
       courseOverviewOpen,
+      vocabularyOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
     };
     try { sessionStorage.setItem(learningCacheKey, JSON.stringify(cache)); } catch {
@@ -604,7 +671,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
       }
     }
-  }, [conversationOpen, courseOverviewOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
+  }, [conversationOpen, courseOverviewOpen, vocabularyOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -664,6 +731,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     autoScrollRef.current = true;
     setHomeOpen(false);
     setCourseOverviewOpen(false);
+    setVocabularyOpen(false);
+    setActiveVocabularyTerm("");
     window.requestAnimationFrame(() => {
       messageScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -691,6 +760,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setDrawerOpen(false);
   }
 
+  function openVocabulary(unitId: string) {
+    selectUnit(unitId);
+    setVocabularyOpen(true);
+    setConversationOpen(true);
+  }
+
   function openCourseOverview(unitId: string) {
     if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
@@ -706,6 +781,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setSelectedUnitId(unitId);
     setHomeOpen(false);
     setCourseOverviewOpen(true);
+    setVocabularyOpen(false);
     setLearningLevel("FOUNDATION");
     setMessages([]);
     setConversationOpen(false);
@@ -729,6 +805,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setSelectedUnitId(nextUnit.id);
       setHomeOpen(true);
       setCourseOverviewOpen(false);
+      setVocabularyOpen(false);
     }
   }
 
@@ -742,6 +819,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setSelectedUnitId(nextUnit.id);
       setHomeOpen(true);
       setCourseOverviewOpen(false);
+      setVocabularyOpen(false);
     }
   }
 
@@ -800,18 +878,66 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setAttachmentError("");
   }
 
-  async function ask(action: TutorAction = "QUESTION", preset?: string, source: TutorRequestSource = action === "QUESTION" ? "DIRECT" : "FOLLOW_UP") {
+  const vocabularyController = useRef<AbortController | null>(null);
+  useEffect(() => () => vocabularyController.current?.abort(), [selectedUnitId]);
+
+  async function explainTerm(term: string) {
+    if (!selectedUnit || !detailsReady || loading || preparingImages || vocabularyController.current) return;
+    setActiveVocabularyTerm(term);
+    const controller = new AbortController(); vocabularyController.current = controller;
+    const answerId = crypto.randomUUID();
+    const question = `‘${term}’의 뜻을 쉽게 알려줘`;
+    setConversationOpen(true); setLoading(true); setProgressStage("writing"); setRetryRequest(null);
+    streamingAnswerRef.current = true;
+    setMessages(current => [...current,
+      { id: crypto.randomUUID(), role: "user", content: question, action: "QUESTION", completed: true },
+      { id: answerId, role: "assistant", content: "", action: "QUESTION", completed: false },
+    ]);
+    scrollToMessageStart(answerId);
+    const args = { course: selectedUnit.courseCode, unitId: selectedUnit.id, term };
+    try {
+      const started = Date.now(); let initial = true;
+      while (true) {
+        const response = await fetch(initial ? "/api/vocabulary" : `/api/vocabulary?${new URLSearchParams(args)}`, {
+          signal: controller.signal, ...(initial ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(args) } : {}),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? "단어 설명을 불러오지 못했어요.");
+        if (body.status === "ready") {
+          const content = vocabularyExplanationMarkdown(term, vocabularyExplanationSchema.parse(body.explanation));
+          controller.signal.throwIfAborted();
+          setMessages(current => current.map(item => item.id === answerId ? { ...item, content, completed: true } : item));
+          break;
+        }
+        if (Date.now() - started > 60_000) throw new Error("설명 준비가 지연되고 있어요. 단어를 다시 눌러 주세요.");
+        initial = false;
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => { clearTimeout(timer); reject(controller.signal.reason); };
+          const timer = setTimeout(() => { controller.signal.removeEventListener("abort", abort); resolve(); }, 2000);
+          controller.signal.addEventListener("abort", abort, { once: true });
+          if (controller.signal.aborted) abort();
+        });
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) setMessages(current => current.map(item => item.id === answerId ? { ...item, completed: true,
+        content: `${error instanceof Error ? error.message : "설명을 불러오지 못했어요."}\n\n위의 단어를 다시 눌러 주세요. 질문 횟수는 사용되지 않았어요.` } : item));
+    } finally {
+      vocabularyController.current = null; streamingAnswerRef.current = false; setLoading(false);
+    }
+  }
+
+  async function ask(action: TutorAction = "QUESTION", preset?: string, source: TutorRequestSource = action === "QUESTION" ? "DIRECT" : "FOLLOW_UP", vocabularyTerm?: string, displayMessage?: string) {
     const chargesUsage = source === "DIRECT";
     if (!selectedUnit || !detailsReady || loading || preparingImages || (chargesUsage && remaining <= 0)) return;
     const question = (preset ?? input).trim();
-    const currentAttachments = chargesUsage ? attachments : [];
+    const currentAttachments = chargesUsage && !vocabularyTerm ? attachments : [];
     if (action === "QUESTION" && !question && currentAttachments.length === 0) return;
 
-    const baseMessages = conversationOpen ? messages : [];
+    const baseMessages = conversationOpen || vocabularyTerm ? messages : [];
     const userMessage: TutorMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: action === "QUESTION" ? question || "첨부 이미지로 질문" : followUpRequestText[action],
+      content: action === "QUESTION" ? (displayMessage ?? (question || "첨부 이미지로 질문")) : followUpRequestText[action],
       imageNames: currentAttachments.map((attachment) => attachment.name),
       action,
       completed: true,
@@ -829,7 +955,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     setMessages([...baseMessages, userMessage, assistantMessage]);
     scrollToMessageStart(answerId);
     setInput("");
-    setAttachments([]);
+    if (!vocabularyTerm) setAttachments([]);
     setAttachmentError("");
     if (textAreaRef.current) textAreaRef.current.style.height = "auto";
     setLoading(true);
@@ -844,6 +970,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         body: JSON.stringify({
           requestId: crypto.randomUUID(),
           unitId: selectedUnit.id,
+          ...(vocabularyTerm ? { mode: "VOCABULARY", vocabularyTerm } : {}),
           action,
           source,
           message: action === "QUESTION" ? question || undefined : undefined,
@@ -908,7 +1035,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       setMessages((current) => current.map((item) => item.id === answerId
         ? { ...item, content: item.content || `답변을 끝까지 불러오지 못했어요.\n\n> ${errorMessage}`, completed: false }
         : item));
-      setRetryRequest({ action, preset, source });
+      setRetryRequest({ action, preset, source, vocabularyTerm, displayMessage });
     } finally {
       streamingAnswerRef.current = false;
       setLoading(false);
@@ -989,6 +1116,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             onGrade={changeGrade}
             onSubject={changeSubject}
             onCourse={openCourseOverview}
+            onVocabulary={openVocabulary}
             onUnit={selectUnit}
           />
         </div>
@@ -1029,13 +1157,22 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             conversationPadding,
             homeOpen ? "max-w-[72rem] py-3 sm:py-5" : cn(conversationWidth, "py-6 sm:py-9"),
           )}>
+            {vocabularyOpen && !homeOpen && !courseOverviewOpen && detailsReady && <UnitVocabulary
+              key={vocabularyChapter.id} title={vocabularyChapter.chapterTitle}
+              chapters={vocabularyChapters} chapterId={vocabularyChapter.id} onChapter={openVocabulary}
+              sections={vocabularySections} disabled={loading || preparingImages}
+              onTerm={term => void explainTerm(term)} onQuestion={term => {
+                if (remaining <= 0) { setNotice("오늘의 질문 횟수를 모두 사용했어요."); return; }
+                setActiveVocabularyTerm(term);
+                void ask("QUESTION", `‘${term}’의 뜻을 현재 대단원과 연결해서 쉽고 재미있게 설명해 주세요.`, "DIRECT", term);
+              }} />}
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={openCoursePicker} />
             ) : !detailsReady ? (
               <CurriculumLoadStatus error={failedCourse === courseCode} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />
             ) : courseOverviewOpen ? (
               <CourseOverview units={selectedCourseUnits} onOpenCurriculum={openCourseOutline} />
-            ) : !conversationOpen || messages.length === 0 ? (
+            ) : !vocabularyOpen && (!conversationOpen || messages.length === 0) ? (
               <Welcome unit={selectedUnit} learningLevel={learningLevel} previousAnswerCount={messages.filter((message) => message.role === "assistant" && message.completed).length} onLevel={setLearningLevel} onQuestion={(question) => void ask("QUESTION", question)} onResume={resumeConversation} />
             ) : (
               <div className="flex-1 space-y-10 pb-5">
@@ -1118,9 +1255,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                         </div>
                         {message.completed && index === messages.length - 1 && (
                           <div className="mt-6">
-                            <p className="mb-3 text-[.86rem] font-bold text-ink">이어서 학습하기</p>
+                            <p className="mb-3 text-[.86rem] font-bold text-ink">{vocabularyOpen && currentVocabularyTerm ? "이어서 어휘 익히기" : "이어서 학습하기"}</p>
                             <div className="flex flex-wrap gap-2">
-                            {followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon, tone }) => {
+                            {vocabularyOpen && currentVocabularyTerm ? vocabularyFollowUps.map(({ label, icon: Icon, tone, prompt, displayMessage }) => (
+                              <button
+                                key={label}
+                                onClick={() => void ask("QUESTION", prompt, "FOLLOW_UP", currentVocabularyTerm, displayMessage)}
+                                disabled={loading}
+                                className={cn("flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border px-3 text-[.76rem] font-semibold transition-all duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:gap-2 sm:rounded-[11px] sm:px-4 sm:text-[.88rem]", tone)}
+                              >
+                                <Icon className="size-3.5 sm:size-[15px]" />{label}
+                              </button>
+                            )) : followUpOrder.map((action) => actionConfig.find((item) => item.action === action)!).map(({ action, label, icon: Icon, tone }) => {
                               const hasProblemToReveal = message.action === "QUIZ";
                               const showLearningEssentials = action === "REVEAL" && !hasProblemToReveal;
                               const FollowUpIcon = showLearningEssentials ? BookOpenCheck : Icon;
@@ -1143,7 +1289,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           </div>
                         )}
                         {!message.completed && message.content && retryRequest && index === messages.length - 1 && (
-                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset, retryRequest.source)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[9px] border border-line bg-surface px-3 text-[.76rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft sm:min-h-11 sm:gap-2 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]">
+                          <button onClick={() => void ask(retryRequest.action, retryRequest.preset, retryRequest.source, retryRequest.vocabularyTerm, retryRequest.displayMessage)} disabled={loading} className="mt-3 flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[9px] border border-line bg-surface px-3 text-[.76rem] font-semibold text-ink transition hover:border-brand/35 hover:bg-brand-soft sm:min-h-11 sm:gap-2 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]">
                             <RotateCcw className="size-3.5 text-brand sm:size-[15px]" /> 답변 다시 받기
                           </button>
                         )}
@@ -1335,7 +1481,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
       {drawerOpen && (
         <Sheet title={drawerView === "COURSES" ? "수강 과목 선택" : `${selectedUnit.courseTitle} 목차`} dismissible={drawerView === "OUTLINE" || !homeOpen} onClose={() => setDrawerOpen(false)}>
-          <CurriculumPicker selectionControls={drawerView === "COURSES"} grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={drawerView === "OUTLINE" ? selectedUnit.courseCode : ""} selectedUnitId={drawerView === "OUTLINE" && !courseOverviewOpen ? selectedUnit.id : ""} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onUnit={selectUnit} />
+          <CurriculumPicker selectionControls={drawerView === "COURSES"} grade={grade} subject={subject} allUnits={units} units={filteredUnits} selectedCourseCode={drawerView === "OUTLINE" ? selectedUnit.courseCode : ""} selectedUnitId={drawerView === "OUTLINE" && !courseOverviewOpen ? selectedUnit.id : ""} onGrade={changeGrade} onSubject={changeSubject} onCourse={openCourseOverview} onVocabulary={openVocabulary} onUnit={selectUnit} />
           <CurriculumBrandFooter className="mt-4" />
         </Sheet>
       )}
@@ -1364,7 +1510,7 @@ function CurriculumBrandFooter({ className }: { className?: string }) {
   );
 }
 
-function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, units, selectedCourseCode, selectedUnitId, onGrade, onSubject, onCourse, onUnit }: {
+function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, units, selectedCourseCode, selectedUnitId, onGrade, onSubject, onCourse, onVocabulary, onUnit }: {
   selectionControls?: boolean;
   grade: SupportedGrade;
   subject: SubjectCode;
@@ -1375,6 +1521,7 @@ function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, 
   onGrade: (grade: SupportedGrade) => void;
   onSubject: (subject: SubjectCode) => void;
   onCourse: (firstUnitId: string) => void;
+  onVocabulary: (firstUnitId: string) => void;
   onUnit: (id: string) => void;
 }) {
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false);
@@ -1649,18 +1796,10 @@ function CurriculumPicker({ selectionControls = true, grade, subject, allUnits, 
             </div>
           )}
 
-          {selectedCourse && (
-            <div className={cn("mt-2.5 rounded-[14px] px-3 py-2.5", selectedCourse.schoolAdopted ? "bg-[var(--ok-page)]" : "bg-[var(--warn-page)]") }>
-              <p className={cn("flex items-center gap-1.5 text-[.78rem] font-bold", selectedCourse.schoolAdopted ? "text-ok" : "text-warn") }>
-                {selectedCourse.schoolAdopted ? <CheckCircle2 size={13} /> : <TriangleAlert size={13} />}
-                {selectedCourse.schoolAdopted ? "서대전여고 채택 교과서" : "학교 채택본과 목차 기준이 다른 참고 과정"}
-              </p>
-              <p className="mt-1 text-[.76rem] leading-5 text-ink-3">
-                {selectedCourse.publisherName} · {selectedCourse.curriculum}
-                {!selectedCourse.schoolAdopted && selectedCourse.schoolPublisherName ? ` · 학교 채택본 ${selectedCourse.schoolPublisherName}` : ""}
-              </p>
-            </div>
-          )}
+          {selectedCourse && <button type="button" onClick={() => onVocabulary(courseUnits.some(unit => unit.id === selectedUnitId) ? selectedUnitId : selectedCourse.id)}
+            className="mt-2.5 flex min-h-12 w-full items-center gap-2 rounded-xl border border-brand/20 bg-brand-page px-3 py-3 text-left text-sm font-bold text-brand-dark hover:bg-brand-soft">
+            <BookOpen size={18} /> 교과 핵심 어휘 <ChevronRight size={16} className="ml-auto" />
+          </button>}
 
           {selectedCourse && <div className="mt-4 grid gap-3.5">
             {chapterGroups.map((chapter) => (

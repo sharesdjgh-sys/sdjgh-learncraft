@@ -22,7 +22,7 @@ function harness(initial: unknown, quota = Infinity) {
   const state: Record<string, unknown> = {
     units: [{ id: "unit-2", grade: 2, subjectCode: "SCIENCE" }],
     grade: 1, selectedUnitId: "initial", homeOpen: true, conversationOpen: false,
-    courseOverviewOpen: false, learningLevel: "FOUNDATION", messages: [], sessionReady: false,
+    courseOverviewOpen: false, vocabularyOpen: false, learningLevel: "FOUNDATION", messages: [], sessionReady: false,
     unitSessionsRef: { current: new Map() },
     isSupportedGrade: (grade: unknown) => grade === 1 || grade === 2 || grade === 3,
     supportedGrade: (grade: number) => grade,
@@ -34,7 +34,7 @@ function harness(initial: unknown, quota = Infinity) {
       removeItem: () => { raw = null; },
     },
   };
-  for (const name of ["Grade", "Subject", "SelectedUnitId", "HomeOpen", "CourseOverviewOpen", "LearningLevel", "Messages", "ConversationOpen", "SessionReady"]) {
+  for (const name of ["Grade", "Subject", "SelectedUnitId", "HomeOpen", "CourseOverviewOpen", "VocabularyOpen", "LearningLevel", "Messages", "ConversationOpen", "SessionReady"]) {
     state[`set${name}`] = (value: unknown) => { state[name[0].toLowerCase() + name.slice(1)] = value; };
   }
   const context = vm.createContext(state);
@@ -64,6 +64,14 @@ for (const [name, flags, expectedHome, expectedOverview, expectedConversation] o
   assert.equal(reloaded.state.conversationOpen, expectedConversation);
 }
 const legacy = harness({ unitId: "unit-2", learningLevel: "STANDARD", messages }); legacy.run(restore);
+const vocabulary = harness({ ...base, vocabularyOpen: true, conversationOpen: true });
+vocabulary.run(restore); vocabulary.run(save);
+const vocabularyReloaded = harness(vocabulary.stored()); vocabularyReloaded.run(restore);
+assert.equal(vocabularyReloaded.state.vocabularyOpen, true, "Keep the vocabulary panel open after refresh");
+for (const flags of [{ homeOpen: true }, { courseOverviewOpen: true }]) {
+  const otherPanel = harness({ ...base, vocabularyOpen: true, ...flags }); otherPanel.run(restore);
+  assert.equal(otherPanel.state.vocabularyOpen, false, "Hide vocabulary on home or course overview");
+}
 assert.equal(legacy.state.selectedUnitId, "unit-2"); assert.equal(legacy.state.conversationOpen, true);
 const stale = harness({ ...base, activeUnitId: "deleted-unit" }); stale.run(restore);
 assert.equal(stale.state.homeOpen, true); assert.equal(stale.state.sessionReady, true);

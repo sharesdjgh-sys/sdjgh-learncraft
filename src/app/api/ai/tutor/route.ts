@@ -1,3 +1,4 @@
+import { chapterVocabularyContext, VOCABULARY_GUIDE, vocabularyContext } from "@/features/vocabulary/content";
 import { createImageSlotPlacement, imageSlotMarkdown, imageSlotMarker } from "@/lib/image-slots";
 import { type VisualOf } from "@/lib/learning-visual";
 import { createDeferredIllustrations, appendDeferredIllustrations } from "@/lib/deferred-illustrations";
@@ -15,7 +16,7 @@ import type { ModelMessage, FinishReason, TextStreamPart, ToolSet } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { makeDemoAnswer } from "@/data/demo-store";
-import { getSchoolLearningUnit } from "@/data/school-curriculum";
+import { getSchoolLearningUnit, getSchoolLearningUnits } from "@/data/school-curriculum";
 import {
   buildTutorSystemPrompt,
   buildTutorUserPrompt,
@@ -57,6 +58,8 @@ const imageSchema = z.object({
 });
 
 const requestSchema = z.object({
+  mode: z.enum(["GENERAL", "VOCABULARY"]).default("GENERAL"),
+  vocabularyTerm: z.string().trim().min(1).max(80).optional(),
   requestId: z.string().uuid(),
   unitId: z.string().min(1).max(100),
   action: z.enum(["QUESTION", "EASIER", "DEEPER", "REVEAL", "QUIZ"]),
@@ -66,6 +69,9 @@ const requestSchema = z.object({
   images: z.array(imageSchema).max(3).default([]),
   recentMessages: z.array(contextMessageSchema).max(6).default([]),
 }).superRefine((value, context) => {
+  if (value.mode === "VOCABULARY" && (!value.vocabularyTerm || value.action !== "QUESTION" || value.images.length)) {
+    context.addIssue({ code: "custom", message: "어휘 질문 형식을 확인해 주세요." });
+  }
   const approximateBytes = value.images.reduce((total, image) => total + Math.ceil(image.data.length * 0.75), 0);
   if (approximateBytes > 8 * 1024 * 1024) {
     context.addIssue({ code: "custom", path: ["images"], message: "이미지 전체 용량이 너무 큽니다." });
@@ -76,7 +82,7 @@ const requestSchema = z.object({
   if (value.source === "FOLLOW_UP" && value.images.length > 0) {
     context.addIssue({ code: "custom", path: ["images"], message: "후속 학습 요청에는 새 이미지를 첨부할 수 없습니다." });
   }
-  if (value.source === "FOLLOW_UP" && value.action === "QUESTION" && value.message !== LEARNING_ESSENTIALS_PROMPT) {
+  if (value.source === "FOLLOW_UP" && value.action === "QUESTION" && value.mode !== "VOCABULARY" && value.message !== LEARNING_ESSENTIALS_PROMPT) {
     context.addIssue({ code: "custom", path: ["message"], message: "지원하지 않는 후속 학습 요청입니다." });
   }
 });
@@ -265,7 +271,12 @@ export async function POST(request: Request) {
     return errorResponse("VALIDATION_ERROR", "이어갈 튜터 답변이 없습니다.", 400, input.requestId);
   }
 
-  const explicitImage = input.action === "QUESTION" && requestsGeneratedImage(input.message ?? "");
+  const vocabularyMode = input.mode === "VOCABULARY";
+  const vocabularyUnit = vocabularyMode
+    ? chapterVocabularyContext(await getSchoolLearningUnits(user.schoolId, { courseCode: unit.courseCode }), unit)
+    : unit;
+  if (vocabularyMode && !isGeminiConfigured) return errorResponse("AI_UNAVAILABLE", "현재 어휘 질문을 사용할 수 없어요.", 503);
+  const explicitImage = !vocabularyMode && input.action === "QUESTION" && requestsGeneratedImage(input.message ?? "");
   if (explicitImage && (!isGeminiConfigured || env.GEMINI_IMAGE_ENABLED !== "true")) {
     return errorResponse("IMAGE_UNAVAILABLE", "현재 Nano Banana 이미지 생성을 사용할 수 없어요. 잠시 후 다시 요청해 주세요.", 503, input.requestId);
   }
@@ -332,17 +343,17 @@ export async function POST(request: Request) {
       const generationAvailable = env.GEMINI_IMAGE_ENABLED === "true";
       const createResult = (modelId: string) => {
         const startedAt = Date.now();
-        return streamText({
+        return streamText<ToolSet>({
           model: google(modelId),
-          system: buildTutorSystemPrompt(promptInput) + (generationAvailable
+          system: vocabularyMode ? VOCABULARY_GUIDE : buildTutorSystemPrompt(promptInput) + (generationAvailable
             ? "\n학습용 그림 생성 도구를 사용할 수 있습니다."
             : "\n현재 학습용 그림 생성은 사용할 수 없습니다. 필요한 시각 자료는 지도·도형·관계도·악보·표 또는 이미지 검색으로 제공하세요.")
             + (explicitImage ? "\n" + EXPLICIT_IMAGE_GUIDE : ""),
-          prompt,
+          prompt: vocabularyMode ? JSON.stringify({ context: vocabularyContext(vocabularyUnit, input.vocabularyTerm!), question: input.message, conversation: input.recentMessages }) : prompt,
           maxOutputTokens: 4096,
           stopWhen: stepCountIs(4),
           prepareStep: ({ stepNumber }) => explicitImage ? explicitImageToolStep(stepNumber) : stepNumber >= 3 ? { toolChoice: "none" as const } : {},
-          tools: {
+          tools: vocabularyMode ? {} : {
             ...(generationAvailable ? {
               generate_learning_illustration: tool({
                 description: "Generate an actual image with Gemini Nano Banana. Always use this tool for explicit infographic, picture, drawing or illustration generation requests; never substitute a flowchart or structured diagram. Never replace authentic artwork or exact scientific data. Do not include personal details. This tool schedules generation and returns immediately. Explain the learning content while it runs; do not claim to see a finished image. When a placementMarker is returned, output it once on its own line at the relevant point within your explanation. The application fills that reserved space with the generated image. Call again for a different illustration when needed.",

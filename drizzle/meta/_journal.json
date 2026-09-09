@@ -78,6 +78,13 @@
       "when": 1788739884550,
       "tag": "0010_teacher_role",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788871910631,
+      "tag": "0011_vocabulary_explanations",
+      "breakpoints": true
     }
   ]
 }

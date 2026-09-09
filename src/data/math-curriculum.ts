@@ -1,4 +1,5 @@
 import type { CourseCategory, LearningUnit } from "@/types";
+import { mathVocabularyTerms } from "@/data/math-vocabulary";
 
 type FormulaSeed = LearningUnit["formulas"][number];
 
@@ -605,7 +606,7 @@ function buildMathUnits() {
               `${topic.commonMistakes[0]} 실수를 하지 않는 방법을 예제로 보여 주세요.`,
               `${topic.title} 표준 난이도 확인 문제를 한 개 내주세요.`,
             ],
-            keywords: Array.from(new Set([topic.title, section.title, chapter.title, ...topic.keyPoints])),
+            keywords: mathVocabularyTerms(topic.title, topic.keyPoints),
             prerequisites: topic.prerequisites ?? [],
             commonMistakes: topic.commonMistakes,
             scopeExcluded: topic.scopeExcluded ?? ["요청하지 않은 대학 수준의 개념"],

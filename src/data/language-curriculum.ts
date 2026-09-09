@@ -1,4 +1,6 @@
 import type { CourseCategory, LearningUnit, PublisherCode, SubjectCode } from "@/types";
+import { englishVocabularyTerms } from "@/data/english-vocabulary";
+import { koreanVocabularyTerms } from "@/data/korean-vocabulary";
 
 type TopicSeed = {
   title: string;
@@ -368,6 +370,14 @@ function buildLanguageUnits() {
           courseTopicIndex += 1;
           const defaults = subjectDefaults(course, topicSeed);
           const subjectTitle = course.subjectCode === "KOREAN" ? "국어" : "영어";
+          const vocabularyTerms = course.subjectCode === "KOREAN"
+            ? koreanVocabularyTerms({
+              courseCode: course.code,
+              chapterTitle: chapter.title,
+              sectionTitle: sectionSeed.title,
+              topicTitle: topicSeed.title,
+            })
+            : englishVocabularyTerms(chapter.title, sectionSeed.title, topicSeed.title);
           const unit: LearningUnit = {
             id: `20000000-0000-4000-8000-${String(courseIndex + 1).padStart(2, "0")}${String(courseTopicIndex).padStart(10, "0")}`,
             code: `${course.code}-${String(chapterIndex + 1).padStart(2, "0")}-${String(sectionIndex + 1).padStart(2, "0")}-${String(topicIndex + 1).padStart(2, "0")}`,
@@ -404,7 +414,7 @@ function buildLanguageUnits() {
               `${topicSeed.title}을 교과서 활동 순서에 맞춰 공부하게 도와주세요.`,
               `${topicSeed.title} 확인 문제를 한 개 내고 제 답을 피드백해 주세요.`,
             ],
-            keywords: Array.from(new Set([course.title, chapter.title, sectionSeed.title, topicSeed.title, ...defaults.keyPoints])),
+            keywords: vocabularyTerms,
             prerequisites: defaults.prerequisites,
             commonMistakes: defaults.commonMistakes,
             scopeExcluded: defaults.scopeExcluded,

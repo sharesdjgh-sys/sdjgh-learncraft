@@ -16,6 +16,7 @@ import {
   users,
 } from "@/db/schema";
 import type { GeneratedCourseDraft } from "@/features/admin/generate-course-content";
+import { sanitizeVocabularyTerms } from "@/features/vocabulary/content";
 import { curriculumTitle } from "@/lib/curriculum-title";
 import type { LearningUnit, SubjectCode } from "@/types";
 
@@ -120,6 +121,7 @@ export async function saveGeneratedCourseDraft(input: {
     const aiCode = unit.code.toUpperCase().replace(/[^A-Z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "UNIT";
     const unitCode = (courseCode + "-" + String(index + 1).padStart(2, "0") + "-" + aiCode).slice(0, 100);
     const unitId = stableUuid(input.offering.id + ":" + unitCode);
+    const vocabularyTerms = sanitizeVocabularyTerms(unit.keywords, [input.offering.courseTitle]);
     await db.insert(units).values({
       id: unitId,
       courseId: course.id,
@@ -135,7 +137,7 @@ export async function saveGeneratedCourseDraft(input: {
       scopeExcluded: unit.scopeExcluded,
       prerequisites: unit.prerequisites,
       recommendedQuestions: unit.recommendedQuestions,
-      keywords: unit.keywords,
+      keywords: vocabularyTerms,
       commonMistakes: unit.commonMistakes,
       assessmentTags: unit.assessmentTags,
       sourceUrl: unit.sourceUrl,
@@ -158,7 +160,7 @@ export async function saveGeneratedCourseDraft(input: {
         scopeExcluded: unit.scopeExcluded,
         prerequisites: unit.prerequisites,
         recommendedQuestions: unit.recommendedQuestions,
-        keywords: unit.keywords,
+        keywords: vocabularyTerms,
         commonMistakes: unit.commonMistakes,
         assessmentTags: unit.assessmentTags,
         sourceUrl: unit.sourceUrl,
@@ -216,7 +218,7 @@ export async function saveGeneratedCourseDraft(input: {
       formulas: unit.formulas,
       examples: unit.examples,
       recommendedQuestions: unit.recommendedQuestions,
-      keywords: unit.keywords,
+      keywords: vocabularyTerms,
       prerequisites: unit.prerequisites,
       commonMistakes: unit.commonMistakes,
       scopeExcluded: unit.scopeExcluded,

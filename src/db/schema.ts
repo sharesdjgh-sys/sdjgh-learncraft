@@ -49,6 +49,15 @@ const timestamps = {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 };
 
+export const vocabularyExplanations = pgTable("vocabulary_explanations", {
+  key: text("key").primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+  owner: uuid("owner").notNull(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }).notNull(),
+  explanation: jsonb("explanation").$type<import("@/features/vocabulary/content").VocabularyExplanation>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const schools = pgTable("schools", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
