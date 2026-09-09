@@ -82,6 +82,17 @@ assert.match(visible, /삼각형의 넓이/);
 assert.doesNotMatch(visible, /반지름/);
 assert.doesNotMatch(renderToStaticMarkup(<Markdown>{hintMarkdown}</Markdown>), /<details/);
 
+const checkAnswerMarkdown = `## 확인 질문
+두 초점으로부터 거리의 합이 일정한 도형과 차가 일정한 도형은 각각 무엇일까요?
+
+## 확인 정답
+합이 일정한 도형은 **타원**, 차가 일정한 도형은 **쌍곡선**입니다.`;
+const foldedCheckAnswer = renderToStaticMarkup(<Markdown collapseHints>{checkAnswerMarkdown}</Markdown>);
+assert.match(foldedCheckAnswer, /확인 질문/);
+assert.match(foldedCheckAnswer, /<details[\s\S]*정답 보기[\s\S]*타원[\s\S]*쌍곡선[\s\S]*<\/details>/);
+assert.match(foldedCheckAnswer, /생각한 뒤 확인하세요/);
+assert.doesNotMatch(foldedCheckAnswer.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g, ""), /합이 일정한 도형은 <strong/);
+
 const legacy = renderToStaticMarkup(<Markdown collapseHints>{"**힌트:** 양변을 제곱하세요.\n\n**다음 문제**\n\n새로운 문제예요."}</Markdown>);
 assert.match(legacy, /<details[\s\S]*양변을 제곱하세요[\s\S]*<\/details>/);
 assert.match(legacy, /<\/details>[\s\S]*새로운 문제예요/);
@@ -92,4 +103,4 @@ for (const partial of ["## 힌트\n\n반", "## 힌트\n\n반지름은 $r", "## �
   assert.match(streamed, /<details/);
   assert.doesNotMatch(streamed.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g, ""), /반지름|반/);
 }
-console.log("힌트 접기 검증 완료: 기본 닫힘, 섹션 경계, 수식, 기존 굵은 제목, 스트리밍, 코드 블록 제외");
+console.log("힌트·확인 정답 접기 검증 완료: 기본 닫힘, 섹션 경계, 수식, 기존 굵은 제목, 스트리밍, 코드 블록 제외");

@@ -49,6 +49,7 @@ async function main() {
     memoryCue: "기체가 액체로 모여 물방울이 되는 장면을 기억하세요.",
     caution: "액체가 기체로 바뀌는 증발과 방향이 반대예요.",
     quickCheck: "차가운 안경에 김이 서리는 현상을 응결이라고 할 수 있을까요?",
+    quickCheckAnswer: "네. 공기 중 수증기가 차가운 안경 표면에서 액체 물방울로 바뀌므로 응결이에요.",
   });
   const explanationMarkdown = content.vocabularyExplanationMarkdown("응결", explanation);
   assert(explanationMarkdown.startsWith("```learncraft-vocabulary\n"));

@@ -54,7 +54,10 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
 
 const markdownComponents: Components = {
   details: ({ children }) => <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>,
-  summary: ({ children }) => <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">막힐 때 펼쳐보세요</span></summary>,
+  summary: ({ children }) => {
+    const answer = nodeText(children).includes("정답 보기");
+    return <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">{answer ? "생각한 뒤 확인하세요" : "막힐 때 펼쳐보세요"}</span></summary>;
+  },
   h1: ({ children }) => (
     <h1 className="mt-8 mb-4 text-balance text-2xl leading-[1.35] font-extrabold tracking-[-0.025em] text-ink first:mt-0 sm:text-[1.65rem]">
       {children}

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { LearningUnit } from "@/types";
 
-export const VOCABULARY_PROMPT_VERSION = 3;
+export const VOCABULARY_PROMPT_VERSION = 4;
 export const vocabularyExplanationSchema = z.object({
   oneLineMeaning: z.string().min(1).max(160).describe("학생이 가장 먼저 읽을 한 문장 뜻풀이. 현재 단원에서 쓰이는 핵심 뜻만 쉽고 정확하게 설명합니다."),
   story: z.string().min(1).max(420).describe("익숙한 장면, 짧은 비유, 확실한 말의 구성이나 의외의 대비 중 가장 알맞은 하나를 이용한 2~3문장 설명입니다."),
@@ -12,6 +12,7 @@ export const vocabularyExplanationSchema = z.object({
   memoryCue: z.string().min(1).max(180).nullable().describe("뜻을 정확히 기억하게 하는 짧은 기억 단서입니다. 억지 비유가 필요하면 null입니다."),
   caution: z.string().min(1).max(180).nullable().describe("학생이 실제로 헷갈리기 쉬운 관련 개념과의 차이입니다. 유용한 주의점이 없으면 null입니다."),
   quickCheck: z.string().min(1).max(160).describe("정답을 함께 제시하지 않는 짧은 확인 질문 한 문장입니다."),
+  quickCheckAnswer: z.string().min(1).max(220).describe("확인 질문의 정확한 정답과 핵심 이유를 1~2문장으로 설명합니다. 질문을 반복하지 않습니다."),
 });
 export type VocabularyExplanation = z.infer<typeof vocabularyExplanationSchema>;
 export function vocabularyExplanationMarkdown(term: string, explanation: VocabularyExplanation) {

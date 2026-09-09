@@ -92,7 +92,7 @@ const vocabularyFollowUps = [
     icon: CircleHelp,
     tone: "border-[#cfc1ef] bg-[linear-gradient(135deg,#f7f3ff_0%,#eee8ff_100%)] text-[#594083] shadow-[0_7px_18px_rgba(91,65,143,.1)] hover:border-[#bfaee6] hover:bg-[linear-gradient(135deg,#f2ecff_0%,#e8deff_100%)]",
     displayMessage: "이 단어의 뜻과 쓰임을 제대로 이해했는지 확인하는 문제를 내 주세요.",
-    prompt: "방금 설명한 핵심 어휘의 뜻과 쓰임을 확인할 수 있는 짧은 문제를 하나 내 주세요. 학생이 먼저 생각할 수 있도록 정답과 해설은 아직 보여 주지 마세요.",
+    prompt: "방금 설명한 핵심 어휘의 뜻과 쓰임을 확인할 수 있는 짧은 문제를 하나 내 주세요. '## 확인 질문' 아래에 문제를 쓰고, '## 확인 정답' 아래에는 정답과 한 줄 이유를 써서 화면에서 접어 볼 수 있게 해 주세요.",
   },
 ] as const;
 

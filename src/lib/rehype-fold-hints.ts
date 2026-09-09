@@ -23,6 +23,7 @@ function hintLabel(title: string) {
   const normalized = title.replace(/^[\s\p{Extended_Pictographic}\uFE0F\d.()\[\]:-]+/u, "").trim();
   if (/^(?:풀이\s*전략|접근\s*전략)(?:\s|[:：(\d]|$)/.test(normalized)) return "풀이 전략";
   if (/^(?:(?:단계별|작은|첫\s*번째|두\s*번째|추가)\s*)?힌트(?:\s|[:：(\d]|$)/.test(normalized)) return "힌트";
+  if (/^확인\s*(?:정답|해설)(?:\s|[:：(\d]|$)/.test(normalized)) return "정답";
   return null;
 }
 
