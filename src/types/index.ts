@@ -77,6 +77,11 @@ export type Bookmark = {
   createdAt: string;
 };
 
+export type BookmarkUnitContext = Pick<LearningUnit,
+  "id" | "title" | "subjectCode" | "courseCode" | "courseTitle" | "courseOrder"
+  | "chapterOrder" | "sectionTitle" | "sectionOrder" | "topicOrder"
+>;
+
 export type TutorMessage = {
   id: string;
   role: "user" | "assistant";

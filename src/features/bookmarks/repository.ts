@@ -1,15 +1,66 @@
 import { and, desc, eq } from "drizzle-orm";
 import { addBookmark as addDemoBookmark, deleteBookmark as deleteDemoBookmark, listBookmarks as listDemoBookmarks } from "@/data/demo-store";
-import { getSchoolLearningUnit } from "@/data/school-curriculum";
+import { getSchoolLearningUnits } from "@/data/school-curriculum";
 import { db } from "@/db";
-import { bookmarks as bookmarkTable } from "@/db/schema";
-import type { Bookmark } from "@/types";
+import { bookmarks as bookmarkTable, courses, subjects, units } from "@/db/schema";
+import type { Bookmark, BookmarkUnitContext, SubjectCode } from "@/types";
 
-export async function listStudentBookmarks(studentId: string, schoolId: string): Promise<Bookmark[]> {
-  if (!db) return listDemoBookmarks(studentId);
-  const rows = await db.select().from(bookmarkTable).where(eq(bookmarkTable.studentId, studentId)).orderBy(desc(bookmarkTable.createdAt));
-  return Promise.all(rows.map(async (row) => {
-    const unit = await getSchoolLearningUnit(schoolId, row.unitId);
+export type StudentBookmarkCollection = {
+  bookmarks: Bookmark[];
+  units: BookmarkUnitContext[];
+};
+
+export async function listStudentBookmarks(studentId: string, schoolId: string): Promise<StudentBookmarkCollection> {
+  if (!db) {
+    const bookmarks = listDemoBookmarks(studentId);
+    const bookmarkUnitIds = new Set(bookmarks.map((bookmark) => bookmark.unitId));
+    const schoolUnits = await getSchoolLearningUnits(schoolId, { outlineOnly: true });
+    return {
+      bookmarks,
+      units: schoolUnits.filter((unit) => bookmarkUnitIds.has(unit.id)),
+    };
+  }
+
+  const rows = await db.select({
+    bookmark: bookmarkTable,
+    unit: {
+      id: units.id,
+      title: units.title,
+      chapterOrder: units.chapterOrder,
+      sectionTitle: units.sectionTitle,
+      sectionOrder: units.sectionOrder,
+      topicOrder: units.topicOrder,
+      courseCode: courses.code,
+      courseTitle: courses.title,
+      courseOrder: courses.displayOrder,
+      subjectCode: subjects.code,
+      subjectTitle: subjects.title,
+    },
+  })
+    .from(bookmarkTable)
+    .innerJoin(units, eq(units.id, bookmarkTable.unitId))
+    .innerJoin(courses, eq(courses.id, units.courseId))
+    .innerJoin(subjects, eq(subjects.id, courses.subjectId))
+    .where(and(
+      eq(bookmarkTable.studentId, studentId),
+      eq(bookmarkTable.schoolId, schoolId),
+    ))
+    .orderBy(desc(bookmarkTable.createdAt));
+
+  const unitById = new Map<string, BookmarkUnitContext>();
+  const bookmarks = rows.map(({ bookmark: row, unit }) => {
+    unitById.set(unit.id, {
+      id: unit.id,
+      title: unit.title,
+      subjectCode: unit.subjectCode as SubjectCode,
+      courseCode: unit.courseCode,
+      courseTitle: unit.courseTitle,
+      courseOrder: unit.courseOrder,
+      chapterOrder: unit.chapterOrder,
+      sectionTitle: unit.sectionTitle,
+      sectionOrder: unit.sectionOrder,
+      topicOrder: unit.topicOrder,
+    });
     return {
       id: row.id,
       studentId: row.studentId,
@@ -18,11 +69,12 @@ export async function listStudentBookmarks(studentId: string, schoolId: string):
       answerMarkdown: row.answerMarkdown,
       answerMode: row.answerMode,
       title: row.title,
-      subjectTitle: unit?.subjectTitle ?? "과목",
-      unitTitle: unit?.title ?? "단원",
+      subjectTitle: unit.subjectTitle,
+      unitTitle: unit.title,
       createdAt: row.createdAt.toISOString(),
     };
-  }));
+  });
+  return { bookmarks, units: [...unitById.values()] };
 }
 
 export async function createStudentBookmark(

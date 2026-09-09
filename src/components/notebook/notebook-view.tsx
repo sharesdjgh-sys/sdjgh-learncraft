@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { formatCurriculumUnitNumber } from "@/lib/curriculum-hierarchy";
 import { cn } from "@/lib/utils";
-import type { Bookmark as BookmarkType, LearningUnit } from "@/types";
+import type { Bookmark as BookmarkType, BookmarkUnitContext } from "@/types";
 
 const ALL_SCOPE = "ALL";
 
@@ -54,7 +54,7 @@ function getRequestTitle(title: string) {
   return normalized.endsWith("학습 메모") ? null : normalized;
 }
 
-function bookmarkMatchesScope(item: BookmarkType, scope: string, unitById: Map<string, LearningUnit>) {
+function bookmarkMatchesScope(item: BookmarkType, scope: string, unitById: Map<string, BookmarkUnitContext>) {
   if (scope === ALL_SCOPE) return true;
   const unit = unitById.get(item.unitId);
   if (scope.startsWith("subject:")) return (unit?.subjectCode ?? item.subjectTitle) === scope.slice(8);
@@ -63,7 +63,7 @@ function bookmarkMatchesScope(item: BookmarkType, scope: string, unitById: Map<s
   return true;
 }
 
-function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, LearningUnit>) {
+function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, BookmarkUnitContext>) {
   const subjects = new Map<string, {
     title: string;
     count: number;
@@ -121,7 +121,7 @@ function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, Learn
 
 export function NotebookView() {
   const [items, setItems] = useState<BookmarkType[]>([]);
-  const [units, setUnits] = useState<LearningUnit[]>([]);
+  const [units, setUnits] = useState<BookmarkUnitContext[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState(ALL_SCOPE);
@@ -130,14 +130,15 @@ export function NotebookView() {
   const detailRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    Promise.all([fetch("/api/bookmarks"), fetch("/api/curriculum")])
-      .then(async ([bookmarkResponse, curriculumResponse]) => {
-        const [bookmarkData, curriculumData] = await Promise.all([
-          bookmarkResponse.json(),
-          curriculumResponse.json(),
-        ]);
+    fetch("/api/bookmarks", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("북마크를 불러오지 못했습니다.");
+        const bookmarkData = await response.json() as {
+          bookmarks?: BookmarkType[];
+          units?: BookmarkUnitContext[];
+        };
         setItems(bookmarkData.bookmarks ?? []);
-        setUnits(curriculumData.units ?? []);
+        setUnits(bookmarkData.units ?? []);
       })
       .finally(() => setLoading(false));
   }, []);

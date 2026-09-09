@@ -15,7 +15,9 @@ const createSchema = z.object({
 export async function GET() {
   const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
-  return NextResponse.json({ bookmarks: await listStudentBookmarks(user.id, user.schoolId) });
+  return NextResponse.json(await listStudentBookmarks(user.id, user.schoolId), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }
 
 export async function POST(request: Request) {
