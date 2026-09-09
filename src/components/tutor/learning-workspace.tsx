@@ -92,7 +92,7 @@ const vocabularyFollowUps = [
     icon: CircleHelp,
     tone: "border-[#cfc1ef] bg-[linear-gradient(135deg,#f7f3ff_0%,#eee8ff_100%)] text-[#594083] shadow-[0_7px_18px_rgba(91,65,143,.1)] hover:border-[#bfaee6] hover:bg-[linear-gradient(135deg,#f2ecff_0%,#e8deff_100%)]",
     displayMessage: "이 단어의 뜻과 쓰임을 제대로 이해했는지 확인하는 문제를 내 주세요.",
-    prompt: "방금 설명한 핵심 어휘의 뜻과 쓰임을 확인할 수 있는 짧은 문제를 하나 내 주세요. '## 확인 질문' 아래에 문제를 쓰고, '## 확인 정답' 아래에는 정답과 한 줄 이유를 써서 화면에서 접어 볼 수 있게 해 주세요.",
+    prompt: "방금 설명한 핵심 어휘의 뜻과 쓰임을 확인할 수 있는 짧은 문제를 하나 내 주세요. '## 확인 질문' 아래에 문제를 쓰고, '## 확인 정답' 아래에는 정답과 한 줄 이유만 써 주세요. 접기는 서비스가 처리하므로 details·summary HTML이나 '정답 확인하기' 문구를 직접 만들지 마세요.",
   },
 ] as const;
 
@@ -300,6 +300,51 @@ type SavedLearningSession = {
 
 type CachedUnitSession = Pick<SavedLearningSession, "learningLevel" | "messages">;
 type TutorRequestSource = "DIRECT" | "FOLLOW_UP";
+type MessageTextSize = "small" | "medium" | "large";
+
+const messageTextSizeKey = "learncraft_message_text_size";
+const messageInputTextSizeClasses: Record<MessageTextSize, string> = {
+  small: "text-[.9rem]",
+  medium: "text-[1rem]",
+  large: "text-[1.15rem]",
+};
+
+function isMessageTextSize(value: unknown): value is MessageTextSize {
+  return value === "small" || value === "medium" || value === "large";
+}
+
+function MessageTextSizeControl({ value, onChange, className }: {
+  value: MessageTextSize;
+  onChange: (size: MessageTextSize) => void;
+  className?: string;
+}) {
+  const sizes: MessageTextSize[] = ["small", "medium", "large"];
+  const currentIndex = sizes.indexOf(value);
+  return (
+    <div role="group" aria-label="질문과 답변 글자 크기" className={cn("flex h-10 shrink-0 items-center gap-0.5 rounded-full border border-brand/15 bg-white/90 p-1 shadow-[0_2px_9px_rgba(82,57,157,.08)] sm:h-8", className)}>
+      <button
+        type="button"
+        onClick={() => onChange(sizes[currentIndex - 1])}
+        disabled={currentIndex === 0}
+        aria-label="대화 글자 작게"
+        title="질문과 답변 글자 작게"
+        className="grid h-8 min-w-10 place-items-center rounded-full px-2 text-[.74rem] font-extrabold tracking-[-0.06em] text-ink-3 transition hover:bg-brand-soft hover:text-brand disabled:cursor-not-allowed disabled:opacity-25 sm:h-6 sm:min-w-8"
+      >
+        가−
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(sizes[currentIndex + 1])}
+        disabled={currentIndex === sizes.length - 1}
+        aria-label="대화 글자 크게"
+        title="질문과 답변 글자 크게"
+        className="grid h-8 min-w-10 place-items-center rounded-full px-2 text-[.84rem] font-extrabold tracking-[-0.06em] text-ink-3 transition hover:bg-brand-soft hover:text-brand disabled:cursor-not-allowed disabled:opacity-25 sm:h-6 sm:min-w-8"
+      >
+        가+
+      </button>
+    </div>
+  );
+}
 
 type SavedLearningCache = {
   version: 2;
@@ -458,6 +503,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [wideView, setWideView] = useState(false);
+  const [messageTextSize, setMessageTextSize] = useState<MessageTextSize>("medium");
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
@@ -485,6 +531,24 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const autoScrollRef = useRef(true);
   const streamingAnswerRef = useRef(false);
   const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(messageTextSizeKey);
+      if (isMessageTextSize(saved)) setMessageTextSize(saved);
+    } catch {
+      // The preference remains at the readable default when storage is unavailable.
+    }
+  }, []);
+
+  function changeMessageTextSize(size: MessageTextSize) {
+    setMessageTextSize(size);
+    try {
+      window.localStorage.setItem(messageTextSizeKey, size);
+    } catch {
+      // Font resizing still works for the current page when storage is unavailable.
+    }
+  }
 
   const filteredUnits = useMemo(
     () => units
@@ -1190,7 +1254,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             ))}
                           </div>
                         )}
-                        <Markdown>{message.content}</Markdown>
+                        <Markdown textSize={messageTextSize}>{message.content}</Markdown>
                       </div>
                     ) : (
                       <div className="w-full">
@@ -1226,7 +1290,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             signal.throwIfAborted();
                             setMessages(current => current.map(item => item.id === message.id ? { ...item, content: fillImageSlots(item.content, new Map([[slot.id, payload.markdown]])) } : item));
                           } }}>
-                            {message.content ? <Markdown collapseHints streaming={!message.completed}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
                           </ImageRetryContext.Provider>
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (
@@ -1393,7 +1457,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                     rows={1}
                     maxLength={1200}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
-                    className="scrollbar-hidden col-span-3 row-start-1 max-h-[230px] min-h-9 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-2.5 pb-1.5 pt-2 text-[1rem] leading-6 text-ink outline-none [-webkit-overflow-scrolling:touch] placeholder:text-[.78rem] placeholder:text-ink-5 sm:max-h-32 sm:min-h-11 sm:flex-1 sm:px-2.5 sm:py-2.5 sm:leading-7 sm:placeholder:text-[1rem]"
+                    className={cn("scrollbar-hidden col-span-3 row-start-1 max-h-[230px] min-h-9 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-2.5 pb-1.5 pt-2 leading-6 text-ink outline-none [-webkit-overflow-scrolling:touch] placeholder:text-[.78rem] placeholder:text-ink-5 sm:max-h-32 sm:min-h-11 sm:flex-1 sm:px-2.5 sm:py-2.5 sm:leading-7 sm:placeholder:text-[1rem]", messageInputTextSizeClasses[messageTextSize])}
+                  />
+                  <MessageTextSizeControl
+                    value={messageTextSize}
+                    onChange={changeMessageTextSize}
+                    className="col-start-2 row-start-2 justify-self-start sm:hidden"
                   />
                   <Button
                     type="submit"
@@ -1405,7 +1474,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                     <Send size={19} strokeWidth={2.3} />
                   </Button>
                 </div>
-                <div className="hidden items-center justify-end gap-2 px-1.5 pb-1 pt-0.5 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-2 sm:gap-y-1.5 sm:pt-1">
+                <div className="hidden min-w-0 items-center gap-1.5 px-1.5 pb-1 pt-1 sm:flex sm:flex-nowrap">
                   <div className="hidden items-center gap-1 sm:flex">
                     <button
                       type="button"
@@ -1437,18 +1506,19 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                   >
                     {wideView ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
                   </button>
-                  <div className="ml-auto flex min-w-0 items-center gap-1.5 text-[.7rem] text-ink-5 sm:gap-2 sm:text-[.74rem]">
+                  <MessageTextSizeControl value={messageTextSize} onChange={changeMessageTextSize} />
+                  <div className="ml-auto flex min-w-0 shrink items-center gap-1.5 text-[.7rem] text-ink-5 sm:gap-2 sm:text-[.74rem]">
                     {attachments.length > 0 ? (
-                      <span className="hidden truncate sm:inline">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
+                      <span className="hidden truncate xl:inline">이미지 {attachments.length}/{maxImageCount} · 답변 후 저장 안 됨</span>
                     ) : (
-                      <span className="hidden sm:inline">이미지 Ctrl+V · Enter 전송</span>
+                      <span className="hidden xl:inline">이미지 Ctrl+V · Enter 전송</span>
                     )}
                     <span
                       className="hidden min-h-7 shrink-0 items-center gap-1.5 rounded-full border border-[#c9bbf4] bg-[#eee9ff] px-2.5 py-1 font-bold text-[#49328f] shadow-[0_2px_8px_rgba(73,50,143,.12)] sm:inline-flex"
                       title="오늘 사용할 수 있는 AI 질문 횟수"
                     >
                       <span aria-hidden="true">✨</span>
-                      <span className="hidden sm:inline">오늘 AI 질문 가능 횟수</span>
+                      <span className="hidden lg:inline">오늘 AI 질문 가능 횟수</span>
                       <span className="figure rounded-full bg-white/85 px-1.5 py-0.5 text-[.72rem] font-extrabold text-[#4f32ad] shadow-[0_1px_3px_rgba(73,50,143,.12)] sm:text-[.78rem]">
                         {remaining}/{dailyLimit}회
                       </span>

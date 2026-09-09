@@ -52,24 +52,24 @@ export function VocabularyExplanation({ source }: { source: string }) {
     <section aria-label={`${card.term} 어휘 설명`} className="my-4 overflow-hidden rounded-2xl border border-brand/20 bg-surface shadow-[var(--lift-1)]">
       <header className="relative overflow-hidden bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] px-5 py-5 sm:px-6">
         <div className="absolute -right-8 -top-10 size-28 rounded-full bg-brand/10 blur-2xl" />
-        <p className="relative flex items-center gap-1.5 text-[.72rem] font-bold text-brand">
+        <p className="relative flex items-center gap-1.5 text-[.75em] font-bold text-brand">
           <Sparkles size={14} aria-hidden="true" /> 한눈에 뜻잡기
         </p>
-        <h2 className="relative mt-1.5 text-2xl font-extrabold tracking-[-0.03em] text-ink">{card.term}</h2>
-        <p className="relative mt-3 max-w-3xl text-[.95rem] font-semibold leading-7 text-brand-dark sm:text-base"><VocabularyText>{card.oneLineMeaning}</VocabularyText></p>
+        <h2 className="relative mt-1.5 text-[1.55em] font-extrabold tracking-[-0.03em] text-ink">{card.term}</h2>
+        <p className="relative mt-3 max-w-3xl text-[1.04em] font-semibold leading-7 text-brand-dark"><VocabularyText>{card.oneLineMeaning}</VocabularyText></p>
       </header>
 
       <div className="grid gap-px bg-line sm:grid-cols-2">
         <article className="bg-surface px-5 py-4 sm:px-6">
-          <p className="flex items-center gap-2 text-[.75rem] font-extrabold text-ink-3">
+          <p className="flex items-center gap-2 text-[.78em] font-extrabold text-ink-3">
             <BookOpenText size={15} className="text-brand" aria-hidden="true" /> 머릿속에 그려 보기
           </p>
-          <p className="mt-2 text-[.88rem] leading-6 text-ink-2"><VocabularyText>{card.story}</VocabularyText></p>
+          <p className="mt-2 text-[.92em] leading-6 text-ink-2"><VocabularyText>{card.story}</VocabularyText></p>
         </article>
         <article className="bg-surface px-5 py-4 sm:px-6">
-          <p className="text-[.75rem] font-extrabold text-ink-3">단원 속 한 문장</p>
-          <p className="mt-2 rounded-xl bg-brand-soft/55 px-3.5 py-3 text-[.88rem] font-bold leading-6 text-ink">“<VocabularyText>{card.example.sentence}</VocabularyText>”</p>
-          <p className="mt-2 text-[.78rem] leading-5 text-ink-4">여기서는 <VocabularyText>{card.example.meaning}</VocabularyText></p>
+          <p className="text-[.78em] font-extrabold text-ink-3">단원 속 한 문장</p>
+          <p className="mt-2 rounded-xl bg-brand-soft/55 px-3.5 py-3 text-[.92em] font-bold leading-6 text-ink">“<VocabularyText>{card.example.sentence}</VocabularyText>”</p>
+          <p className="mt-2 text-[.82em] leading-5 text-ink-4">여기서는 <VocabularyText>{card.example.meaning}</VocabularyText></p>
         </article>
       </div>
 
@@ -77,14 +77,14 @@ export function VocabularyExplanation({ source }: { source: string }) {
         <div className="grid gap-2 border-t border-line bg-surface-2 px-4 py-4 sm:grid-cols-2 sm:px-5">
           {card.memoryCue && (
             <div className="rounded-xl border border-[#eadfb8] bg-[#fffaf0] px-4 py-3">
-              <p className="flex items-center gap-1.5 text-[.72rem] font-extrabold text-[#806426]"><Lightbulb size={14} aria-hidden="true" /> 기억 단서</p>
-              <p className="mt-1.5 text-[.8rem] leading-5 text-ink-3"><VocabularyText>{card.memoryCue}</VocabularyText></p>
+              <p className="flex items-center gap-1.5 text-[.75em] font-extrabold text-[#806426]"><Lightbulb size={14} aria-hidden="true" /> 기억 단서</p>
+              <p className="mt-1.5 text-[.84em] leading-5 text-ink-3"><VocabularyText>{card.memoryCue}</VocabularyText></p>
             </div>
           )}
           {card.caution && (
             <div className="rounded-xl border border-[#ecd6d1] bg-[#fff7f5] px-4 py-3">
-              <p className="flex items-center gap-1.5 text-[.72rem] font-extrabold text-[#9a5143]"><AlertCircle size={14} aria-hidden="true" /> 헷갈림 주의</p>
-              <p className="mt-1.5 text-[.8rem] leading-5 text-ink-3"><VocabularyText>{card.caution}</VocabularyText></p>
+              <p className="flex items-center gap-1.5 text-[.75em] font-extrabold text-[#9a5143]"><AlertCircle size={14} aria-hidden="true" /> 헷갈림 주의</p>
+              <p className="mt-1.5 text-[.84em] leading-5 text-ink-3"><VocabularyText>{card.caution}</VocabularyText></p>
             </div>
           )}
         </div>
@@ -94,16 +94,16 @@ export function VocabularyExplanation({ source }: { source: string }) {
         <div className="flex gap-3">
           <CircleHelp size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <p className="text-[.72rem] font-extrabold text-brand-dark">30초 확인</p>
-            <p className="mt-1 text-[.84rem] font-semibold leading-6 text-ink-2"><VocabularyText>{card.quickCheck}</VocabularyText></p>
+            <p className="text-[.75em] font-extrabold text-brand-dark">30초 확인</p>
+            <p className="mt-1 text-[.88em] font-semibold leading-6 text-ink-2"><VocabularyText>{card.quickCheck}</VocabularyText></p>
           </div>
         </div>
         <details className="group mt-3 overflow-hidden rounded-xl border border-brand/15 bg-surface">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-[.78rem] font-bold text-brand-dark focus-visible:outline-2 focus-visible:outline-brand">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-[.82em] font-bold text-brand-dark focus-visible:outline-2 focus-visible:outline-brand">
             <span>정답 보기</span>
             <ChevronDown size={15} className="transition-transform group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="border-t border-line px-4 py-3 text-[.82rem] leading-6 text-ink-2">
+          <div className="border-t border-line px-4 py-3 text-[.86em] leading-6 text-ink-2">
             <VocabularyText>{card.quickCheckAnswer}</VocabularyText>
           </div>
         </details>

@@ -12,6 +12,15 @@ import { LearningFigure } from "@/components/ui/learning-figure";
 import { VocabularyExplanation } from "@/components/ui/vocabulary-explanation";
 import { compactDollarMath } from "@/lib/math-notation";
 import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
+import { cn } from "@/lib/utils";
+
+export type MarkdownTextSize = "small" | "medium" | "large";
+
+const markdownTextSizeClasses: Record<MarkdownTextSize, string> = {
+  small: "text-[0.87rem]",
+  medium: "text-[0.965rem]",
+  large: "text-[1.11rem]",
+};
 
 function nodeText(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -59,22 +68,22 @@ const markdownComponents: Components = {
     return <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">{answer ? "생각한 뒤 확인하세요" : "막힐 때 펼쳐보세요"}</span></summary>;
   },
   h1: ({ children }) => (
-    <h1 className="mt-8 mb-4 text-balance text-2xl leading-[1.35] font-extrabold tracking-[-0.025em] text-ink first:mt-0 sm:text-[1.65rem]">
+    <h1 className="mt-8 mb-4 text-balance text-[1.7em] leading-[1.35] font-extrabold tracking-[-0.025em] text-ink first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-7 mb-3 border-b border-line pb-2 text-balance text-xl leading-[1.4] font-extrabold tracking-[-0.02em] text-ink first:mt-0">
+    <h2 className="mt-7 mb-3 border-b border-line pb-2 text-balance text-[1.3em] leading-[1.4] font-extrabold tracking-[-0.02em] text-ink first:mt-0">
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mt-6 mb-2.5 text-lg leading-[1.45] font-bold tracking-[-0.015em] text-ink first:mt-0">
+    <h3 className="mt-6 mb-2.5 text-[1.16em] leading-[1.45] font-bold tracking-[-0.015em] text-ink first:mt-0">
       {children}
     </h3>
   ),
   h4: ({ children }) => (
-    <h4 className="mt-5 mb-2 text-base leading-7 font-bold text-ink first:mt-0">{children}</h4>
+    <h4 className="mt-5 mb-2 text-[1.05em] leading-7 font-bold text-ink first:mt-0">{children}</h4>
   ),
   p: ({ children }) => <p className="my-3 leading-[1.82] first:mt-0 last:mb-0">{children}</p>,
   strong: ({ children }) => <strong className="font-extrabold text-[#203676]">{children}</strong>,
@@ -213,6 +222,44 @@ export function normalizeMathDelimiters(markdown: string) {
   }
 
   return output + normalizeInlineCodeAwareText(plainText);
+}
+
+/**
+ * Keep model-authored disclosure HTML out of the transcript. The renderer owns
+ * the actual <details> element so answers remain consistent and accessible.
+ */
+export function normalizeAnswerDisclosure(markdown: string) {
+  const lines = markdown.split(/(\r?\n)/);
+  let inFence = false;
+  let answerHeadingSeen = false;
+
+  return lines.map((part) => {
+    if (/^\r?\n$/.test(part)) return part;
+    if (/^\s*(`{3,}|~{3,})/.test(part)) {
+      inFence = !inFence;
+      return part;
+    }
+    if (inFence) return part;
+
+    const line = part.trim();
+    if (/^(?:#{1,6}\s*)?(?:\*\*)?확인\s*(?:정답|해설)(?:\*\*)?\s*$/.test(line)) {
+      answerHeadingSeen = true;
+      return "## 확인 정답";
+    }
+    if (/^(?:<|&lt;)\/?details(?:>|&gt;)?\s*$/i.test(line)) return "";
+    if (/^(?:<|&lt;)details(?:>|&gt;)?\s*정답\s*(?:확인하기|보기)?\s*$/i.test(line)) {
+      if (answerHeadingSeen) return "";
+      answerHeadingSeen = true;
+      return "## 확인 정답";
+    }
+    if (/^(?:<|&lt;)summary[^>]*(?:>|&gt;).*정답.*(?:<|&lt;)\/summary(?:>|&gt;)\s*$/i.test(line)) {
+      if (answerHeadingSeen) return "";
+      answerHeadingSeen = true;
+      return "## 확인 정답";
+    }
+    if (/^#{1,6}\s+/.test(line)) answerHeadingSeen = false;
+    return part;
+  }).join("");
 }
 
 function normalizeInlineCodeAwareText(value: string) {
@@ -680,12 +727,12 @@ function normalizeShortDisplayMath(value: string) {
     .replace(texDisplayBetweenSentenceText, (_, expression: string) => ` $${expression.trim()}$`);
 }
 
-export function Markdown({ children, collapseHints = false, streaming = false }: { children: string; collapseHints?: boolean; streaming?: boolean }) {
-  const normalizedMarkdown = useMemo(() => normalizeMathDelimiters(children), [children]);
+export function Markdown({ children, collapseHints = false, streaming = false, textSize = "medium" }: { children: string; collapseHints?: boolean; streaming?: boolean; textSize?: MarkdownTextSize }) {
+  const normalizedMarkdown = useMemo(() => normalizeAnswerDisclosure(normalizeMathDelimiters(children)), [children]);
 
   return (
     <RenderingStreamContext.Provider value={streaming}>
-    <div className="learncraft-markdown min-w-0 max-w-none break-words text-[0.965rem] leading-[1.78] text-[#303b52] [word-break:keep-all]">
+    <div className={cn("learncraft-markdown min-w-0 max-w-none break-words leading-[1.78] text-[#303b52] [word-break:keep-all]", markdownTextSizeClasses[textSize])}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={collapseHints ? [rehypeFoldHints] : []}

@@ -93,6 +93,19 @@ assert.match(foldedCheckAnswer, /<details[\s\S]*정답 보기[\s\S]*타원[\s\S]
 assert.match(foldedCheckAnswer, /생각한 뒤 확인하세요/);
 assert.doesNotMatch(foldedCheckAnswer.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g, ""), /합이 일정한 도형은 <strong/);
 
+const malformedDisclosure = `## 확인 질문
+두 거리의 차가 일정한 도형은 무엇일까요?
+
+## 확인 정답
+<details>정답 확인하기
+<summary>정답 보기</summary>
+**쌍곡선**입니다.
+</details>`;
+const repairedDisclosure = renderToStaticMarkup(<Markdown collapseHints>{malformedDisclosure}</Markdown>);
+assert.equal([...repairedDisclosure.matchAll(/<details\b/g)].length, 1);
+assert.doesNotMatch(repairedDisclosure, /&lt;\/?(?:details|summary)|정답 확인하기/);
+assert.match(repairedDisclosure, /<details[\s\S]*정답 보기[\s\S]*쌍곡선[\s\S]*<\/details>/);
+
 const legacy = renderToStaticMarkup(<Markdown collapseHints>{"**힌트:** 양변을 제곱하세요.\n\n**다음 문제**\n\n새로운 문제예요."}</Markdown>);
 assert.match(legacy, /<details[\s\S]*양변을 제곱하세요[\s\S]*<\/details>/);
 assert.match(legacy, /<\/details>[\s\S]*새로운 문제예요/);
