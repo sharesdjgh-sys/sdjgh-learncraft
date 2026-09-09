@@ -155,6 +155,7 @@ export function AdminCurriculum() {
   const [batchProgress, setBatchProgress] = useState<BatchGenerationProgress | null>(null);
   const [contentPublishing, setContentPublishing] = useState(false);
   const [contentDetail, setContentDetail] = useState<GeneratedContentDetail | null>(null);
+  const [loadingContentOfferingId, setLoadingContentOfferingId] = useState<string | null>(null);
   const [generationRefreshSources, setGenerationRefreshSources] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
   const [message, setMessage] = useState("");
@@ -406,13 +407,27 @@ export function AdminCurriculum() {
 
   async function openGeneratedContent(offeringId: string) {
     clearNotice();
+    if (contentDetail?.offeringId === offeringId) {
+      setContentDetail(null);
+      return;
+    }
+    setContentDetail(null);
+    setLoadingContentOfferingId(offeringId);
     try {
       const response = await fetch(`/api/admin/curriculum/content/${encodeURIComponent(offeringId)}`);
       const data = await response.json() as GeneratedContentDetail;
       if (!response.ok) throw new Error(data.error?.message ?? "생성된 콘텐츠를 불러오지 못했습니다.");
       setContentDetail(data);
+      requestAnimationFrame(() => {
+        document.getElementById(`generated-content-${offeringId}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "생성된 콘텐츠를 불러오지 못했습니다.");
+    } finally {
+      setLoadingContentOfferingId(null);
     }
   }
 
@@ -758,8 +773,12 @@ export function AdminCurriculum() {
 
                 {loading ? <div className="grid min-h-72 place-items-center"><LoaderCircle size={24} className="animate-spin text-brand" /></div> : visibleItems.length ? (
                   <div className="mt-5 space-y-2">
-                    {visibleItems.map((item) => (
-                      <article key={item.rowKey} className={cn("grid gap-x-3 gap-y-2.5 rounded-[12px] border p-3.5 transition sm:grid-cols-[1.25rem_4.5rem_minmax(7.5rem,1fr)_minmax(10rem,1.5fr)] xl:grid-cols-[1.25rem_4.5rem_7.5rem_minmax(10rem,14rem)_8.5rem_minmax(12rem,1fr)]", item.enabled ? "border-brand/20 bg-brand-page" : "border-line bg-surface-2 opacity-70")}>
+                    {visibleItems.map((item) => {
+                      const contentOpen = contentDetail?.offeringId === item.id;
+                      const contentLoading = loadingContentOfferingId === item.id;
+                      return (
+                      <div key={item.rowKey} className="space-y-2">
+                      <article className={cn("grid gap-x-3 gap-y-2.5 rounded-[12px] border p-3.5 transition sm:grid-cols-[1.25rem_4.5rem_minmax(7.5rem,1fr)_minmax(10rem,1.5fr)] xl:grid-cols-[1.25rem_4.5rem_7.5rem_minmax(10rem,14rem)_8.5rem_minmax(12rem,1fr)]", item.enabled ? "border-brand/20 bg-brand-page" : "border-line bg-surface-2 opacity-70", contentOpen && "border-brand/45 ring-2 ring-brand/10")}>
                         <button type="button" disabled={!editable} onClick={() => updateItem(item.rowKey, { enabled: !item.enabled })} aria-label={item.enabled ? "과목 선택 해제" : "과목 선택"} title={!editable ? "수정용 검토본에서 선택을 변경할 수 있습니다" : item.enabled ? "운영 과목에서 제외" : "운영 과목으로 선택"} className={cn("mt-2 grid size-5 place-items-center rounded-[6px] border transition", item.enabled ? "border-brand bg-brand text-white" : "border-[var(--line-2)] bg-surface", !editable && "cursor-not-allowed opacity-50")}>{item.enabled && <Check size={12} strokeWidth={2.6} />}</button>
                         <label className="min-w-0">
                           <span className="mb-1 block text-[.66rem] font-bold text-ink-5">학년</span>
@@ -786,11 +805,11 @@ export function AdminCurriculum() {
                         <div className="flex flex-wrap items-center justify-end gap-1.5 sm:col-span-4 xl:col-start-2 xl:col-end-7">
                           {item.reviewRequired && <span className="mb-2 inline-flex items-center gap-1 whitespace-nowrap text-[.66rem] font-bold text-warn"><TriangleAlert size={12} />확인 필요</span>}
                           {item.contentCourseCode && item.generatedContent && item.id ? (
-                            <button type="button" onClick={() => void openGeneratedContent(item.id!)} className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-2 text-[.68rem] font-bold text-ok hover:bg-[var(--ok-page)]"><CheckCircle2 size={13} />생성 콘텐츠 보기</button>
+                            <button type="button" aria-expanded={contentOpen} aria-controls={`generated-content-${item.id}`} disabled={loadingContentOfferingId !== null} onClick={() => void openGeneratedContent(item.id!)} className={cn("mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-2 text-[.68rem] font-bold text-ok transition hover:bg-[var(--ok-page)] disabled:opacity-60", contentOpen && "bg-[var(--ok-page)] ring-1 ring-ok/20")}>{contentLoading ? <LoaderCircle size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}{contentLoading ? "불러오는 중" : contentOpen ? "생성 콘텐츠 닫기" : "생성 콘텐츠 보기"}<ChevronRight size={13} className={cn("transition-transform", contentOpen && "rotate-90")} /></button>
                           ) : item.contentCourseCode ? (
                             <span className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-2 text-[.68rem] font-bold text-ok"><CheckCircle2 size={13} />기존 학습 콘텐츠 연결됨</span>
                           ) : item.generatedContent && item.id ? (
-                            <button type="button" onClick={() => void openGeneratedContent(item.id!)} className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] bg-brand-soft px-2.5 text-[.68rem] font-bold text-brand-dark hover:bg-brand-page"><WandSparkles size={13} />생성 초안 검토</button>
+                            <button type="button" aria-expanded={contentOpen} aria-controls={`generated-content-${item.id}`} disabled={loadingContentOfferingId !== null} onClick={() => void openGeneratedContent(item.id!)} className={cn("mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] bg-brand-soft px-2.5 text-[.68rem] font-bold text-brand-dark transition hover:bg-brand-page disabled:opacity-60", contentOpen && "bg-brand-page ring-1 ring-brand/20")}>{contentLoading ? <LoaderCircle size={13} className="animate-spin" /> : <WandSparkles size={13} />}{contentLoading ? "불러오는 중" : contentOpen ? "생성 초안 닫기" : "생성 초안 보기"}<ChevronRight size={13} className={cn("transition-transform", contentOpen && "rotate-90")} /></button>
                           ) : editable && item.enabled && item.id ? (
                             <button type="button" disabled={generatingOfferingId !== null} onClick={() => { setGenerationRefreshSources(false); setGenerationTarget(item); }} title="단원 목차, 핵심 개념, 수식·예시, 선수 개념, 추천 질문과 튜터 지침을 생성합니다" className="mb-1 inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] border border-brand/20 bg-surface px-2.5 text-[.68rem] font-bold text-brand transition hover:bg-brand-soft disabled:opacity-45">{generatingOfferingId === item.id ? <LoaderCircle size={13} className="animate-spin" /> : <WandSparkles size={13} />}{generatingOfferingId === item.id ? "단원 콘텐츠 생성 중" : "단원 학습자료 생성"}</button>
                           ) : <span className="mb-2 text-[.66rem] font-bold text-ink-5">{item.enabled ? "콘텐츠 준비 전" : "미선택 과목"}</span>}
@@ -798,18 +817,19 @@ export function AdminCurriculum() {
                           {editable && <button type="button" onClick={() => setItems((current) => current.filter((entry) => entry.rowKey !== item.rowKey))} className="mb-1 grid size-8 place-items-center rounded-[8px] text-ink-5 hover:bg-[var(--danger-page)] hover:text-danger" aria-label="과목 삭제"><Trash2 size={14} /></button>}
                         </div>
                       </article>
-                    ))}
-                    {contentDetail && visibleItems.some((item) => item.id === contentDetail.offeringId) && (
-                      <GeneratedContentReview
-                        content={contentDetail}
-                        publishing={contentPublishing}
-                        regenerating={generatingOfferingId === contentDetail.offeringId}
-                        canRegenerate={editable}
-                        onClose={() => setContentDetail(null)}
-                        onPublish={() => void publishContent()}
-                        onRegenerate={() => void regenerateContent()}
-                      />
-                    )}
+                      {contentOpen && contentDetail && (
+                        <GeneratedContentReview
+                          content={contentDetail}
+                          publishing={contentPublishing}
+                          regenerating={generatingOfferingId === contentDetail.offeringId}
+                          canRegenerate={editable}
+                          onClose={() => setContentDetail(null)}
+                          onPublish={() => void publishContent()}
+                          onRegenerate={() => void regenerateContent()}
+                        />
+                      )}
+                      </div>
+                    );})}
                   </div>
                 ) : <div className="mt-5 rounded-[12px] border border-dashed border-line py-16 text-center text-[.8rem] text-ink-4">현재 조건에 표시할 과목이 없습니다.</div>}
               </div>
@@ -1255,7 +1275,7 @@ function GeneratedContentReview({
   const published = content.status === "PUBLISHED";
   const chapterGroups = groupCurriculumUnits(content.units);
   return (
-    <section className="mt-5 rounded-[16px] border border-brand/20 bg-surface p-5 shadow-[var(--lift-2)] sm:p-6">
+    <section id={`generated-content-${content.offeringId}`} className="rounded-[16px] border border-brand/25 bg-surface p-5 shadow-[var(--lift-2)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
         <div>
           <p className="flex items-center gap-1.5 text-[.7rem] font-bold text-brand"><WandSparkles size={14} /> AI 생성 콘텐츠 검토</p>

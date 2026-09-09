@@ -51,11 +51,10 @@ export const publisherSourceGuides: readonly PublisherSourceGuide[] = [
     allowedDomains: ["chunjaetext.co.kr", "chunjae.co.kr", "text.tsherpa.co.kr", "tsherpa.co.kr"],
     sites: [
       { kind: "company", label: "천재교과서", url: "https://www.chunjaetext.co.kr/", purpose: "발행사와 교과용 도서 발행 정보 확인" },
-      { kind: "textbook", label: "T셀파 교과서", url: "https://text.tsherpa.co.kr/", purpose: "천재교과서·천재교육 학교급별 교과서와 목차 확인" },
-      { kind: "textbook", label: "T셀파 고등 교과서", url: "https://text.tsherpa.co.kr/high/", purpose: "2022 개정 고등학교 과목·저자·교과서 상세 페이지와 목차 확인" },
-      { kind: "teacher-support", label: "T셀파", url: "https://www.tsherpa.co.kr/", purpose: "교과서별 차시·수업·평가 자료 확인" },
+      { kind: "textbook", label: "T셀파 중고등 교과서", url: "https://mh.tsherpa.co.kr/", purpose: "과목·대표 저자 확인 후 /curri/schoolbookdata.html?id=교재ID 상세 페이지의 단원 트리 확인" },
+      { kind: "teacher-support", label: "T셀파 중고등", url: "https://mh.tsherpa.co.kr/", purpose: "교과서별 단원·수업·평가 자료 확인" },
     ],
-    note: "천재교과서와 천재교육은 발행사명이 다를 수 있으므로 입력된 발행사와 저자명을 함께 대조한다.",
+    note: "천재교과서와 천재교육은 발행사명이 다를 수 있으므로 입력된 발행사와 저자명을 함께 대조한다. 실제 목차는 반드시 mh.tsherpa.co.kr/curri/schoolbookdata.html?id=... 형식의 교재 상세 페이지에서 확인한다.",
   },
   {
     key: "DONGA",

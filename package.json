@@ -20,6 +20,7 @@
     "test:source-cache": "tsx scripts/verify-course-source-cache-key.ts",
     "test:learning-session": "tsx scripts/verify-learning-session-restore.ts",
     "test:ai-basics-toc": "tsx scripts/verify-ai-basics-toc.ts",
+    "test:chunjae-physics-toc": "tsx scripts/verify-chunjae-physics-toc.ts",
     "test:curriculum-hierarchy": "tsx scripts/verify-curriculum-hierarchy.ts",
     "test:pwa": "tsx scripts/verify-pwa.ts",
     "db:generate": "drizzle-kit generate",

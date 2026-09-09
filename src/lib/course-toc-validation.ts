@@ -6,6 +6,7 @@ export function isTextbookTocSource(url: string) {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:") return false;
     const path = parsed.pathname.replace(/\/+$/, "").toLowerCase();
+    if (path === "/curri/schoolbookdata.html") return parsed.searchParams.has("id");
     if (!path || /(?:^|\/)(?:list|main_list|book-hi-car)(?:[/.]|$)/.test(path)) return false;
     if (/^\/(?:index|default|main|home)(?:\.[a-z]+)?$/.test(path)
       && !["bookId", "bookid", "id", "idx"].some((key) => parsed.searchParams.has(key))) return false;
