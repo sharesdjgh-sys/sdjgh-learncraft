@@ -28,6 +28,7 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  FileDown,
   FlaskConical,
   Globe2,
   ImagePlus,
@@ -35,6 +36,7 @@ import {
   LibraryBig,
   Lightbulb,
   ListTree,
+  LoaderCircle,
   Plus,
   Radical,
   RotateCcw,
@@ -55,6 +57,7 @@ import { displayMathMarkdown } from "@/lib/math-notation";
 import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
+import { makeAnswerPdfFileName } from "@/lib/tutor-pdf-file-name";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
 
 const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: string; description: string; icon: typeof Sparkles; tone: string }> = [
@@ -230,6 +233,132 @@ function makeBookmarkTitle(messages: TutorMessage[], answer: TutorMessage) {
       : normalized;
 
   return `${prompt}${suffix}`.slice(0, 100);
+}
+
+function questionForAnswer(messages: TutorMessage[], answer: TutorMessage) {
+  const answerIndex = messages.findIndex((message) => message.id === answer.id);
+  const earlierMessages = answerIndex >= 0 ? messages.slice(0, answerIndex) : messages;
+  return [...earlierMessages].reverse().find((message) => message.role === "user");
+}
+
+function pdfTextElement<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, textContent: string) {
+  const element = document.createElement(tag);
+  element.className = className;
+  element.textContent = textContent;
+  return element;
+}
+
+function copyCanvasContent(source: HTMLElement, clone: HTMLElement) {
+  const sourceCanvases = Array.from(source.querySelectorAll("canvas"));
+  const clonedCanvases = Array.from(clone.querySelectorAll("canvas"));
+  sourceCanvases.forEach((sourceCanvas, index) => {
+    const clonedCanvas = clonedCanvases[index];
+    const context = clonedCanvas?.getContext("2d");
+    if (!clonedCanvas || !context) return;
+    clonedCanvas.width = sourceCanvas.width;
+    clonedCanvas.height = sourceCanvas.height;
+    context.drawImage(sourceCanvas, 0, 0);
+  });
+}
+
+function dataUrlFromBlob(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했어요."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function inlinePdfMedia(root: HTMLElement) {
+  root.querySelectorAll<HTMLCanvasElement>("canvas").forEach((canvas) => {
+    const image = document.createElement("img");
+    image.src = canvas.toDataURL("image/png");
+    image.alt = canvas.getAttribute("aria-label") ?? "학습 자료";
+    image.width = canvas.width;
+    image.height = canvas.height;
+    image.style.cssText = canvas.style.cssText;
+    canvas.replaceWith(image);
+  });
+
+  await Promise.all(Array.from(root.querySelectorAll<HTMLImageElement>("img"), async (image) => {
+    const source = image.currentSrc || image.src;
+    if (!source || source.startsWith("data:")) return;
+
+    try {
+      const response = await fetch(source, { credentials: "include" });
+      if (!response.ok) throw new Error(`이미지 응답 오류: ${response.status}`);
+      image.src = await dataUrlFromBlob(await response.blob());
+      image.removeAttribute("srcset");
+      image.removeAttribute("loading");
+    } catch (error) {
+      console.warn("[LearnCraft PDF 이미지 인라인 실패]", source, error);
+      image.remove();
+    }
+  }));
+}
+
+function pdfStyleSheetText() {
+  const rootStyle = window.getComputedStyle(document.documentElement);
+  const inheritedFontVariables = ["--font-pretendard", "--font-learning-serif", "--font-math-serif"]
+    .map((name) => `${name}:${rootStyle.getPropertyValue(name).trim()}`)
+    .filter((declaration) => !declaration.endsWith(":"));
+  const rules: string[] = inheritedFontVariables.length > 0 ? [`:root{${inheritedFontVariables.join(";")}}`] : [];
+  for (const styleSheet of Array.from(document.styleSheets)) {
+    try {
+      const styleBaseUrl = styleSheet.href ?? document.baseURI;
+      rules.push(...Array.from(styleSheet.cssRules, (rule) => rule.cssText.replace(
+        /url\(\s*(["']?)([^"')]+)\1\s*\)/g,
+        (match, quote: string, value: string) => {
+          if (/^(?:data:|blob:|#)/i.test(value)) return match;
+          try {
+            return `url(${quote}${new URL(value, styleBaseUrl).href}${quote})`;
+          } catch {
+            return match;
+          }
+        },
+      )));
+    } catch {
+      // Cross-origin stylesheets cannot be read. LearnCraft's styles and fonts
+      // are emitted from same-origin Next.js stylesheets.
+    }
+  }
+  return rules.join("\n");
+}
+
+function downloadPdfBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+function normalizePdfHeadingMath(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("h1 .katex, h2 .katex, h3 .katex, h4 .katex").forEach((math) => {
+    const tex = math.querySelector('annotation[encoding="application/x-tex"]')?.textContent ?? "";
+    const plainText = tex
+      .replace(/\\(?:text|mathrm|mathbf|operatorname)\{([^{}]*)\}/g, "$1")
+      .replace(/\\(?:quad|qquad|enspace|space|thinspace|medspace|thickspace)\b/g, "")
+      .replace(/\\[,;:! ]/g, "")
+      .replace(/[{}]/g, "")
+      .trim();
+
+    // A quantity followed by a Korean unit is ordinary title text, not a
+    // formula. Keeping it in KaTeX mixes its serif digits with the heading's
+    // Hangul font and produces visibly different baselines in the PDF image.
+    const isSectionNumber = /^\d+[.)]$/.test(plainText);
+    const isKoreanQuantity = /[가-힣]/u.test(plainText) && !/[\\_^=<>]/.test(plainText);
+    if (!isSectionNumber && !isKoreanQuantity) return;
+
+    const replacement = document.createElement("span");
+    replacement.className = "learncraft-pdf-heading-text-math";
+    replacement.textContent = plainText.replace(/\s+/g, "");
+    math.replaceWith(replacement);
+  });
 }
 
 function recommendedQuestionsFor(unit: LearningUnit, learningLevel: LearningLevel) {
@@ -513,6 +642,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   const [loading, setLoading] = useState(false);
   const [progressStage, setProgressStage] = useState<TutorProgressStage>("preparing");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [savingPdfMessageId, setSavingPdfMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(initialPickerOpen);
@@ -1165,6 +1295,113 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     }, 2400);
   }
 
+  async function saveMessageAsPdf(message: TutorMessage) {
+    if (!message.completed || !message.content || savingPdfMessageId) return;
+
+    const answerElement = document.getElementById(`tutor-message-${message.id}`);
+    if (!answerElement) {
+      setNotice("PDF로 저장할 답변을 찾지 못했어요.");
+      window.setTimeout(() => setNotice(""), 2400);
+      return;
+    }
+
+    const question = questionForAnswer(messages, message);
+    const questionElement = question ? document.getElementById(`tutor-message-${question.id}`) : null;
+    const createdAt = new Date();
+    const captureElement = document.createElement("section");
+    captureElement.className = "learncraft-pdf-staging learncraft-pdf-capture";
+    captureElement.setAttribute("aria-hidden", "true");
+
+    const documentHeader = document.createElement("header");
+    documentHeader.className = "learncraft-pdf-document-header";
+    documentHeader.append(
+      pdfTextElement("span", "learncraft-pdf-brand", "LearnCraft"),
+      pdfTextElement("h1", "learncraft-pdf-title", "AI 학습 질문과 답변"),
+      pdfTextElement("p", "learncraft-pdf-unit", `${selectedUnit.subjectTitle} · ${selectedUnit.title}`),
+    );
+    captureElement.append(documentHeader);
+
+    const questionSection = document.createElement("section");
+    questionSection.className = "learncraft-pdf-section learncraft-pdf-question";
+    questionSection.append(pdfTextElement("h2", "learncraft-pdf-section-title", "질문"));
+    if (questionElement) {
+      const clonedQuestion = questionElement.cloneNode(true) as HTMLElement;
+      clonedQuestion.removeAttribute("id");
+      clonedQuestion.classList.add("learncraft-pdf-question-message");
+      copyCanvasContent(questionElement, clonedQuestion);
+      questionSection.append(clonedQuestion);
+    } else {
+      questionSection.append(pdfTextElement("p", "learncraft-pdf-question-fallback", learningTextContext(question?.content ?? "학습 질문")));
+    }
+    captureElement.append(questionSection);
+
+    const answerSection = document.createElement("section");
+    answerSection.className = "learncraft-pdf-section learncraft-pdf-answer";
+    answerSection.append(pdfTextElement("h2", "learncraft-pdf-section-title", "답변"));
+    const clonedAnswer = answerElement.cloneNode(true) as HTMLElement;
+    clonedAnswer.removeAttribute("id");
+    clonedAnswer.classList.add("learncraft-pdf-answer-message");
+    clonedAnswer.querySelectorAll(".learncraft-pdf-exclude").forEach((element) => element.remove());
+    clonedAnswer.querySelectorAll<HTMLDetailsElement>("details").forEach((details) => { details.open = true; });
+    clonedAnswer.querySelectorAll<HTMLLIElement>("li").forEach((item) => {
+      if (!item.querySelector("details")) return;
+      item.style.listStyle = "none";
+      item.style.paddingLeft = "0";
+    });
+    normalizePdfHeadingMath(clonedAnswer);
+    copyCanvasContent(answerElement, clonedAnswer);
+    answerSection.append(clonedAnswer);
+    captureElement.append(answerSection);
+
+    const createdAtText = new Intl.DateTimeFormat("ko-KR", {
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(createdAt);
+    captureElement.append(pdfTextElement("footer", "learncraft-pdf-document-footer", `LearnCraft에서 ${createdAtText}에 제작`));
+    document.body.append(captureElement);
+
+    setSavingPdfMessageId(message.id);
+    setNotice("PDF 파일을 만들고 있어요.");
+
+    try {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      await inlinePdfMedia(captureElement);
+      const styles = pdfStyleSheetText();
+      captureElement.classList.remove("learncraft-pdf-staging");
+      captureElement.classList.add("learncraft-pdf-native");
+      captureElement.removeAttribute("aria-hidden");
+      const html = captureElement.outerHTML;
+      captureElement.remove();
+
+      const fileName = `${makeAnswerPdfFileName(message.content, createdAt)}.pdf`;
+      const response = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          html,
+          styles,
+          title: makeAnswerPdfFileName(message.content, createdAt),
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error?.message ?? "PDF 서버가 파일을 만들지 못했어요.");
+      }
+
+      downloadPdfBlob(await response.blob(), fileName);
+      setNotice("PDF 파일을 저장했어요.");
+    } catch (error) {
+      console.error("[LearnCraft PDF 저장 실패]", error);
+      setNotice("PDF 파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      captureElement.remove();
+      setSavingPdfMessageId(null);
+      window.setTimeout(() => setNotice(""), 2400);
+    }
+  }
+
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
       <StudentTopNavigation user={{ name: studentName, schoolName }} />
@@ -1296,16 +1533,21 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (
                             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                              <p className="min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">
-                                LearnCraft AI는 틀릴 수 있어요. 정답은 선생님께 확인하세요.
+                              <p className="learncraft-answer-disclaimer min-w-[12rem] flex-1 break-keep text-[.78rem] font-semibold leading-5 text-danger">
+                                <span className="block">LearnCraft AI는 틀릴 수 있어요.</span>
+                                <span className="block">정답은 선생님께 확인하세요.</span>
                               </p>
-                              <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+                              <div className="learncraft-pdf-exclude ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
                                 {index === messages.length - 1 && (
                                   <button onClick={() => resetConversation()} disabled={loading} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-brand/20 bg-brand-page px-2.5 text-[.74rem] font-semibold text-brand-dark transition-all duration-300 hover:-translate-y-px hover:border-brand/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label="새 대화 시작">
                                     <Plus className="size-3.5 sm:size-4" />
                                     <span>새 대화</span>
                                   </button>
                                 )}
+                                <button onClick={() => void saveMessageAsPdf(message)} disabled={savingPdfMessageId !== null} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-line px-2.5 text-[.74rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-wait disabled:opacity-55 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label="답변을 PDF 파일로 저장" aria-busy={savingPdfMessageId === message.id}>
+                                  {savingPdfMessageId === message.id ? <LoaderCircle className="size-3.5 animate-spin sm:size-4" /> : <FileDown className="size-3.5 sm:size-4" />}
+                                  <span>{savingPdfMessageId === message.id ? "저장 중" : "PDF 저장"}</span>
+                                </button>
                                 <button onClick={() => void copyMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
                                   {copiedMessageId === message.id ? <Check className="size-3.5 sm:size-4" /> : <Copy className="size-3.5 sm:size-4" />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
@@ -1319,7 +1561,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           )}
                         </div>
                         {message.completed && index === messages.length - 1 && (
-                          <div className="mt-6">
+                          <div className="learncraft-pdf-exclude mt-6">
                             <p className="mb-3 text-[.86rem] font-bold text-ink">{vocabularyOpen && currentVocabularyTerm ? "이어서 어휘 익히기" : "이어서 학습하기"}</p>
                             <div className="flex flex-wrap gap-2">
                             {vocabularyOpen && currentVocabularyTerm ? vocabularyFollowUps.map(({ label, icon: Icon, tone, prompt, displayMessage }) => (

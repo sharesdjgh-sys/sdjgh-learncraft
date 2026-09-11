@@ -1,4 +1,3 @@
-@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "tailwindcss";
 
 :root {
@@ -53,7 +52,7 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
-  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-pretendard), "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: var(--font-learning-serif), "Noto Serif KR", serif;
   --font-math: var(--font-math-serif), Georgia, serif;
 }
@@ -341,6 +340,10 @@ button:active, a:active { transition-duration: 80ms; }
 
 .learncraft-markdown .katex { font-size: 1em; font-weight: inherit; line-height: 1.35; }
 .learncraft-markdown .katex-mathml { user-select: none; }
+.learncraft-markdown .katex :is(.hangul_fallback, .cjk_fallback) {
+  font-family: var(--font-sans);
+  font-style: normal;
+}
 .learncraft-markdown .katex-display {
   max-width: 100%; margin: 1.35rem 0; padding: 1.2rem 1rem;
   overflow-x: auto; overflow-y: hidden;
@@ -422,4 +425,190 @@ button:active, a:active { transition-duration: 80ms; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.learncraft-pdf-capture {
+  display: block !important;
+  width: 760px !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  padding: 14px !important;
+  color: #262a3d !important;
+  background: #fff !important;
+}
+
+.learncraft-pdf-staging {
+  position: absolute !important;
+  top: 0 !important;
+  left: -10000px !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+
+.learncraft-pdf-document-header {
+  margin-bottom: 24px;
+  border-bottom: 2px solid #6847e8;
+  padding-bottom: 14px;
+}
+
+.learncraft-pdf-brand {
+  display: block;
+  margin-bottom: 7px;
+  color: #6847e8;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.learncraft-pdf-title {
+  margin: 0;
+  color: #262a3d;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+}
+
+.learncraft-pdf-unit {
+  margin: 8px 0 0;
+  color: #6a6d7f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.learncraft-pdf-section + .learncraft-pdf-section {
+  margin-top: 26px;
+}
+
+.learncraft-pdf-section-title {
+  margin: 0 0 14px;
+  color: #4e35b7;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.learncraft-pdf-question-message {
+  display: block !important;
+}
+
+.learncraft-pdf-question-message > div {
+  max-width: 100% !important;
+  border-radius: 14px !important;
+  padding: 18px 20px !important;
+}
+
+.learncraft-pdf-question-fallback {
+  margin: 0;
+  border: 1px solid #ded8f5;
+  border-radius: 14px;
+  background: #f6f3ff;
+  padding: 18px 20px;
+  color: #35394e;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.learncraft-pdf-answer-message {
+  display: block !important;
+}
+
+.learncraft-pdf-document-footer {
+  margin-top: 28px;
+  border-top: 1px solid #dedfe8;
+  padding-top: 14px;
+  color: #777a8c;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.learncraft-pdf-capture .learncraft-pdf-exclude {
+  display: none !important;
+}
+
+.learncraft-pdf-capture .learncraft-answer-disclaimer {
+  flex: none !important;
+  min-width: 100% !important;
+}
+
+.learncraft-pdf-capture :is(pre, code) {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+}
+
+.learncraft-pdf-capture :is(table, img, svg, canvas) {
+  max-width: 100% !important;
+}
+
+.learncraft-pdf-capture figure {
+  width: min(100%, 520px) !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.learncraft-pdf-capture figure :is(svg, canvas),
+.learncraft-pdf-capture [role="img"] > svg {
+  display: block !important;
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: 230px !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.learncraft-pdf-capture figure img {
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: 340px !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+  object-fit: contain !important;
+}
+
+.learncraft-pdf-capture .learncraft-markdown :is(h1, h2, h3, h4) .katex {
+  vertical-align: baseline !important;
+  line-height: 1 !important;
+}
+
+.learncraft-pdf-capture .learncraft-markdown :is(h1, h2, h3, h4) .katex .katex-html * {
+  font-family: inherit !important;
+}
+
+.learncraft-pdf-heading-text-math {
+  display: inline !important;
+  font-family: inherit !important;
+  font-size: 1em !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  vertical-align: baseline !important;
+  letter-spacing: inherit !important;
+}
+
+.learncraft-pdf-capture [role="region"] {
+  overflow: visible !important;
+}
+
+.learncraft-pdf-capture table {
+  min-width: 0 !important;
+  font-size: .82rem !important;
+}
+
+.learncraft-pdf-capture :is(th, td) {
+  padding: 7px 9px !important;
+}
+
+.learncraft-pdf-capture li:has(details) {
+  padding-left: 0 !important;
+  list-style: none !important;
+}
+
+.learncraft-pdf-capture li:has(details)::marker {
+  content: "";
+}
+
+.learncraft-pdf-capture ol:has(> li:only-child > details) {
+  padding-left: 0 !important;
+  list-style: none !important;
 }
