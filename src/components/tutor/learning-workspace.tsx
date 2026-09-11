@@ -1291,7 +1291,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                             signal.throwIfAborted();
                             setMessages(current => current.map(item => item.id === message.id ? { ...item, content: fillImageSlots(item.content, new Map([[slot.id, payload.markdown]])) } : item));
                           } }}>
-                            {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize}>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize} repairGeneratedFence>{message.content}</Markdown> : <Thinking stage={progressStage} />}
                           </ImageRetryContext.Provider>
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (

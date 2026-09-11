@@ -176,7 +176,12 @@ const consecutiveDisplayMath = String.raw`3. **외접원의 반지름($R$) 구�
    $$8 = 2R$$
    $$R = 4$$`;
 
+const permutationTableWithMissingOpeningDollar = String.raw`| 첫 번째 | 가능한 순서쌍 | 경우의 수 |
+| --- | --- | --- |
+| E | (E, A), (\text{E, B}),\ (\text{E, C}),\ (\text{E, D})$ | 4가지 |`;
+
 markdownCases.push(consecutiveDisplayMath);
+markdownCases.push(permutationTableWithMissingOpeningDollar);
 
 for (const input of markdownCases) {
   const normalized = normalizeMathDelimiters(input);
@@ -195,6 +200,11 @@ for (const input of markdownCases) {
   if (input === consecutiveDisplayMath) {
     assert.equal((html.match(/class="katex-display"/g) ?? []).length, 3, "연속된 display 수식 3개가 유지되어야 합니다.");
     assert.doesNotMatch(normalized, /^\s*\$(?:8 = 2R|R = 4)\s*$/gm, "display 수식의 달러 기호가 하나로 줄면 안 됩니다.");
+  }
+  if (input === permutationTableWithMissingOpeningDollar) {
+    assert.match(normalized, /\| E \| \$\(E, A\).+\$ \| 4가지 \|/, "표 셀에서 빠진 여는 수식 기호를 복구해야 합니다.");
+    assert.equal((html.match(/class="katex"/g) ?? []).length, 1, "네 순서쌍이 하나의 인라인 수식으로 렌더링되어야 합니다.");
+    assert.doesNotMatch(html, /\$/, "깨진 수식 구분 기호가 표에 그대로 노출되면 안 됩니다.");
   }
 }
 

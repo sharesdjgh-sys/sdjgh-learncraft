@@ -52,6 +52,27 @@ for (const markdown of ["`** NaCl **`", "\n```text\n작품**《인왕제색도�
 }
 assert.match(renderToStaticMarkup(<Markdown>{"**진경산수화(정선의 《인왕제색도》)**"}</Markdown>), /<strong[^>]*>진경산수화\(정선의 《인왕제색도》\)<\/strong>/);
 
+const ontologyFeedback = `문서만 잔뜩 준다고 해서 복잡한 문제가 다 풀리지는 않아요. 축제 준비에는 여러 사람과 규칙이 얽혀 있으니까요.
+
+* **상황**: "음향 장비가 고장 났는데, 공연 시간에 문제없을까?"라는 질문에는 문서 한 장으로 답하기 어려워요.
+* **해결**: 사물과 사람의 관계를 지도처럼 이어 주는 거예요.
+  * \`[음향 장비]\` $\\rightarrow$ \`[밴드부 공연]\`에 필요함
+  * \`[밴드부 공연]\` $\\rightarrow$ \`[강당]\`에서 $14$시에 진행
+  * \`[수리 비용]\` $\\rightarrow$ $10$만 원 이상이면 \`[선생님 승인]\` 필요
+* **온톨로지의 역할**: 이렇게 **"누가, 무엇과 연결되어 있고, 어떤 규칙을 따라야 하는가?"를 컴퓨터가 이해할 수 있게 만든 관계 지도**예요. 덕분에 로봇이 "장비가 고장 났으니 $14$시 밴드 공연을 미루고 선생님 승인을 받아 수리하자"라고 똑똑하게 판단할 수 있어요.`;
+
+const ontologyFeedbackHtml = renderToStaticMarkup(<Markdown>{ontologyFeedback}</Markdown>);
+assert.equal((ontologyFeedbackHtml.match(/<strong/g) ?? []).length, 4, "조사가 붙은 긴 핵심 문장까지 굵게 렌더링되어야 합니다.");
+assert.ok((ontologyFeedbackHtml.match(/class="katex"/g) ?? []).length >= 6, "중첩 목록 안의 화살표와 숫자 수식이 렌더링되어야 합니다.");
+assert.doesNotMatch(ontologyFeedbackHtml, /\*\*/, "온톨로지 설명에 굵게 표시 문법이 그대로 남으면 안 됩니다.");
+
+const fencedOntologyFeedbackHtml = renderToStaticMarkup(<Markdown repairGeneratedFence>{`\`\`\`markdown\n${ontologyFeedback}\n\`\`\``}</Markdown>);
+assert.equal((fencedOntologyFeedbackHtml.match(/<strong/g) ?? []).length, 4, "답변 전체를 감싼 Markdown 코드 울타리는 제거해야 합니다.");
+assert.doesNotMatch(fencedOntologyFeedbackHtml, /<pre|language-markdown|\*\*/, "Markdown 답변 전체가 코드 블록으로 노출되면 안 됩니다.");
+const streamingFencedHtml = renderToStaticMarkup(<Markdown repairGeneratedFence streaming>{`\`\`\`markdown\n* **상황**: 설명 작성 중`}</Markdown>);
+assert.match(streamingFencedHtml, /<strong[^>]*>상황<\/strong>/, "스트리밍 중에도 Markdown 코드 울타리의 시작을 즉시 제거해야 합니다.");
+assert.doesNotMatch(streamingFencedHtml, /<pre|language-markdown|\*\*/, "스트리밍 중 Markdown 문법이 코드로 노출되면 안 됩니다.");
+
 console.log(`Markdown 렌더링 검증 완료: 굵게 문법 ${strongCases.length}개 입력 × 2개 렌더러`);
 
 const hintMarkdown = `## 문제

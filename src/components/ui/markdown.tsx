@@ -176,6 +176,15 @@ const inlineMarkdownComponents: Components = {
  * remark-math expects dollar delimiters, so translate them without touching
  * fenced code blocks or inline code spans that may be teaching the syntax.
  */
+function unwrapGeneratedMarkdownFence(markdown: string) {
+  const opening = markdown.match(/^\s*(`{3,}|~{3,})[\t ]*(?:markdown|md)[\t ]*\r?\n/i);
+  if (!opening) return markdown;
+
+  const content = markdown.slice(opening[0].length);
+  const closing = new RegExp(`\\r?\\n${opening[1]}[\\t ]*\\s*$`);
+  return content.replace(closing, "").trim();
+}
+
 export function normalizeMathDelimiters(markdown: string) {
   let output = "";
   let plainText = "";
@@ -451,6 +460,14 @@ function looksLikeMathExpression(value: string) {
     && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
 }
 
+function looksLikeOrderedPairList(value: string) {
+  const pairPattern = /\([^()\r\n|]+,\s*[^()\r\n|]+\)/g;
+  const pairs = value.match(pairPattern);
+
+  return (pairs?.length ?? 0) >= 2
+    && value.replace(pairPattern, "").replace(/[\s,\\]+/g, "") === "";
+}
+
 function singleDollarIndexes(value: string) {
   const indexes: number[] = [];
   let cursor = 0;
@@ -488,6 +505,14 @@ function normalizeBrokenLineMath(value: string) {
     }
 
     let repaired = line;
+
+    repaired = repaired.replace(
+      /(^|\|)([\t ]*)([^|$\r\n]+?)\$([\t ]*)(?=\||$)/g,
+      (match, boundary: string, spacing: string, expression: string, trailingSpacing: string) => {
+        if (!looksLikeMathExpression(expression) && !looksLikeOrderedPairList(expression)) return match;
+        return `${boundary}${spacing}$${expression.trim()}$${trailingSpacing}`;
+      },
+    );
 
     repaired = repaired.replace(
       /^(\s*)([^$]+?)\$(?=[가-힣])/,
@@ -727,8 +752,11 @@ function normalizeShortDisplayMath(value: string) {
     .replace(texDisplayBetweenSentenceText, (_, expression: string) => ` $${expression.trim()}$`);
 }
 
-export function Markdown({ children, collapseHints = false, streaming = false, textSize = "medium" }: { children: string; collapseHints?: boolean; streaming?: boolean; textSize?: MarkdownTextSize }) {
-  const normalizedMarkdown = useMemo(() => normalizeAnswerDisclosure(normalizeMathDelimiters(children)), [children]);
+export function Markdown({ children, collapseHints = false, streaming = false, textSize = "medium", repairGeneratedFence = false }: { children: string; collapseHints?: boolean; streaming?: boolean; textSize?: MarkdownTextSize; repairGeneratedFence?: boolean }) {
+  const normalizedMarkdown = useMemo(
+    () => normalizeAnswerDisclosure(normalizeMathDelimiters(repairGeneratedFence ? unwrapGeneratedMarkdownFence(children) : children)),
+    [children, repairGeneratedFence],
+  );
 
   return (
     <RenderingStreamContext.Provider value={streaming}>
