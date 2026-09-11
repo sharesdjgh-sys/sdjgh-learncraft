@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquareText, RefreshCw } from "lucide-react";
-import { categories, statuses, type FeedbackItem, type FeedbackPage } from "@/features/feedback/model";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, ArrowRight, BookCopy, BookOpenCheck, Check, ChevronDown, ImagePlus, Layers3, LibraryBig, LoaderCircle, MessageCircleMore, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { categories, statuses, type FeedbackCurriculumLocation, type FeedbackItem, type FeedbackPage } from "@/features/feedback/model";
 import { prepareFeedbackImage } from "@/features/feedback/prepare-image";
+import type { LearningOutline } from "@/lib/learning-outline";
 import { browserRandomUUID } from "@/lib/browser-random-uuid";
 
-// Enable after connecting private image storage and rebuilding the app.
 const imageAttachmentsEnabled = process.env.NEXT_PUBLIC_FEEDBACK_IMAGES_ENABLED === "true";
-
-const field = "mt-2 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60";
-const action = "min-h-11 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50";
+const field = "mt-2 w-full rounded-[14px] border border-[#d9d8d1] bg-[#fbfaf7] px-4 py-3 text-sm outline-none transition duration-300 placeholder:text-[#999b94] focus:border-[#39796e] focus:bg-white focus:ring-4 focus:ring-[#39796e]/10 disabled:opacity-60";
+const action = "inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-[#1d6258] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(29,98,88,.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#164f47] active:scale-[.98] disabled:pointer-events-none disabled:opacity-50";
+const quietButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-[13px] border border-[#d9d8d1] bg-white px-4 text-sm font-semibold text-[#42504d] transition-all duration-300 hover:-translate-y-px hover:border-[#b9c8c3] hover:text-[#1d6258] active:scale-[.98] disabled:opacity-50";
 const date = (value: string) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul" }).format(new Date(value));
-const statusTone = { RECEIVED: "bg-surface-3 text-ink-3", IN_PROGRESS: "bg-brand-soft text-brand-dark", COMPLETED: "bg-emerald-50 text-emerald-800" };
+const statusTone = { RECEIVED: "bg-[#efeee9] text-[#626660]", IN_PROGRESS: "bg-[#e7f2ef] text-[#1d6258]", COMPLETED: "bg-[#dff1e8] text-[#236848]" };
 
 async function requestJson(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init });
@@ -22,145 +22,134 @@ async function requestJson(url: string, init?: RequestInit) {
   return body;
 }
 
-function FeedbackForm({ onCreated }: { onCreated: () => void }) {
-  const [category, setCategory] = useState<keyof typeof categories>("IMPROVEMENT");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+function CurriculumLocation({ location, compact = false }: { location: FeedbackCurriculumLocation; compact?: boolean }) {
+  return <div className={compact ? "mt-3 rounded-[13px] bg-brand-page px-3.5 py-3" : "rounded-[14px] border border-brand/15 bg-brand-page p-4"}>
+    <div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-surface text-brand shadow-[var(--lift-1)]"><BookOpenCheck size={17} /></span><div className="min-w-0 flex-1"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-brand">{location.grade}학년 · {location.subjectTitle} · {location.courseTitle}</p><p className="font-learning mt-1 break-keep text-sm font-bold leading-6 text-ink">{location.unitTitle}</p><p className="mt-0.5 break-keep text-xs leading-5 text-ink-4">{location.chapterTitle} › {location.sectionTitle}</p></div></div>
+  </div>;
+}
+
+function CurriculumPicker({ selected, initialUnitId, onSelect, disabled }: { selected: FeedbackCurriculumLocation | null; initialUnitId?: string; onSelect: (value: FeedbackCurriculumLocation | null) => void; disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [outline, setOutline] = useState<LearningOutline | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [grade, setGrade] = useState<1 | 2 | 3>((selected?.grade as 1 | 2 | 3 | undefined) ?? 1);
+  const [subjectCode, setSubjectCode] = useState("");
+  const [activeCourseCode, setActiveCourseCode] = useState("");
+  const appliedInitialUnit = useRef(false);
+  useEffect(() => {
+    if ((!open && !initialUnitId) || outline) return;
+    const controller = new AbortController(); setLoading(true); setError("");
+    requestJson("/api/curriculum?view=outline", { signal: controller.signal }).then((body: { outline: LearningOutline }) => {
+      if (controller.signal.aborted) return;
+      const linkedCourse = initialUnitId ? body.outline.find(({ topics }) => topics.some((topic) => topic.id === initialUnitId)) : undefined;
+      const initial = body.outline.find(({ course }) => course.courseCode === selected?.courseCode) ?? linkedCourse ?? body.outline[0];
+      setOutline(body.outline);
+      setGrade((selected?.grade as 1 | 2 | 3 | undefined) ?? initial?.course.grade ?? 1);
+      setSubjectCode(initial?.course.subjectCode ?? "");
+      setActiveCourseCode(initial?.course.courseCode ?? "");
+      const linkedTopic = linkedCourse?.topics.find((topic) => topic.id === initialUnitId);
+      if (!selected && linkedCourse && linkedTopic && !appliedInitialUnit.current) {
+        appliedInitialUnit.current = true;
+        onSelect({ unitId: linkedTopic.id, courseCode: linkedCourse.course.courseCode, courseTitle: linkedCourse.course.courseTitle, subjectTitle: linkedCourse.course.subjectTitle, grade: linkedCourse.course.grade, chapterTitle: linkedTopic.chapterTitle, sectionTitle: linkedTopic.sectionTitle, unitTitle: linkedTopic.title });
+      }
+    }).catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "교육과정을 불러오지 못했어요."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [open, outline, selected, initialUnitId, onSelect, attempt]);
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); }; window.addEventListener("keydown", close);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", close); };
+  }, [open]);
+  const availableGrades = useMemo(() => [...new Set((outline ?? []).map(({ course }) => course.grade))].sort(), [outline]);
+  const availableSubjects = useMemo(() => [...new Map((outline ?? []).filter(({ course }) => course.grade === grade).map(({ course }) => [course.subjectCode, { code: course.subjectCode, title: course.subjectTitle }])).values()], [outline, grade]);
+  const courses = useMemo(() => (outline ?? []).filter(({ course }) => course.grade === grade && course.subjectCode === subjectCode), [outline, grade, subjectCode]);
+  const active = courses.find(({ course }) => course.courseCode === activeCourseCode) ?? courses[0];
+  const chapters = active ? [...new Map(active.topics.map((topic) => [topic.chapterOrder, { title: topic.chapterTitle, order: topic.chapterOrder }])).values()].sort((a, b) => a.order - b.order) : [];
+  function choose(topic: NonNullable<typeof active>["topics"][number]) {
+    if (!active) return;
+    onSelect({ unitId: topic.id, courseCode: active.course.courseCode, courseTitle: active.course.courseTitle, subjectTitle: active.course.subjectTitle, grade: active.course.grade, chapterTitle: topic.chapterTitle, sectionTitle: topic.sectionTitle, unitTitle: topic.title }); setOpen(false);
+  }
+  return <div>
+    {selected ? <div><CurriculumLocation location={selected} /><div className="mt-2 flex gap-2"><button type="button" disabled={disabled} onClick={() => setOpen(true)} className={quietButton}>다른 위치 선택</button><button type="button" disabled={disabled} onClick={() => onSelect(null)} className="min-h-11 px-3 text-xs font-semibold text-danger">선택 해제</button></div></div> : <button type="button" disabled={disabled} onClick={() => setOpen(true)} className="group flex min-h-[76px] w-full items-center gap-3 rounded-[14px] border border-dashed border-brand/25 bg-brand-page px-4 text-left transition-all duration-300 hover:-translate-y-px hover:border-brand/40 hover:bg-brand-soft active:scale-[.99]"><span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-surface text-brand shadow-[var(--lift-1)]"><Layers3 size={19} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-brand-dark">교육과정에서 위치 찾기</span><span className="mt-1 block text-xs text-ink-4">학년 › 교과 › 수강 과목 › 학습 주제</span></span><ArrowRight size={17} className="text-brand transition-transform group-hover:translate-x-1" /></button>}
+    {open && <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 backdrop-blur-sm sm:items-center sm:p-6" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="curriculum-picker-title" className="flex max-h-[94dvh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[22px] border border-line bg-surface shadow-[var(--lift-3)] sm:max-h-[88dvh] sm:rounded-[20px]">
+      <header className="flex items-center justify-between gap-4 border-b border-line bg-surface px-5 py-4"><div><h3 id="curriculum-picker-title" className="text-[.95rem] font-extrabold text-ink">오류 위치 선택</h3><p className="mt-1 text-[.76rem] text-ink-4">학습 탭과 같은 교육과정에서 골라주세요.</p></div><button type="button" onClick={() => setOpen(false)} aria-label="선택창 닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-ink-3 transition hover:bg-surface-2"><X size={19} /></button></header>
+      {loading ? <div role="status" className="grid min-h-72 flex-1 place-items-center text-sm text-ink-3"><span className="flex items-center gap-2"><LoaderCircle size={18} className="animate-spin text-brand" /> 교육과정을 불러오고 있어요</span></div> : error ? <div role="alert" className="grid min-h-72 flex-1 place-items-center p-8 text-center"><div><AlertCircle size={27} className="mx-auto text-danger" /><p className="mt-3 text-sm text-danger">{error}</p><button type="button" onClick={() => { setError(""); setAttempt((value) => value + 1); }} className={`${quietButton} mt-4`}>다시 시도</button></div></div> : <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-5 [scrollbar-gutter:stable]">
+        <div className="flex items-center gap-2 px-1 text-[.86rem] font-bold text-ink"><LibraryBig size={17} className="text-brand" /> 교육과정</div>
+        <p className="mt-1.5 px-1 text-[.78rem] leading-5 text-ink-4">학년과 교과를 확인하고 오류가 난 학습 주제를 고르세요.</p>
+        <div className="mt-4 grid gap-1 rounded-[12px] border border-line bg-surface-3 p-1" style={{ gridTemplateColumns: `repeat(${availableGrades.length}, minmax(0, 1fr))` }}>{availableGrades.map((item) => <button key={item} type="button" onClick={() => { const first = outline?.find(({ course }) => course.grade === item); setGrade(item); setSubjectCode(first?.course.subjectCode ?? ""); setActiveCourseCode(first?.course.courseCode ?? ""); }} className={`min-h-11 rounded-[9px] text-[.82rem] font-semibold transition active:scale-[.97] ${grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink"}`}>{item}학년</button>)}</div>
+        <p className="mt-4 px-1 text-[.72rem] font-bold text-ink-4">교과 선택</p>
+        <div className="mt-2 grid grid-cols-3 gap-1.5">{availableSubjects.map((item) => <button key={item.code} type="button" onClick={() => { const first = outline?.find(({ course }) => course.grade === grade && course.subjectCode === item.code); setSubjectCode(item.code); setActiveCourseCode(first?.course.courseCode ?? ""); }} className={`min-h-11 rounded-[10px] border px-2 text-[.76rem] font-bold transition-all active:scale-[.97] ${subjectCode === item.code ? "border-brand/25 bg-brand-soft text-brand-dark" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}>{item.title}{subjectCode === item.code && <Check size={12} className="ml-1 inline" />}</button>)}</div>
+        <p className="mt-6 px-1 text-[.78rem] font-bold text-ink-4">수강 과목</p>
+        <div className="mt-2.5 grid gap-1.5">{courses.map(({ course, topics }) => <button key={course.courseCode} type="button" onClick={() => setActiveCourseCode(course.courseCode)} className={`flex min-h-12 w-full items-center gap-2 rounded-[11px] border px-3 py-2.5 text-left shadow-[var(--lift-1)] transition-all active:scale-[.99] ${active?.course.courseCode === course.courseCode ? "border-brand/25 bg-brand-soft text-brand-dark" : "border-line bg-surface text-ink"}`}><BookCopy size={16} className="shrink-0 text-brand" /><span className="min-w-0 flex-1 truncate text-[.84rem] font-bold">{course.courseTitle}</span><span className="shrink-0 text-[.68rem] font-semibold text-ink-5">{topics.length}개 주제</span><ChevronDown size={15} className="shrink-0 -rotate-90 text-ink-5" /></button>)}</div>
+        {active ? <div className="mt-5 rounded-[14px] border border-line bg-surface-2 px-4 py-3"><p className="text-[.7rem] font-semibold text-ink-5">{active.course.subjectTitle}</p><p className="font-learning mt-1 text-[.95rem] font-bold text-ink">{active.course.courseTitle}</p></div> : <div className="mt-5 rounded-[13px] border border-dashed border-line px-4 py-7 text-center text-[.82rem] text-ink-3">이 교과에 공개된 과목이 없어요.</div>}
+        {active && <div className="mt-4 grid gap-3.5">{chapters.map((chapter) => <section key={chapter.order}><div className="flex items-center gap-2 px-1"><span className="figure shrink-0 text-[.82rem] font-semibold text-brand">{chapter.order}</span><h4 className="font-learning text-[.88rem] font-bold text-ink">{chapter.title}</h4></div><div className="mt-1.5 grid gap-1.5 border-l border-line pl-2">{[...new Map(active.topics.filter((topic) => topic.chapterOrder === chapter.order).map((topic) => [topic.sectionOrder, { order: topic.sectionOrder, title: topic.sectionTitle }])).values()].map((section) => { const sectionTopics = active.topics.filter((topic) => topic.chapterOrder === chapter.order && topic.sectionOrder === section.order); return <div key={`${chapter.order}-${section.order}`}><p className="mb-0.5 px-1 text-[.74rem] font-semibold leading-5 text-ink-5"><span className="figure">{chapter.order}.{section.order}</span> {section.title}</p><div className="grid gap-0.5">{sectionTopics.map((topic) => { const isSelected = selected?.unitId === topic.id; const number = sectionTopics.length > 1 ? `${chapter.order}.${section.order}.${topic.topicOrder}` : `${chapter.order}.${section.order}`; return <button key={topic.id} type="button" onClick={() => choose(topic)} className={`group flex min-h-11 items-start gap-1.5 rounded-[9px] px-1.5 py-2 text-left transition-all active:scale-[.985] ${isSelected ? "bg-brand-soft text-[#4a3e7a]" : "text-ink-3 hover:bg-surface hover:text-ink"}`}><span className={`figure shrink-0 pt-0.5 text-[.76rem] ${isSelected ? "text-brand" : "text-ink-5"}`}>{number}</span><span className={`min-w-0 text-[.83rem] leading-5 ${isSelected ? "font-learning font-bold" : "font-medium"}`}>{topic.title}</span>{isSelected && <Check size={13} className="ml-auto mt-1 shrink-0 text-brand" />}</button>; })}</div></div>; })}</div></section>)}</div>}
+      </div>}
+    </section></div>}
+  </div>;
+}
+
+function FeedbackForm({ initialUnitId, onCreated }: { initialUnitId?: string; onCreated: () => void }) {
+  const [category, setCategory] = useState<keyof typeof categories>("BUG");
+  const [title, setTitle] = useState(""); const [content, setContent] = useState("");
+  const [curriculumLocation, setCurriculumLocation] = useState<FeedbackCurriculumLocation | null>(null);
   const [images, setImages] = useState<{ file: File; url: string; id: string }[]>([]);
-  const [converting, setConverting] = useState(false);
-  const imageUrls = useRef(new Set<string>());
-  const convertingRef = useRef(false);
+  const [converting, setConverting] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const imageUrls = useRef(new Set<string>()); const convertingRef = useRef(false); const submission = useRef<{ id: string; payload: string } | null>(null); const submitting = useRef(false);
   useEffect(() => { const urls = imageUrls.current; return () => { urls.forEach(URL.revokeObjectURL); }; }, []);
   async function selectImages(files: File[]) {
     if (!imageAttachmentsEnabled || convertingRef.current || submitting.current) return;
     if (files.length + images.length > 3) { setError("이미지는 최대 3장까지 첨부할 수 있어요."); return; }
     convertingRef.current = true; setConverting(true); setError("");
-    try {
-      const prepared: File[] = [];
-      for (const file of files) prepared.push(await prepareFeedbackImage(file));
-      const additions = prepared.map((file) => { const url = URL.createObjectURL(file); imageUrls.current.add(url); return { file, url, id: browserRandomUUID() }; });
-      setImages((current) => [...current, ...additions]);
-    } catch (error) { setError(error instanceof Error ? error.message : "이미지를 변환하지 못했어요."); }
-    finally { convertingRef.current = false; setConverting(false); }
+    try { const prepared: File[] = []; for (const file of files) prepared.push(await prepareFeedbackImage(file)); const additions = prepared.map((file) => { const url = URL.createObjectURL(file); imageUrls.current.add(url); return { file, url, id: browserRandomUUID() }; }); setImages((current) => [...current, ...additions]); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "이미지를 변환하지 못했어요."); } finally { convertingRef.current = false; setConverting(false); }
   }
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submission = useRef<{ id: string; payload: string } | null>(null);
-  const submitting = useRef(false);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (submitting.current || convertingRef.current) return;
-    submitting.current = true;
-    setBusy(true); setError("");
-    const payload = JSON.stringify({ category, title: title.trim(), content: content.trim(), images: imageAttachmentsEnabled ? images.map((image) => image.id) : [] });
+    event.preventDefault(); if (submitting.current || convertingRef.current) return;
+    submitting.current = true; setBusy(true); setError("");
+    const payload = JSON.stringify({ category, title: title.trim(), content: content.trim(), curriculumLocation, images: imageAttachmentsEnabled ? images.map((image) => image.id) : [] });
     if (submission.current?.payload !== payload) submission.current = { id: browserRandomUUID(), payload };
-    try {
-      const body = new FormData();
-      body.append("payload", JSON.stringify({ category, title, content, requestId: submission.current.id }));
-      if (imageAttachmentsEnabled) images.forEach((image) => body.append("images", image.file));
-      await requestJson("/api/feedback", { method: "POST", body });
-      setTitle(""); setContent(""); submission.current = null;
-      imageUrls.current.forEach(URL.revokeObjectURL); imageUrls.current.clear(); setImages([]);
-      onCreated();
-    } catch (error) { setError(error instanceof Error ? error.message : "등록하지 못했어요."); }
-    finally { submitting.current = false; setBusy(false); }
+    try { const body = new FormData(); body.append("payload", JSON.stringify({ category, title, content, curriculumLocation, requestId: submission.current.id })); if (imageAttachmentsEnabled) images.forEach((image) => body.append("images", image.file)); await requestJson("/api/feedback", { method: "POST", body }); setTitle(""); setContent(""); setCurriculumLocation(null); submission.current = null; imageUrls.current.forEach(URL.revokeObjectURL); imageUrls.current.clear(); setImages([]); onCreated(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "등록하지 못했어요."); } finally { submitting.current = false; setBusy(false); }
   }
-  return <section className="h-fit rounded-2xl border border-line bg-surface p-5 sm:p-6">
-    <h2 className="text-lg font-bold">의견 남기기</h2>
-    <p className="mt-2 text-sm leading-6 text-ink-4">불편했던 순간이나 바라는 기능을 알려주세요. 학교 관리자가 내용을 확인해요.</p>
-    <form onSubmit={submit} className="mt-5 space-y-4">
-      <label className="block text-sm font-semibold">유형<select className={field} value={category} onChange={(e) => setCategory(e.target.value as keyof typeof categories)} disabled={busy}>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <label className="block text-sm font-semibold">제목<input required maxLength={100} className={field} value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} placeholder="어떤 점을 알려주고 싶으세요?" /></label>
-      <label className="block text-sm font-semibold">내용<textarea required maxLength={3000} rows={7} className={`${field} resize-y`} value={content} onChange={(e) => setContent(e.target.value)} disabled={busy} placeholder={category === "BUG" ? "어느 화면에서 무엇을 했을 때 문제가 생겼나요? 기대한 동작과 실제 동작을 함께 적어주세요." : "불편했던 점이나 개선 아이디어를 자유롭게 적어주세요."} /><span className="mt-1 block text-right text-xs font-normal text-ink-4">{content.length.toLocaleString()}/3,000자</span></label>
-      {imageAttachmentsEnabled && <div><label className="block text-sm font-semibold">이미지 첨부 <span className="font-normal text-ink-4">{images.length}/3장</span><input type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={busy || converting || images.length >= 3} className="mt-2 block w-full text-xs text-ink-4 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-soft file:px-3 file:py-3 file:font-semibold file:text-brand-dark" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void selectImages(files); }} /></label><p className="mt-2 text-xs leading-5 text-ink-4">PNG·JPG·WebP, 원본 장당 10MB까지. 자동으로 크기를 줄이고 WebP로 압축해요.</p>
-        {converting && <p role="status" className="mt-2 text-xs text-brand">이미지를 압축하고 있어요…</p>}
-        <div className="mt-3 grid grid-cols-3 gap-2">{images.map((image, index) => <div key={image.id} className="min-w-0"><a href={image.url} target="_blank" rel="noopener noreferrer" aria-label={`첨부 이미지 ${index + 1} 크게 보기`}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
-          <img src={image.url} alt={`첨부 이미지 ${index + 1}`} className="aspect-square w-full rounded-lg border border-line object-cover" /></a><p className="mt-1 text-center text-[11px] text-ink-4">{Math.ceil(image.file.size / 1024)}KB</p><button type="button" disabled={busy || converting} className="min-h-9 w-full text-xs text-danger" aria-label={`첨부 이미지 ${index + 1} 삭제`} onClick={() => { URL.revokeObjectURL(image.url); imageUrls.current.delete(image.url); setImages((current) => current.filter((value) => value.id !== image.id)); }}>삭제</button></div>)}</div>
-      </div>}
-      <p className="text-xs leading-5 text-ink-4">{imageAttachmentsEnabled ? "내용과 이미지는" : "작성한 내용은"} 본인과 학교 관리자만 볼 수 있어요. 비밀번호나 다른 사람의 개인정보는 포함하지 말아 주세요.</p>
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <button className={`${action} w-full`} disabled={busy || converting || !title.trim() || !content.trim()}>{busy ? "등록 중…" : "피드백 등록"}</button>
+  const categoryCopy = { BUG: "학습 중 문제가 생겼어요", IMPROVEMENT: "더 좋은 방법을 제안해요", QUESTION: "사용 방법이 궁금해요" };
+  return <section aria-labelledby="new-feedback-title" className="w-full overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)]">
+    <header className="border-b border-line px-5 py-5 sm:px-8"><p className="text-[.72rem] font-bold tracking-[.08em] text-[#39796e]">새 피드백</p><h2 id="new-feedback-title" className="font-learning mt-1 text-[1.25rem] font-bold tracking-[-.025em] text-ink">불편했던 순간을 알려주세요.</h2><p className="mt-1.5 text-[.8rem] leading-5 text-ink-4">위치를 먼저 확인한 뒤, 필요한 내용만 간단히 남기면 됩니다.</p></header>
+    <form onSubmit={submit}>
+      <section className="border-b border-line px-5 py-6 sm:px-8"><div className="flex items-baseline gap-2.5"><span className="figure text-[.72rem] font-bold text-[#39796e]">01</span><h3 className="text-[.84rem] font-bold text-ink">학습 위치</h3></div><p className="mt-1 text-[.74rem] leading-5 text-ink-4">오류가 난 학습 주제를 교육과정에서 골라주세요.</p><div className="mt-4"><CurriculumPicker selected={curriculumLocation} initialUnitId={initialUnitId} onSelect={setCurriculumLocation} disabled={busy} /></div></section>
+      <section className="border-b border-line px-5 py-6 sm:px-8"><div className="flex items-baseline gap-2.5"><span className="figure text-[.72rem] font-bold text-[#39796e]">02</span><h3 className="text-[.84rem] font-bold text-ink">의견 유형</h3></div><fieldset disabled={busy} className="mt-4"><legend className="sr-only">피드백 유형</legend><div className="grid gap-2 sm:grid-cols-3">{Object.entries(categories).map(([value, label]) => { const active = category === value; return <button key={value} type="button" onClick={() => setCategory(value as keyof typeof categories)} className={`min-h-[68px] rounded-[12px] border px-3 py-2.5 text-left transition-all duration-200 active:scale-[.98] ${active ? "border-[#6ba798] bg-[#edf7f3] text-[#205e51] shadow-[var(--lift-1)]" : "border-line bg-surface-2 text-ink-3 hover:border-[var(--line-2)] hover:bg-surface"}`}><span className="block text-[.82rem] font-bold">{label}</span><span className="mt-1 block text-[.68rem] leading-4 opacity-75">{categoryCopy[value as keyof typeof categories]}</span></button>; })}</div></fieldset></section>
+      <section className="px-5 py-6 sm:px-8"><div className="flex items-baseline gap-2.5"><span className="figure text-[.72rem] font-bold text-[#39796e]">03</span><h3 className="text-[.84rem] font-bold text-ink">내용 작성</h3></div><div className="mt-4 grid gap-5"><label className="block text-[.8rem] font-bold text-ink">제목<input required maxLength={100} className={field} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy} placeholder="어떤 점이 불편했나요?" /></label><label className="block text-[.8rem] font-bold text-ink">자세한 내용<textarea required maxLength={3000} rows={6} className={`${field} resize-y leading-6`} value={content} onChange={(event) => setContent(event.target.value)} disabled={busy} placeholder={category === "BUG" ? "하려던 일과 실제로 생긴 문제를 적어주세요." : "불편했던 점이나 바라는 모습을 자유롭게 적어주세요."} /><span className="mt-1.5 block text-right text-[.7rem] font-medium tabular-nums text-ink-5">{content.length.toLocaleString()}/3,000자</span></label>
+        {imageAttachmentsEnabled && <div><div className="flex items-baseline justify-between gap-3"><p className="text-[.8rem] font-bold text-ink">화면 이미지</p><span className="text-[.7rem] font-semibold text-ink-5">{images.length}/3장</span></div><label className="mt-2.5 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-[11px] border border-dashed border-line bg-surface-2 text-[.78rem] font-semibold text-ink-3 transition hover:border-[#6ba798] hover:bg-[#f3f9f6] hover:text-[#205e51]"><ImagePlus size={16} /> 이미지 선택<input type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={busy || converting || images.length >= 3} className="sr-only" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void selectImages(files); }} /></label>{converting && <p role="status" className="mt-2 text-xs text-[#39796e]">이미지를 압축하고 있어요…</p>}<div className="mt-3 grid grid-cols-3 gap-2">{images.map((image, index) => <div key={image.id} className="min-w-0 rounded-[11px] bg-surface-2 p-1.5"><a href={image.url} target="_blank" rel="noopener noreferrer" aria-label={`첨부 이미지 ${index + 1} 크게 보기`}>{/* eslint-disable-next-line @next/next/no-img-element -- local preview */}<img src={image.url} alt={`첨부 이미지 ${index + 1}`} className="aspect-square w-full rounded-[8px] object-cover" /></a><button type="button" className="min-h-9 w-full text-[.68rem] font-semibold text-danger" onClick={() => { URL.revokeObjectURL(image.url); imageUrls.current.delete(image.url); setImages((current) => current.filter((value) => value.id !== image.id)); }}>삭제 · {Math.ceil(image.file.size / 1024)}KB</button></div>)}</div></div>}
+        {error && <p role="alert" className="flex items-start gap-2 rounded-[11px] bg-[var(--danger-page)] p-3 text-[.8rem] text-danger"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</p>}
+      </div></section>
+      <footer className="flex flex-col-reverse gap-3 border-t border-line bg-surface-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8"><p className="flex items-center gap-1.5 text-[.7rem] leading-5 text-ink-5"><ShieldCheck size={14} /> 본인과 학교 관리자만 확인할 수 있어요.</p><button className={`${action} sm:min-w-40`} disabled={busy || converting || !title.trim() || !content.trim()}>{busy ? <><LoaderCircle size={17} className="animate-spin" /> 등록 중</> : <>피드백 보내기 <ArrowRight size={16} /></>}</button></footer>
     </form>
   </section>;
 }
 
 function AdminResponse({ item, onSaved }: { item: FeedbackItem; onSaved: () => void }) {
-  const [status, setStatus] = useState(item.status);
-  const [reply, setReply] = useState(item.reply);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submitting = useRef(false);
-  async function save(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (submitting.current) return;
-    submitting.current = true; setBusy(true); setError("");
-    try {
-      await requestJson(`/api/admin/feedback/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, reply, version: item.version }) });
-      onSaved();
-    } catch (error) { setError(error instanceof Error ? error.message : "저장하지 못했어요."); }
-    finally { submitting.current = false; setBusy(false); }
-  }
-  return <form onSubmit={save} className="mt-5 space-y-3 border-t border-line pt-4">
-    <label className="block text-sm font-semibold">처리 상태<select className={`${field} sm:max-w-48`} value={status} onChange={(e) => setStatus(e.target.value as FeedbackItem["status"])} disabled={busy}>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    <label className="block text-sm font-semibold">관리자 답변<textarea maxLength={3000} rows={4} className={field} value={reply} onChange={(e) => setReply(e.target.value)} disabled={busy} placeholder="처리 내용이나 추가 안내를 남겨주세요." /></label>
-    <p className="text-xs text-ink-4">저장한 답변과 처리 상태는 작성자에게 공개됩니다.</p>
-    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-    <button className={action} disabled={busy || (status === item.status && reply.trim() === item.reply)}>{busy ? "저장 중…" : "처리 내용 저장"}</button>
-  </form>;
+  const [status, setStatus] = useState(item.status); const [reply, setReply] = useState(item.reply); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const submitting = useRef(false);
+  async function save(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); if (submitting.current) return; submitting.current = true; setBusy(true); setError(""); try { await requestJson(`/api/admin/feedback/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, reply, version: item.version }) }); onSaved(); } catch (reason) { setError(reason instanceof Error ? reason.message : "저장하지 못했어요."); } finally { submitting.current = false; setBusy(false); } }
+  return <form onSubmit={save} className="mt-6 grid gap-4 border-t border-[#e6e5df] pt-5 sm:grid-cols-[180px_minmax(0,1fr)]"><label className="block text-xs font-bold text-[#56615d]">처리 상태<select className={field} value={status} onChange={(event) => setStatus(event.target.value as FeedbackItem["status"])} disabled={busy}>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="block text-xs font-bold text-[#56615d]">관리자 답변<textarea maxLength={3000} rows={4} className={field} value={reply} onChange={(event) => setReply(event.target.value)} disabled={busy} placeholder="처리 내용이나 추가 안내를 남겨주세요." /></label><div className="sm:col-start-2">{error && <p role="alert" className="mb-3 text-sm text-[#8b4d46]">{error}</p>}<button className={action} disabled={busy || (status === item.status && reply.trim() === item.reply)}>{busy ? "저장 중…" : "처리 내용 저장"}</button></div></form>;
 }
 
-export function FeedbackBoard({ admin = false }: { admin?: boolean }) {
-  const [data, setData] = useState<FeedbackPage | null>(null);
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("ALL");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [revision, setRevision] = useState(0);
+function FeedbackList({ data, loading, error, admin, status, onStatus, onRefresh, onChanged }: { data: FeedbackPage | null; loading: boolean; error: string; admin: boolean; status: string; onStatus: (value: string) => void; onRefresh: () => void; onChanged: (message: string) => void }) {
+  return <section aria-labelledby="feedback-list-title" className={admin ? "mx-auto min-w-0 max-w-[880px]" : "w-full min-w-0"}><div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><h2 id="feedback-list-title" className="font-learning text-[1.15rem] font-bold tracking-[-.02em] text-ink">{admin ? "학교 피드백" : "내 피드백"}</h2><p className="mt-1 text-[.76rem] text-ink-4">상태와 관리자 답변을 확인할 수 있어요.</p></div><div className="flex items-center gap-2"><label className="relative"><span className="sr-only">처리 상태</span><select className="min-h-11 appearance-none rounded-[11px] border border-line bg-surface py-2 pl-3.5 pr-9 text-[.78rem] font-semibold text-ink-3 outline-none transition focus:border-brand" value={status} onChange={(event) => onStatus(event.target.value)}><option value="ALL">모든 상태</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-5" /></label><button type="button" onClick={onRefresh} disabled={loading} className="grid size-11 place-items-center rounded-[11px] border border-line bg-surface text-ink-4 transition-all hover:border-[var(--line-2)] hover:text-brand active:scale-[.96] disabled:opacity-50" aria-label="피드백 목록 새로고침" title="새로고침"><RefreshCw size={15} className={loading ? "animate-spin" : ""} /></button></div></div>
+    {loading && <div role="status" className="space-y-3">{[0, 1, 2].map((value) => <div key={value} className="h-28 animate-pulse rounded-[18px] border border-[#e2e1dc] bg-white/70" />)}</div>}{error && <div role="alert" className="rounded-[18px] border border-[#e7cbc7] bg-[#fff7f5] p-5 text-sm text-[#854f48]">{error}<button onClick={onRefresh} className="ml-3 font-bold underline">다시 시도</button></div>}{!loading && !error && data?.items.length === 0 && <div className="rounded-[20px] border border-dashed border-[#cbcfc9] bg-white/55 px-6 py-14 text-center"><MessageCircleMore size={21} className="mx-auto text-[#71807a]" /><p className="mt-4 text-sm font-bold text-[#48534f]">아직 표시할 피드백이 없어요</p></div>}
+    {!loading && <div className="space-y-3">{data?.items.map((item) => <details key={`${item.id}-${item.version}`} className="group overflow-hidden rounded-[18px] border border-[#deddd7] bg-white shadow-[0_8px_30px_rgba(36,54,48,.045)] transition-all open:shadow-[0_18px_46px_rgba(36,54,48,.09)]"><summary className="flex cursor-pointer list-none items-center gap-4 px-5 py-5 marker:content-none sm:px-6"><span className={`grid size-10 shrink-0 place-items-center rounded-[12px] ${statusTone[item.status]}`}>{item.status === "COMPLETED" ? <Check size={18} /> : item.status === "IN_PROGRESS" ? <LoaderCircle size={18} /> : <MessageCircleMore size={18} />}</span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusTone[item.status]}`}>{statuses[item.status]}</span><span className="text-xs font-semibold text-[#7b817c]">{categories[item.category]}</span>{item.curriculumLocation && <span className="truncate text-xs font-semibold text-[#39796e]">{item.curriculumLocation.courseTitle} · {item.curriculumLocation.unitTitle}</span>}</span><span className="mt-2 block break-words text-[15px] font-extrabold leading-6 text-[#27332f]">{item.title}</span><span className="mt-1 block text-[11px] text-[#8a8f89]">{date(item.createdAt)}{admin ? ` · ${item.studentName} (${item.studentExternalId})` : ""}</span></span><ChevronDown size={18} className="shrink-0 text-[#8a918d] transition-transform group-open:rotate-180" /></summary><div className="border-t border-[#e7e6e0] bg-[#fcfbf8] px-5 py-5 sm:px-6">{item.curriculumLocation && <CurriculumLocation location={item.curriculumLocation} compact />}<p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7 text-[#46514d]">{item.content}</p>{item.images.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{item.images.map((image, index) => <a key={image.id} href={`/api/feedback/${item.id}/images/${image.id}`} target="_blank" rel="noopener noreferrer" className="overflow-hidden rounded-[12px] border border-[#deddd7] bg-[#f0efeb]" aria-label={`첨부 이미지 ${index + 1} 크게 보기`}>{/* eslint-disable-next-line @next/next/no-img-element -- authenticated private image route */}<img src={`/api/feedback/${item.id}/images/${image.id}`} width={image.width} height={image.height} loading="lazy" alt={`첨부 이미지 ${index + 1}`} className="aspect-square w-full object-contain" /></a>)}</div>}{item.reply && <div className="mt-5 rounded-[15px] border-l-4 border-[#39796e] bg-[#edf5f2] p-4"><h3 className="text-xs font-extrabold text-[#1d6258]">학교 관리자 답변</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-[#40504b]">{item.reply}</p></div>}<div className="mt-5 flex items-center justify-between gap-3 border-t border-[#e7e6e0] pt-4"><p className="text-[11px] text-[#898e88]">{item.completedAt ? `처리 완료 · ${date(item.completedAt)}` : `최근 변경 · ${date(item.updatedAt)}`}</p><button className="min-h-10 text-xs font-semibold text-[#97605a]" onClick={async () => { if (!window.confirm("피드백과 첨부 이미지를 삭제할까요?")) return; try { await requestJson(`/api/feedback/${item.id}`, { method: "DELETE" }); onChanged("피드백을 삭제했어요."); } catch (reason) { onChanged(reason instanceof Error ? reason.message : "삭제하지 못했어요."); } }}>피드백 삭제</button></div>{admin && <AdminResponse item={item} onSaved={() => onChanged("처리 내용을 저장했어요.")} />}</div></details>)}</div>}
+  </section>;
+}
+
+export function FeedbackBoard({ admin = false, initialUnitId }: { admin?: boolean; initialUnitId?: string }) {
+  const [data, setData] = useState<FeedbackPage | null>(null); const [page, setPage] = useState(1); const [status, setStatus] = useState("ALL"); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [revision, setRevision] = useState(0);
   const reload = useCallback(() => setRevision((value) => value + 1), []);
-  useEffect(() => {
-    const controller = new AbortController();
-    void requestJson(`/api/feedback?page=${page}&status=${status}`, { signal: controller.signal }).then((result: FeedbackPage) => {
-      if (!controller.signal.aborted) { setData(result); setError(""); }
-    }).catch((error) => {
-      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "목록을 불러오지 못했어요.");
-    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [page, status, revision]);
-  function refresh() { setLoading(true); reload(); }
-  function created() { setNotice("피드백을 등록했어요. 아래 목록에서 처리 상태를 확인할 수 있어요."); setPage(1); setStatus("ALL"); refresh(); }
-  return <div className="mx-auto max-w-[1240px] px-4 py-8 sm:px-8 sm:py-12">
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div><p className="flex items-center gap-2 text-sm font-semibold text-brand"><MessageSquareText size={17} /> 함께 만드는 LearnCraft</p><h1 className="mt-3 text-2xl font-bold sm:text-3xl">{admin ? "피드백 관리" : "피드백"}</h1><p className="mt-3 text-sm leading-6 text-ink-4">{admin ? "학생들의 의견을 확인하고 처리 상태와 답변을 남겨주세요." : "불편한 점, 개선 아이디어, 이용 중 궁금한 점을 들려주세요."}</p></div>
-      <button onClick={refresh} disabled={loading} className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-semibold disabled:opacity-50"><RefreshCw size={15} /> 새로고침</button>
-    </div>
-    {notice && <p role="status" className="mt-5 rounded-xl bg-brand-page p-4 text-sm text-brand-dark">{notice}</p>}
-    <div className={admin ? "mt-8" : "mt-8 grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]"}>
-      {!admin && <FeedbackForm onCreated={created} />}
-      <section aria-labelledby="feedback-list-title" className="min-w-0">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 id="feedback-list-title" className="text-lg font-bold">{admin ? "학교 피드백 목록" : "내가 남긴 피드백"}</h2><label className="flex items-center gap-2 text-sm text-ink-3">상태<select className="min-h-11 rounded-xl border border-line bg-surface px-3" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); setData(null); setLoading(true); setNotice(""); }}><option value="ALL">전체</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
-        {loading && <p role="status" className="mb-3 text-sm text-ink-4">피드백을 불러오고 있어요…</p>}
-        {error && <div role="alert" className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm text-danger">{error}<button onClick={refresh} className="ml-3 underline">다시 시도</button></div>}
-        {!loading && !error && data?.items.length === 0 && <div className="rounded-2xl border border-dashed border-line p-10 text-center text-sm leading-6 text-ink-4">{status === "ALL" ? "아직 등록된 피드백이 없어요." : "이 상태의 피드백이 없어요."}</div>}
-        <div className="space-y-3">{data?.items.map((item) => <details key={`${item.id}-${item.version}`} className="group overflow-hidden rounded-2xl border border-line bg-surface">
-          <summary className="cursor-pointer px-5 py-4 marker:text-brand"><span className="ml-1 inline-flex max-w-[90%] flex-wrap items-center gap-2 align-middle"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusTone[item.status]}`}>{statuses[item.status]}</span><span className="text-xs text-ink-4">{categories[item.category]}</span><span className="w-full break-words text-sm font-bold sm:text-base">{item.title}</span><span className="text-xs text-ink-4">{date(item.createdAt)}{admin ? ` · ${item.studentName} (${item.studentExternalId})` : ""}</span></span></summary>
-          <div className="border-t border-line px-5 py-4"><p className="whitespace-pre-wrap break-words text-sm leading-7">{item.content}</p>
-            {item.images.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{item.images.map((image, index) => <a key={image.id} href={`/api/feedback/${item.id}/images/${image.id}`} target="_blank" rel="noopener noreferrer" className="overflow-hidden rounded-xl border border-line bg-surface-3" aria-label={`첨부 이미지 ${index + 1} 크게 보기`}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- authenticated private image route */}
-              <img src={`/api/feedback/${item.id}/images/${image.id}`} width={image.width} height={image.height} loading="lazy" alt={`첨부 이미지 ${index + 1}`} className="aspect-square w-full object-contain" /></a>)}</div>}
-            {item.reply && <div className="mt-4 rounded-xl bg-brand-page p-4"><h3 className="text-sm font-bold text-brand-dark">관리자 답변</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">{item.reply}</p></div>}
-            <p className="mt-4 text-xs text-ink-4">{item.completedAt ? `처리 완료 · ${date(item.completedAt)}` : `최근 변경 · ${date(item.updatedAt)}`}</p>
-            {admin && <AdminResponse item={item} onSaved={() => { setNotice("처리 내용을 저장했어요."); refresh(); }} />}
-            <button className="mt-4 min-h-11 text-xs text-danger" onClick={async () => {
-              if (!window.confirm("피드백과 첨부 이미지를 삭제할까요? 삭제 후에는 복구할 수 없어요.")) return;
-              try { await requestJson(`/api/feedback/${item.id}`, { method: "DELETE" }); setNotice("피드백과 첨부 이미지를 삭제했어요."); refresh(); }
-              catch (error) { setError(error instanceof Error ? error.message : "삭제하지 못했어요."); }
-            }}>피드백 삭제</button>
-          </div>
-        </details>)}</div>
-        {data && (page > 1 || data.hasMore) && <div className="mt-5 flex items-center justify-center gap-4 text-sm"><button disabled={page === 1 || loading} onClick={() => { setPage((value) => value - 1); setData(null); setLoading(true); }} className="min-h-11 rounded-xl border border-line px-4 disabled:opacity-40">이전</button><span>{page} 페이지</span><button disabled={!data.hasMore || loading} onClick={() => { setPage((value) => value + 1); setData(null); setLoading(true); }} className="min-h-11 rounded-xl border border-line px-4 disabled:opacity-40">다음</button></div>}
-      </section>
-    </div>
-  </div>;
+  useEffect(() => { const controller = new AbortController(); setLoading(true); void requestJson(`/api/feedback?page=${page}&status=${status}`, { signal: controller.signal }).then((result: FeedbackPage) => { if (!controller.signal.aborted) { setData(result); setError(""); } }).catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "목록을 불러오지 못했어요."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [page, status, revision]);
+  function changed(message: string) { setNotice(message); setPage(1); reload(); }
+  function created() { changed("피드백을 등록했어요. 오른쪽 목록에서 처리 상태를 확인할 수 있어요."); }
+  return <main className="min-h-full bg-canvas text-ink">
+    <header className="border-b border-line bg-surface/75"><div className="mx-auto flex max-w-[1240px] flex-wrap items-end justify-between gap-5 px-5 py-7 sm:px-8 sm:py-9"><div><p className="flex items-center gap-2 text-[.72rem] font-bold tracking-[.08em] text-[#39796e]"><MessageCircleMore size={15} /> 함께 만드는 LearnCraft</p><h1 className="font-learning mt-2 text-balance text-[1.7rem] font-bold leading-tight tracking-[-.035em] text-ink sm:text-[2.15rem]">{admin ? "학생 피드백 관리" : "어떤 점을 고치면 좋을까요?"}</h1><p className="mt-2 max-w-[38rem] break-keep text-[.82rem] leading-6 text-ink-4">{admin ? "학생이 남긴 학습 위치와 의견을 확인하고 답변을 남겨주세요." : "학습 중 막혔던 위치와 상황을 알려주시면 확인 후 답변을 남겨드릴게요."}</p></div><span className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[.7rem] font-semibold text-ink-4"><ShieldCheck size={14} className="text-[#39796e]" /> 나와 학교 관리자만 확인</span></div></header>
+    <div className="mx-auto max-w-[1240px] px-5 py-7 sm:px-8 sm:py-9">{notice && <p role="status" className="mb-5 flex items-center gap-2 rounded-[11px] border border-[#cbe2da] bg-[#edf7f3] px-4 py-3 text-[.78rem] font-semibold text-[#246859]"><Check size={15} /> {notice}</p>}<div className={admin ? "" : "grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]"}>{!admin && <FeedbackForm initialUnitId={initialUnitId} onCreated={created} />}<div className="min-w-0"><FeedbackList data={data} loading={loading} error={error} admin={admin} status={status} onStatus={(value) => { setStatus(value); setPage(1); setData(null); setNotice(""); }} onRefresh={reload} onChanged={changed} />{data && (page > 1 || data.hasMore) && <nav aria-label="피드백 페이지" className="mt-6 flex items-center justify-center gap-4 text-sm"><button disabled={page === 1 || loading} onClick={() => { setPage((value) => value - 1); setData(null); }} className={quietButton}>이전</button><span className="font-semibold text-ink-4">{page} 페이지</span><button disabled={!data.hasMore || loading} onClick={() => { setPage((value) => value + 1); setData(null); }} className={quietButton}>다음</button></nav>}</div></div></div>
+  </main>;
 }

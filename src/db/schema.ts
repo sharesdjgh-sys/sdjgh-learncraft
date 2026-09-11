@@ -98,6 +98,7 @@ export const feedbackCategory = pgEnum("feedback_category", ["BUG", "IMPROVEMENT
 export const feedbackStatus = pgEnum("feedback_status", ["RECEIVED", "IN_PROGRESS", "COMPLETED"]);
 export const feedback = pgTable("feedback", {
   images: jsonb("images").$type<import("@/features/feedback/model").StoredFeedbackImage[]>().default([]).notNull(),
+  curriculumLocation: jsonb("curriculum_location").$type<import("@/features/feedback/model").FeedbackCurriculumLocation | null>().default(null),
   id: uuid("id").defaultRandom().primaryKey(),
   requestId: uuid("request_id").notNull(),
   schoolId: uuid("school_id").references(() => schools.id).notNull(),

@@ -37,6 +37,7 @@ import {
   Lightbulb,
   ListTree,
   LoaderCircle,
+  MessageSquareText,
   Plus,
   Radical,
   RotateCcw,
@@ -59,6 +60,8 @@ import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import { makeAnswerPdfFileName } from "@/lib/tutor-pdf-file-name";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
+
+const showMarkdownCopyButton = process.env.NODE_ENV === "development";
 
 const actionConfig: Array<{ action: TutorAction; label: string; shortLabel: string; description: string; icon: typeof Sparkles; tone: string }> = [
   { action: "EASIER", label: "더 쉽게 설명", shortLabel: "더 쉽게", description: "비유와 작은 예제로 다시 설명해요", icon: Lightbulb, tone: "border-[#eadfca] bg-[#fff9ed] text-[#735f35] shadow-[0_4px_12px_rgba(113,88,42,.06)] hover:border-[#decda9] hover:bg-[#fff5df]" },
@@ -1544,14 +1547,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                                     <span>새 대화</span>
                                   </button>
                                 )}
+                                <a href={`/feedback?unit=${encodeURIComponent(selectedUnit.id)}`} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-[#b9d9ce] bg-[#edf8f4] px-2.5 text-[.74rem] font-semibold text-[#246859] shadow-[0_3px_10px_rgba(36,104,89,.07)] transition-all duration-300 hover:-translate-y-px hover:border-[#86bfae] hover:bg-[#dff2eb] hover:text-[#174f43] sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label={`${selectedUnit.title} 학습 주제로 피드백 남기기`}>
+                                  <MessageSquareText className="size-3.5 sm:size-4" />
+                                  <span>피드백</span>
+                                </a>
                                 <button onClick={() => void saveMessageAsPdf(message)} disabled={savingPdfMessageId !== null} className="flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border border-line px-2.5 text-[.74rem] font-semibold text-ink-3 transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] hover:text-ink disabled:cursor-wait disabled:opacity-55 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]" aria-label="답변을 PDF 파일로 저장" aria-busy={savingPdfMessageId === message.id}>
                                   {savingPdfMessageId === message.id ? <LoaderCircle className="size-3.5 animate-spin sm:size-4" /> : <FileDown className="size-3.5 sm:size-4" />}
                                   <span>{savingPdfMessageId === message.id ? "저장 중" : "PDF 저장"}</span>
                                 </button>
-                                <button onClick={() => void copyMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
+                                {showMarkdownCopyButton && <button onClick={() => void copyMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", copiedMessageId === message.id ? "border-ok/20 bg-[var(--ok-page)] text-ok" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변 내용 복사">
                                   {copiedMessageId === message.id ? <Check className="size-3.5 sm:size-4" /> : <Copy className="size-3.5 sm:size-4" />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
-                                </button>
+                                </button>}
                                 <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
                                   {savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
                                   <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>

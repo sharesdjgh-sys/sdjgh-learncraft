@@ -19,7 +19,8 @@ async function main() {
   const student = makeUser("STUDENT"), otherStudent = makeUser("STUDENT"), admin = makeUser("ADMIN"), otherAdmin = makeUser("ADMIN", schoolIds[1]);
   const teacher = makeUser("TEACHER");
   const actors = [student, otherStudent, admin, otherAdmin, teacher];
-  const input = { requestId: crypto.randomUUID(), category: "BUG" as const, title: "피드백 기능 자동검증", content: "등록, 권한 및 처리 상태를 검증하기 위한 임시 자료입니다." };
+  const curriculumLocation = { unitId: "math-common-1", courseCode: "COMMON_MATH_1", courseTitle: "공통수학 1", subjectTitle: "수학", grade: 1, chapterTitle: "다항식", sectionTitle: "다항식의 연산", unitTitle: "다항식의 덧셈과 뺄셈" };
+  const input = { requestId: crypto.randomUUID(), category: "BUG" as const, title: "피드백 기능 자동검증", content: "등록, 권한 및 처리 상태를 검증하기 위한 임시 자료입니다.", curriculumLocation };
   const query = { page: 1, status: "ALL" as const };
   try {
     if (db) {
@@ -31,6 +32,7 @@ async function main() {
     assert.equal(updateFeedbackSchema.safeParse({ status: "UNKNOWN", reply: "", version: 1 }).success, false);
     const first = await createFeedback(student, input);
     assert.equal(first.status, "RECEIVED");
+    assert.deepEqual(first.curriculumLocation, curriculumLocation);
     assert.equal((await createFeedback(student, input)).id, first.id, "Retry must not duplicate feedback");
     assert.equal((await listFeedback(student, query)).items.length, 1);
     assert.equal((await listFeedback(otherStudent, query)).items.length, 0);

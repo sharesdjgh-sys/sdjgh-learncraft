@@ -13,6 +13,7 @@ const pageSize = 20;
 const visible = (row: Row, user: SessionUser) => row.schoolId === user.schoolId && (user.role === "ADMIN" || row.studentId === user.id);
 const dto = (row: Stored): FeedbackItem => ({
   images: row.images.map(({ id, width, height, size }) => ({ id, width, height, size })),
+  curriculumLocation: row.curriculumLocation,
   id: row.id, category: row.category, title: row.title, content: row.content, status: row.status, reply: row.reply, version: row.version,
   createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null,
   studentName: row.studentName, studentExternalId: row.studentExternalId,
@@ -66,6 +67,7 @@ export async function updateFeedback(user: SessionUser, id: string, input: z.inf
 // Explicit projection keeps internal ownership and idempotency fields out of responses.
 const feedbackColumns = {
   images: feedback.images,
+  curriculumLocation: feedback.curriculumLocation,
   id: feedback.id, requestId: feedback.requestId, schoolId: feedback.schoolId, studentId: feedback.studentId,
   category: feedback.category, title: feedback.title, content: feedback.content, status: feedback.status, reply: feedback.reply,
   handledBy: feedback.handledBy, completedAt: feedback.completedAt, version: feedback.version, createdAt: feedback.createdAt, updatedAt: feedback.updatedAt,

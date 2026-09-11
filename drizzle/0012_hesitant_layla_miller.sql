@@ -1,0 +1,1 @@
+ALTER TABLE "feedback" ADD COLUMN "curriculum_location" jsonb DEFAULT 'null'::jsonb;
