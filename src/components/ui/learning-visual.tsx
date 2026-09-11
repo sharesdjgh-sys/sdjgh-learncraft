@@ -4,6 +4,7 @@ import { learningImageFailureMessages } from "@/lib/learning-image-failure";
 import { ImageRetryContext } from "@/components/tutor/image-retry-context";
 
 import dynamic from "next/dynamic";
+import { Download } from "lucide-react";
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { parseLearningVisual, visualMermaid, type VisualOf } from "@/lib/learning-visual";
 import { restoreMermaidLabelText } from "@/lib/mermaid-label";
@@ -18,6 +19,14 @@ function Frame({ title, description, children }: { title: string; description: s
 }
 function Pending({ failed }: { failed?: boolean }) {
   return <p role="status" className="p-3 text-[.8rem] leading-6 text-ink-3">{failed ? "시각 자료를 표시하지 못했어요. 아래 설명을 참고하거나 다시 요청해 주세요." : "시각 자료를 준비하고 있어요…"}</p>;
+}
+
+function imageDownloadName(title: string) {
+  const safeTitle = title.normalize("NFKC")
+    .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `${safeTitle || "learncraft-image"}.jpg`;
 }
 
 function Relationship({ spec }: { spec: VisualOf<"flow"> | VisualOf<"timeline"> }) {
@@ -147,11 +156,37 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
     }
   }
   const dialog = useRef<HTMLDialogElement>(null);
+  const renderedImage = useRef<HTMLImageElement | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [downloadError, setDownloadError] = useState("");
   // Cached/data-URL images may finish before hydration attaches the load handler.
   const imageRef = useCallback((element: HTMLImageElement | null) => {
+    renderedImage.current = element;
     if (element?.complete) setStatus(element.naturalWidth > 0 ? "ready" : "error");
   }, []);
+  function downloadJpeg() {
+    const image = renderedImage.current;
+    if (!image?.naturalWidth || !image.naturalHeight) return;
+    setDownloadError("");
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas unavailable");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/jpeg", 0.94);
+      link.download = imageDownloadName(spec.title);
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.click();
+    } catch {
+      setDownloadError("JPG로 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  }
   const pending = spec.kind === "image-slot";
   const src = pending ? undefined : spec.dataUrl ?? `/api/learning-images/${spec.id}`;
   return <>
@@ -179,7 +214,19 @@ function GeneratedImage({ spec }: { spec: VisualOf<"generated-image"> | VisualOf
     </>}
     </div>
     {!pending && <dialog ref={dialog} aria-label={spec.title} className="m-auto max-h-[95dvh] w-[96vw] max-w-[1600px] overflow-auto rounded-xl bg-surface p-4 text-ink backdrop:bg-black/65">
-      <div className="sticky top-0 mb-3 flex items-center justify-between gap-4 bg-surface py-2"><p className="font-bold">{spec.title}</p><button type="button" autoFocus onClick={() => dialog.current?.close()} className="shrink-0 rounded-lg border border-line px-4 py-2">닫기</button></div>
+      <div className="sticky top-0 z-10 mb-3 flex items-center justify-between gap-3 bg-surface py-2">
+        <p className="min-w-0 truncate font-bold">{spec.title}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={downloadJpeg}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-brand/25 bg-brand-soft px-3 py-2 text-[.82rem] font-bold text-brand-dark transition hover:bg-brand-page focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:px-4">
+            <Download size={17} aria-hidden="true" />
+            <span>이미지 저장</span>
+          </button>
+          <button type="button" autoFocus onClick={() => dialog.current?.close()}
+            className="min-h-11 rounded-lg border border-line px-3 py-2 text-[.82rem] font-bold sm:px-4">닫기</button>
+        </div>
+      </div>
+      {downloadError && <p role="alert" className="mb-3 rounded-lg bg-[var(--danger-page)] px-3 py-2 text-[.78rem] font-semibold text-danger">{downloadError}</p>}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={spec.description} className="h-auto w-full" />
     </dialog>}

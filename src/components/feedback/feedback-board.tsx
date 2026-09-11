@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquareText, RefreshCw } from "lucide-react";
 import { categories, statuses, type FeedbackItem, type FeedbackPage } from "@/features/feedback/model";
 import { prepareFeedbackImage } from "@/features/feedback/prepare-image";
+import { browserRandomUUID } from "@/lib/browser-random-uuid";
 
 // Enable after connecting private image storage and rebuilding the app.
 const imageAttachmentsEnabled = process.env.NEXT_PUBLIC_FEEDBACK_IMAGES_ENABLED === "true";
@@ -37,7 +38,7 @@ function FeedbackForm({ onCreated }: { onCreated: () => void }) {
     try {
       const prepared: File[] = [];
       for (const file of files) prepared.push(await prepareFeedbackImage(file));
-      const additions = prepared.map((file) => { const url = URL.createObjectURL(file); imageUrls.current.add(url); return { file, url, id: crypto.randomUUID() }; });
+      const additions = prepared.map((file) => { const url = URL.createObjectURL(file); imageUrls.current.add(url); return { file, url, id: browserRandomUUID() }; });
       setImages((current) => [...current, ...additions]);
     } catch (error) { setError(error instanceof Error ? error.message : "이미지를 변환하지 못했어요."); }
     finally { convertingRef.current = false; setConverting(false); }
@@ -52,7 +53,7 @@ function FeedbackForm({ onCreated }: { onCreated: () => void }) {
     submitting.current = true;
     setBusy(true); setError("");
     const payload = JSON.stringify({ category, title: title.trim(), content: content.trim(), images: imageAttachmentsEnabled ? images.map((image) => image.id) : [] });
-    if (submission.current?.payload !== payload) submission.current = { id: crypto.randomUUID(), payload };
+    if (submission.current?.payload !== payload) submission.current = { id: browserRandomUUID(), payload };
     try {
       const body = new FormData();
       body.append("payload", JSON.stringify({ category, title, content, requestId: submission.current.id }));

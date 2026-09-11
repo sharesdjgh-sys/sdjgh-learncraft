@@ -52,6 +52,7 @@ import { StudentTopNavigation } from "@/components/layout/student-navigation";
 import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
 import { formatCurriculumUnitNumber, hasDistinctTopicLevel } from "@/lib/curriculum-hierarchy";
 import { displayMathMarkdown } from "@/lib/math-notation";
+import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
@@ -195,7 +196,7 @@ async function prepareImageAttachment(file: File): Promise<ImageAttachment> {
 
   const baseName = file.name.replace(/\.[^.]+$/, "").slice(0, 145) || "학습 이미지";
   return {
-    id: crypto.randomUUID(),
+    id: browserRandomUUID(),
     name: `${baseName}.${mediaType === "image/png" ? "png" : "jpg"}`,
     mediaType,
     dataUrl,
@@ -949,12 +950,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
     if (!selectedUnit || !detailsReady || loading || preparingImages || vocabularyController.current) return;
     setActiveVocabularyTerm(term);
     const controller = new AbortController(); vocabularyController.current = controller;
-    const answerId = crypto.randomUUID();
+    const answerId = browserRandomUUID();
     const question = `‘${term}’의 뜻을 쉽게 알려줘`;
     setConversationOpen(true); setLoading(true); setProgressStage("writing"); setRetryRequest(null);
     streamingAnswerRef.current = true;
     setMessages(current => [...current,
-      { id: crypto.randomUUID(), role: "user", content: question, action: "QUESTION", completed: true },
+      { id: browserRandomUUID(), role: "user", content: question, action: "QUESTION", completed: true },
       { id: answerId, role: "assistant", content: "", action: "QUESTION", completed: false },
     ]);
     scrollToMessageStart(answerId);
@@ -999,14 +1000,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
     const baseMessages = conversationOpen || vocabularyTerm ? messages : [];
     const userMessage: TutorMessage = {
-      id: crypto.randomUUID(),
+      id: browserRandomUUID(),
       role: "user",
       content: action === "QUESTION" ? (displayMessage ?? (question || "첨부 이미지로 질문")) : followUpRequestText[action],
       imageNames: currentAttachments.map((attachment) => attachment.name),
       action,
       completed: true,
     };
-    const answerId = crypto.randomUUID();
+    const answerId = browserRandomUUID();
     const assistantMessage: TutorMessage = { id: answerId, role: "assistant", content: "", action, completed: false };
     const recentMessages = baseMessages
       .filter((message) => message.content && message.completed)
@@ -1032,7 +1033,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: TUTOR_STREAM_TYPE, "X-LearnCraft-Image-Slots": "1" },
         body: JSON.stringify({
-          requestId: crypto.randomUUID(),
+          requestId: browserRandomUUID(),
           unitId: selectedUnit.id,
           ...(vocabularyTerm ? { mode: "VOCABULARY", vocabularyTerm } : {}),
           action,
@@ -1275,7 +1276,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
                           <ImageRetryContext.Provider value={{ disabled: loading, retry: async (slot, signal) => {
                             const response = await fetch("/api/ai/illustrations/retry", {
                               method: "POST", signal, headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ requestId: crypto.randomUUID(), unitId: selectedUnitId, slot }),
+                              body: JSON.stringify({ requestId: browserRandomUUID(), unitId: selectedUnitId, slot }),
                             });
                             if (response.headers.has("X-Remaining-Usage")) {
                               const nextRemaining = Number(response.headers.get("X-Remaining-Usage"));

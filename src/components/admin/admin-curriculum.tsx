@@ -26,6 +26,7 @@ import {
   hasDistinctTopicLevel,
 } from "@/lib/curriculum-hierarchy";
 import { displayMathMarkdown } from "@/lib/math-notation";
+import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import type {
   CurriculumManagementState,
@@ -613,7 +614,7 @@ export function AdminCurriculum() {
   function addCourse() {
     const subjectTitle = subjects.find((subject) => subject.code === subjectCode)?.title ?? "기타";
     const next: CurriculumOffering = {
-      rowKey: crypto.randomUUID(),
+      rowKey: browserRandomUUID(),
       grade,
       subjectCode: subjectCode || "OTHER_SUBJECT",
       subjectTitle,

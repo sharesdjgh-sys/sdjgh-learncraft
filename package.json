@@ -23,6 +23,7 @@
     "test:chunjae-physics-toc": "tsx scripts/verify-chunjae-physics-toc.ts",
     "test:curriculum-hierarchy": "tsx scripts/verify-curriculum-hierarchy.ts",
     "test:pwa": "tsx scripts/verify-pwa.ts",
+    "test:browser-compatibility": "tsx scripts/verify-browser-compatibility.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
