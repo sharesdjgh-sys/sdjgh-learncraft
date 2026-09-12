@@ -46,6 +46,7 @@ Desktop.ini
 *.swo
 
 # Temporary files
+/tmp/
 *.tmp
 *.temp
 *~
