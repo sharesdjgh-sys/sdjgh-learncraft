@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   Eye,
@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
+import { clearLearningSessions } from "@/lib/learning-session-cache";
 
 type LoginResponse = {
   error?: { message?: string };
@@ -29,6 +30,11 @@ export function LoginForm({
   const [loading, setLoading] = useState<"learn" | "admin" | "local-admin" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    try { sessionStorage.removeItem("learncraft_chat"); } catch { /* Storage may be disabled. */ }
+    void clearLearningSessions().catch(() => undefined);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

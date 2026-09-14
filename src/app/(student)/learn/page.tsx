@@ -8,6 +8,7 @@ export default async function LearnPage() {
   return (
     <LearningWorkspace
       initialGrade={user?.learningGrade ?? user?.officialGrade ?? 1}
+      studentId={user?.id ?? "demo-student"}
       studentName={user?.name ?? "학생"}
       schoolName={user?.schoolName ?? "서대전여자고등학교"}
     />

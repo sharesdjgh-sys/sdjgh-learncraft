@@ -41,8 +41,17 @@ export async function createFeedback(user: SessionUser, input: z.infer<typeof cr
     demo().push(row);
     return dto(row);
   }
-  const [created] = await db.insert(feedback).values({ ...input, images, schoolId: user.schoolId, studentId: user.id }).onConflictDoNothing({ target: [feedback.studentId, feedback.requestId] }).returning();
-  const row = created ?? (await db.select().from(feedback).where(and(eq(feedback.studentId, user.id), eq(feedback.schoolId, user.schoolId), eq(feedback.requestId, input.requestId))).limit(1))[0];
+  const [created] = await db.insert(feedback).values({ ...input, images, schoolId: user.schoolId, studentId: user.id })
+    .onConflictDoNothing({ target: [feedback.studentId, feedback.requestId] })
+    .returning({
+      id: feedback.id, status: feedback.status, reply: feedback.reply, handledBy: feedback.handledBy,
+      completedAt: feedback.completedAt, version: feedback.version, createdAt: feedback.createdAt, updatedAt: feedback.updatedAt,
+    });
+  const row: Row | undefined = created ? {
+    ...input, images, schoolId: user.schoolId, studentId: user.id, ...created,
+  } : (await db.select(feedbackColumns).from(feedback).where(and(
+    eq(feedback.studentId, user.id), eq(feedback.schoolId, user.schoolId), eq(feedback.requestId, input.requestId),
+  )).limit(1))[0];
   if (!row) throw new Error("CREATE_FAILED");
   return dto({ ...row, studentName: user.name, studentExternalId: user.externalId });
 }
@@ -76,7 +85,13 @@ const feedbackColumns = {
 export async function findFeedback(user: SessionUser, id: string, byRequest = false) {
   if (!["STUDENT", "TEACHER", "ADMIN"].includes(user.role)) return null;
   if (!db) return demo().find((row) => (byRequest ? row.requestId : row.id) === id && visible(row, user)) ?? null;
-  return (await db.select().from(feedback).where(and(
+  return (await db.select({
+    id: feedback.id,
+    requestId: feedback.requestId,
+    schoolId: feedback.schoolId,
+    studentId: feedback.studentId,
+    images: feedback.images,
+  }).from(feedback).where(and(
     eq(byRequest ? feedback.requestId : feedback.id, id), eq(feedback.schoolId, user.schoolId),
     user.role !== "ADMIN" ? eq(feedback.studentId, user.id) : undefined,
   )).limit(1))[0] ?? null;

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getSchoolLearningUnits } from "@/data/school-curriculum";
+import { getSchoolLearningUnit, getSchoolLearningUnits } from "@/data/school-curriculum";
 import { getSession } from "@/lib/auth";
 import { packLearningOutline } from "@/lib/learning-outline";
 import type { SubjectCode } from "@/types";
+import { observedJson } from "@/lib/observability";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -11,9 +12,18 @@ export async function GET(request: Request) {
   const grade = Number(params.get("grade")) || undefined;
   const subject = params.get("subject") as SubjectCode | null;
   const course = params.get("course") || undefined;
+  const unitId = params.get("unit")?.slice(0, 100);
   const outlineOnly = params.get("view") === "outline";
+  const vocabularyOnly = params.get("view") === "vocabulary";
+  if (unitId) {
+    const unit = await getSchoolLearningUnit(session.schoolId, unitId);
+    return unit
+      ? observedJson({ units: [unit] }, { route: "curriculum.unit", budgetBytes: 64_000, headers: { "Cache-Control": "private, no-store" } })
+      : NextResponse.json({ error: { code: "UNIT_NOT_AVAILABLE" } }, { status: 404 });
+  }
   const schoolUnits = await getSchoolLearningUnits(session.schoolId, {
     outlineOnly,
+    vocabularyOnly,
     courseCode: course,
   });
   const filteredUnits = schoolUnits.filter((unit) => (
@@ -22,9 +32,12 @@ export async function GET(request: Request) {
     && (!course || unit.courseCode === course)
   ));
   if (outlineOnly) {
-    return NextResponse.json({ outline: packLearningOutline(filteredUnits) }, {
-      headers: { "Cache-Control": "private, no-store" },
+    return observedJson({ outline: packLearningOutline(filteredUnits) }, {
+      route: "curriculum.outline", budgetBytes: 256_000, headers: { "Cache-Control": "private, no-store" },
     });
+  }
+  if (vocabularyOnly) {
+    return observedJson({ units: filteredUnits }, { route: "curriculum.vocabulary", budgetBytes: 256_000, headers: { "Cache-Control": "private, no-store" } });
   }
   const seenCourses = new Set<string>();
   const courseOptions = schoolUnits
@@ -48,8 +61,8 @@ export async function GET(request: Request) {
       topicCount: schoolUnits.filter((candidate) => candidate.courseCode === unit.courseCode).length,
     }))
     .sort((left, right) => left.order - right.order);
-  return NextResponse.json({
+  return observedJson({
     courses: courseOptions,
     units: filteredUnits,
-  }, { headers: { "Cache-Control": "private, no-store" } });
+  }, { route: "curriculum.course", budgetBytes: 256_000, headers: { "Cache-Control": "private, no-store" } });
 }

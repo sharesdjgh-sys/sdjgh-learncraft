@@ -2,12 +2,13 @@ import { z } from "zod";
 import { requireLearner } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { getSchoolLearningUnit } from "@/data/school-curriculum";
-import { completeAiUsage, getStudentUsage, refundAiUsage, reserveAiUsage } from "@/features/usage/repository";
+import { completeAiUsage, getStudentUsageCounter, refundAiUsage, reserveAiUsage } from "@/features/usage/repository";
 import { imageSlotSchema } from "@/lib/learning-visual";
 import { retryIllustrationBrief } from "@/lib/learning-image-retry";
 import { generatePreparedLearningIllustration } from "@/lib/learning-image-pipeline";
 import { inlineLearningImageMarkdown } from "@/lib/inline-learning-image";
 import { learningImageFailure, learningImageFailureMessages } from "@/lib/learning-image-failure";
+import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: { message: "다시 생성할 그림 정보를 확인해 주세요." } }, 400);
   const { requestId, unitId, slot } = parsed.data;
+  const rateLimit = await checkRequestRateLimit({ category: "image", userId: user.id, schoolId: user.schoolId, ip: requestIp(request) });
+  if (!rateLimit.allowed) return json({ error: { code: "IMAGE_RATE_LIMITED", message: "이미지 생성 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." } }, 429);
   if (!await getSchoolLearningUnit(user.schoolId, unitId)) return json({ error: { message: "사용할 수 없는 단원입니다." } }, 404);
   if (!isGeminiConfigured || env.GEMINI_IMAGE_ENABLED !== "true") return json({ error: { message: "현재 이미지 생성을 사용할 수 없어요." } }, 503);
   const brief = retryIllustrationBrief(slot);
@@ -49,6 +52,6 @@ export async function POST(request: Request) {
     const failure = learningImageFailure(error, stage);
     await refundAiUsage(user, requestId, failure.code, request.signal.aborted);
     console.error("learning_image_failure", { imageId: slot.id, model: env.GEMINI_IMAGE_MODEL_ID, stage, elapsedMs: Date.now() - startedAt, ...failure });
-    return json({ error: { code: failure.code, message: learningImageFailureMessages[failure.code] } }, 502, (await getStudentUsage(user)).remaining);
+    return json({ error: { code: failure.code, message: learningImageFailureMessages[failure.code] } }, 502, (await getStudentUsageCounter(user)).remaining);
   }
 }

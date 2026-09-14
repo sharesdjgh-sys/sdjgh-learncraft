@@ -13,6 +13,9 @@ const envSchema = z.object({
   GEMINI_IMAGE_MODEL_ID: z.string().default("gemini-3.1-flash-image"),
   GEMINI_IMAGE_ENABLED: z.enum(["true", "false"]).default("true"),
   APP_TIMEZONE: z.string().default("Asia/Seoul"),
+  UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal("")),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  RATE_LIMIT_MODE: z.enum(["shadow", "enforce"]).default("shadow"),
 });
 
 const parsed = envSchema.safeParse({
@@ -28,6 +31,9 @@ const parsed = envSchema.safeParse({
   GEMINI_IMAGE_MODEL_ID: process.env.GEMINI_IMAGE_MODEL_ID,
   GEMINI_IMAGE_ENABLED: process.env.GEMINI_IMAGE_ENABLED,
   APP_TIMEZONE: process.env.APP_TIMEZONE,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  RATE_LIMIT_MODE: process.env.RATE_LIMIT_MODE,
 });
 
 if (!parsed.success) {

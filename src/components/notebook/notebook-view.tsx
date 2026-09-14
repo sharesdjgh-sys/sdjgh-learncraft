@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { formatCurriculumUnitNumber } from "@/lib/curriculum-hierarchy";
 import { cn } from "@/lib/utils";
-import type { Bookmark as BookmarkType, BookmarkUnitContext } from "@/types";
+import type { Bookmark as BookmarkType, BookmarkOutlineUnit, BookmarkPage, BookmarkSummary } from "@/types";
 
 const ALL_SCOPE = "ALL";
 
-type BookmarkOutlineUnit = {
+type BookmarkOutlineViewUnit = {
   id: string;
   title: string;
   number: string;
@@ -23,7 +23,7 @@ type BookmarkOutlineCourse = {
   title: string;
   order: number;
   count: number;
-  units: BookmarkOutlineUnit[];
+  units: BookmarkOutlineViewUnit[];
 };
 
 type BookmarkOutlineSubject = {
@@ -41,29 +41,12 @@ const answerModeLabels: Record<BookmarkType["answerMode"], string> = {
   QUIZ: "확인 문제",
 };
 
-function getPreview(markdown: string) {
-  return markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/[#>*_`$[\](){}\\|]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function getRequestTitle(title: string) {
   const normalized = title.trim();
   return normalized.endsWith("학습 메모") ? null : normalized;
 }
 
-function bookmarkMatchesScope(item: BookmarkType, scope: string, unitById: Map<string, BookmarkUnitContext>) {
-  if (scope === ALL_SCOPE) return true;
-  const unit = unitById.get(item.unitId);
-  if (scope.startsWith("subject:")) return (unit?.subjectCode ?? item.subjectTitle) === scope.slice(8);
-  if (scope.startsWith("course:")) return (unit?.courseCode ?? `unknown:${item.subjectTitle}`) === scope.slice(7);
-  if (scope.startsWith("unit:")) return item.unitId === scope.slice(5);
-  return true;
-}
-
-function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, BookmarkUnitContext>) {
+function buildBookmarkOutline(items: BookmarkOutlineUnit[]) {
   const subjects = new Map<string, {
     title: string;
     count: number;
@@ -71,33 +54,32 @@ function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, Bookm
       title: string;
       order: number;
       count: number;
-      units: Map<string, BookmarkOutlineUnit>;
+      units: Map<string, BookmarkOutlineViewUnit>;
     }>;
   }>();
 
-  for (const item of items) {
-    const unit = unitById.get(item.unitId);
-    const subjectKey = unit?.subjectCode ?? item.subjectTitle;
-    const courseKey = unit?.courseCode ?? `unknown:${item.subjectTitle}`;
-    const subject = subjects.get(subjectKey) ?? { title: item.subjectTitle, count: 0, courses: new Map() };
+  for (const unit of items) {
+    const subjectKey = unit.subjectCode;
+    const courseKey = unit.courseCode;
+    const subject = subjects.get(subjectKey) ?? { title: unit.subjectTitle, count: 0, courses: new Map() };
     const course = subject.courses.get(courseKey) ?? {
-      title: unit?.courseTitle ?? item.subjectTitle,
-      order: unit?.courseOrder ?? Number.MAX_SAFE_INTEGER,
+      title: unit.courseTitle,
+      order: unit.courseOrder,
       count: 0,
       units: new Map(),
     };
-    const outlineUnit = course.units.get(item.unitId) ?? {
-      id: item.unitId,
-      title: item.unitTitle,
-      number: unit ? formatCurriculumUnitNumber(unit) : "",
-      order: unit ? unit.chapterOrder * 10_000 + unit.sectionOrder * 100 + unit.topicOrder : Number.MAX_SAFE_INTEGER,
+    const outlineUnit = course.units.get(unit.id) ?? {
+      id: unit.id,
+      title: unit.title,
+      number: formatCurriculumUnitNumber(unit),
+      order: unit.chapterOrder * 10_000 + unit.sectionOrder * 100 + unit.topicOrder,
       count: 0,
     };
-    outlineUnit.count += 1;
-    course.units.set(item.unitId, outlineUnit);
-    course.count += 1;
+    outlineUnit.count += unit.count;
+    course.units.set(unit.id, outlineUnit);
+    course.count += unit.count;
     subject.courses.set(courseKey, course);
-    subject.count += 1;
+    subject.count += unit.count;
     subjects.set(subjectKey, subject);
   }
 
@@ -120,28 +102,52 @@ function buildBookmarkOutline(items: BookmarkType[], unitById: Map<string, Bookm
 }
 
 export function NotebookView() {
-  const [items, setItems] = useState<BookmarkType[]>([]);
-  const [units, setUnits] = useState<BookmarkUnitContext[]>([]);
+  const [items, setItems] = useState<BookmarkSummary[]>([]);
+  const [units, setUnits] = useState<BookmarkOutlineUnit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState(ALL_SCOPE);
   const [mobileOutlineOpen, setMobileOutlineOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<BookmarkType | null>(null);
   const detailRef = useRef<HTMLElement>(null);
+  const detailCache = useRef(new Map<string, BookmarkType>());
 
   useEffect(() => {
-    fetch("/api/bookmarks", { cache: "no-store" })
+    fetch("/api/bookmarks/outline", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("북마크를 불러오지 못했습니다.");
-        const bookmarkData = await response.json() as {
-          bookmarks?: BookmarkType[];
-          units?: BookmarkUnitContext[];
-        };
-        setItems(bookmarkData.bookmarks ?? []);
-        setUnits(bookmarkData.units ?? []);
+        if (!response.ok) throw new Error("북마크 목차를 불러오지 못했습니다.");
+        const data = await response.json() as { units?: BookmarkOutlineUnit[] };
+        setUnits(data.units ?? []);
       })
-      .finally(() => setLoading(false));
+      .catch(() => setUnits([]));
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setSelectedId(null);
+      setSelectedItem(null);
+      const params = new URLSearchParams({ limit: "24" });
+      if (query.trim()) params.set("q", query.trim());
+      if (scope.startsWith("subject:")) params.set("subject", scope.slice(8));
+      if (scope.startsWith("course:")) params.set("course", scope.slice(7));
+      if (scope.startsWith("unit:")) params.set("unit", scope.slice(5));
+      try {
+        const response = await fetch(`/api/bookmarks?${params}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("북마크를 불러오지 못했습니다.");
+        const data = await response.json() as BookmarkPage;
+        setItems(data.items);
+        setNextCursor(data.nextCursor);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [query, scope]);
 
   useEffect(() => {
     if (!mobileOutlineOpen) return;
@@ -158,39 +164,68 @@ export function NotebookView() {
   }, [mobileOutlineOpen]);
 
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
-  const outline = useMemo(() => buildBookmarkOutline(items, unitById), [items, unitById]);
-  const activeScope = scope === ALL_SCOPE || items.some((item) => bookmarkMatchesScope(item, scope, unitById))
+  const outline = useMemo(() => buildBookmarkOutline(units), [units]);
+  const itemCount = useMemo(() => units.reduce((total, unit) => total + unit.count, 0), [units]);
+  const activeScope = scope === ALL_SCOPE || units.some((unit) => (
+    (scope.startsWith("subject:") && unit.subjectCode === scope.slice(8))
+    || (scope.startsWith("course:") && unit.courseCode === scope.slice(7))
+    || (scope.startsWith("unit:") && unit.id === scope.slice(5))
+  ))
     ? scope
     : ALL_SCOPE;
-  const filtered = useMemo(() => items.filter((item) => {
-    const needle = query.toLowerCase();
-    return bookmarkMatchesScope(item, activeScope, unitById)
-      && (!needle
-        || item.title.toLowerCase().includes(needle)
-        || item.unitTitle.toLowerCase().includes(needle)
-        || item.answerMarkdown.toLowerCase().includes(needle));
-  }), [activeScope, items, query, unitById]);
-
-  const selectedItem = filtered.find((item) => item.id === selectedId) ?? null;
 
   async function remove(id: string) {
     const response = await fetch(`/api/bookmarks/${id}`, { method: "DELETE" });
     if (response.ok) {
+      const unitId = items.find((item) => item.id === id)?.unitId;
       setItems((current) => current.filter((item) => item.id !== id));
+      setUnits((current) => current.map((unit) => unit.id === unitId
+        ? { ...unit, count: Math.max(0, unit.count - 1) }
+        : unit).filter((unit) => unit.count > 0));
       setSelectedId((current) => current === id ? null : current);
+      setSelectedItem((current) => current?.id === id ? null : current);
     }
   }
 
-  function showDetail(id: string) {
+  async function showDetail(id: string) {
     setSelectedId(id);
+    const cached = detailCache.current.get(id);
+    if (cached) setSelectedItem(cached);
+    else {
+      setSelectedItem(null);
+      const response = await fetch(`/api/bookmarks/${id}`, { cache: "no-store" });
+      if (response.ok) {
+        const data = await response.json() as { bookmark: BookmarkType };
+        detailCache.current.set(id, data.bookmark);
+        setSelectedItem(data.bookmark);
+      }
+    }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     });
   }
 
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    const params = new URLSearchParams({ limit: "24", cursor: nextCursor });
+    if (query.trim()) params.set("q", query.trim());
+    if (activeScope.startsWith("subject:")) params.set("subject", activeScope.slice(8));
+    if (activeScope.startsWith("course:")) params.set("course", activeScope.slice(7));
+    if (activeScope.startsWith("unit:")) params.set("unit", activeScope.slice(5));
+    try {
+      const response = await fetch(`/api/bookmarks?${params}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("북마크를 더 불러오지 못했습니다.");
+      const data = await response.json() as BookmarkPage;
+      setItems((current) => [...current, ...data.items]);
+      setNextCursor(data.nextCursor);
+    } finally { setLoadingMore(false); }
+  }
+
   function selectScope(nextScope: string) {
     setScope(nextScope);
     setSelectedId(null);
+    setSelectedItem(null);
     setMobileOutlineOpen(false);
   }
 
@@ -198,7 +233,7 @@ export function NotebookView() {
     <>
       <div className="grid h-[calc(100dvh-8.8rem-env(safe-area-inset-bottom))] min-h-0 overflow-hidden min-[1024px]:h-[calc(100dvh-4rem)] min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
         <aside className="scrollbar-subtle hidden h-full min-h-0 overflow-y-scroll border-r border-line bg-surface/55 px-4 py-5 [scrollbar-gutter:stable] min-[1024px]:block">
-          <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={activeScope} onSelect={selectScope} />
+          <BookmarkOutline groups={outline} itemCount={itemCount} loading={loading} scope={activeScope} onSelect={selectScope} />
         </aside>
 
         <main className="scrollbar-subtle h-full min-h-0 min-w-0 overflow-y-scroll [scrollbar-gutter:stable]">
@@ -209,7 +244,7 @@ export function NotebookView() {
                 <h1 className="font-learning mt-3 text-[2.2rem] font-bold tracking-[-0.045em] text-ink">학습 북마크</h1>
                 <p className="mt-3 max-w-xl text-[.94rem] leading-7 text-ink-3">필요한 답변만 모아 두고, 시험 전에 과목과 단원별로 빠르게 다시 읽어 보세요.</p>
               </div>
-              <p className="figure text-[.9rem] font-semibold text-ink-3"><span className="text-2xl text-brand">{items.length}</span>개 저장됨</p>
+              <p className="figure text-[.9rem] font-semibold text-ink-3"><span className="text-2xl text-brand">{itemCount}</span>개 저장됨</p>
             </header>
 
             <div className="mt-6 flex gap-2.5">
@@ -223,21 +258,23 @@ export function NotebookView() {
 
             {activeScope !== ALL_SCOPE && (
               <div className="mt-3 flex items-center justify-between gap-3 rounded-[11px] border border-brand/10 bg-brand-page px-3.5 py-2.5">
-                <p className="text-[.76rem] font-semibold text-brand-dark">선택한 목차에서 북마크 {filtered.length}개를 보고 있어요.</p>
+                <p className="text-[.76rem] font-semibold text-brand-dark">선택한 목차에서 북마크 {items.length}개를 불러왔어요.</p>
                 <button type="button" onClick={() => selectScope(ALL_SCOPE)} className="shrink-0 text-[.72rem] font-bold text-brand hover:underline">전체 보기</button>
               </div>
             )}
 
             {loading ? (
               <div className="grid min-h-72 place-items-center"><LoaderCircle className="animate-spin text-brand" /></div>
-            ) : filtered.length === 0 ? (
+            ) : items.length === 0 ? (
               <div className="mt-10 grid min-h-[21rem] place-items-center border-y border-dashed border-line px-6 text-center">
                 <div><Bookmark size={25} className="mx-auto text-brand" /><h2 className="font-learning mt-4 text-lg font-bold">{items.length === 0 ? "아직 저장한 답변이 없어요" : "조건에 맞는 답변이 없어요"}</h2><p className="mt-2 max-w-sm text-[.9rem] leading-7 text-ink-3">{items.length === 0 ? "AI 튜터 답변 아래의 저장 버튼을 누르면 이곳에서 다시 볼 수 있어요." : "검색어를 바꾸거나 목차에서 다른 항목을 선택해 보세요."}</p></div>
               </div>
             ) : (
               <>
                 <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {filtered.map((item, index) => (
+                  {items.map((item, index) => {
+                    const unit = unitById.get(item.unitId);
+                    return (
                     <article key={item.id} className="relative min-w-0">
                       <button
                         type="button"
@@ -253,23 +290,32 @@ export function NotebookView() {
                       >
                         <div className="flex w-full items-center gap-2">
                           <span className="figure text-[.72rem] font-semibold text-ink-5">{String(index + 1).padStart(2, "0")}</span>
-                          <span className="flex items-center gap-1.5 text-[.78rem] font-bold text-brand"><BookOpen size={13} /> {item.subjectTitle}</span>
-                          <span className="ml-auto rounded-full bg-brand-soft px-2 py-1 text-[.68rem] font-bold text-brand-dark">{answerModeLabels[item.answerMode]}</span>
+                          <span className="flex items-center gap-1.5 text-[.78rem] font-bold text-brand"><BookOpen size={13} /> {unit?.subjectTitle ?? "학습"}</span>
                         </div>
-                        <p className="font-learning mt-4 line-clamp-1 text-[.8rem] font-semibold text-ink-3">{item.unitTitle}</p>
+                        <p className="font-learning mt-4 line-clamp-1 text-[.8rem] font-semibold text-ink-3">{unit?.title ?? "단원 정보"}</p>
                         {getRequestTitle(item.title) && (
                           <>
                             <p className="mt-2 text-[.68rem] font-bold tracking-[.06em] text-ink-5">저장한 요청</p>
                             <h2 className="font-learning mt-1 line-clamp-2 text-[1rem] font-bold leading-6 text-ink">{getRequestTitle(item.title)}</h2>
                           </>
                         )}
-                        <p className="mt-2 line-clamp-3 text-[.82rem] leading-6 text-ink-4">{getPreview(item.answerMarkdown)}</p>
+                        <p className="mt-2 line-clamp-3 text-[.82rem] leading-6 text-ink-4">{item.preview}</p>
                         <p className="figure mt-auto pt-4 text-[.72rem] text-ink-5">{new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.createdAt))}</p>
                       </button>
                       <Button variant="ghost" size="icon" onClick={() => remove(item.id)} aria-label="북마크 삭제" className="absolute right-2 top-2 text-ink-4 hover:text-danger"><Trash2 size={16} /></Button>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
+
+                {nextCursor && (
+                  <div className="mt-7 flex justify-center">
+                    <Button type="button" variant="secondary" onClick={() => void loadMore()} disabled={loadingMore}>
+                      {loadingMore ? <LoaderCircle size={16} className="animate-spin" /> : null}
+                      더 보기
+                    </Button>
+                  </div>
+                )}
 
                 {selectedItem && (
                   <section ref={detailRef} id="bookmark-detail" className="mt-10 scroll-mt-6 border-t border-line pt-8">
@@ -300,7 +346,7 @@ export function NotebookView() {
         <div className="fixed inset-0 z-50 min-[1024px]:hidden" role="dialog" aria-modal="true" aria-label="북마크 목차">
           <button type="button" className="absolute inset-0 cursor-default bg-[#e4e3f1]/72 backdrop-blur-[3px]" onClick={() => setMobileOutlineOpen(false)} aria-label="북마크 목차 닫기" />
           <aside className="scrollbar-subtle absolute inset-y-0 left-0 w-[min(22rem,88vw)] overflow-y-scroll border-r border-line bg-surface px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] shadow-[0_0_60px_rgba(46,43,90,.2)] [scrollbar-gutter:stable]">
-            <BookmarkOutline groups={outline} itemCount={items.length} loading={loading} scope={activeScope} onSelect={selectScope} onClose={() => setMobileOutlineOpen(false)} />
+            <BookmarkOutline groups={outline} itemCount={itemCount} loading={loading} scope={activeScope} onSelect={selectScope} onClose={() => setMobileOutlineOpen(false)} />
           </aside>
         </div>
       )}

@@ -28,14 +28,14 @@ export function MobileUsageSummary() {
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
 
-  const loadUsage = useCallback(async () => {
+  const loadUsage = useCallback(async (includeCourses = false) => {
     if (request.current) return;
     const controller = new AbortController();
     request.current = controller;
     setError(null);
     setLoading(true);
     try {
-      const response = await fetch("/api/usage", { cache: "no-store", signal: controller.signal });
+      const response = await fetch(includeCourses ? "/api/usage?include=courses" : "/api/usage", { cache: "no-store", signal: controller.signal });
       if (controller.signal.aborted) return;
       if (response.status === 401) {
         setUsage(null);
@@ -77,7 +77,7 @@ export function MobileUsageSummary() {
     <>
       <button
         type="button"
-        onClick={() => { setOpen(true); void loadUsage(); }}
+        onClick={() => { setOpen(true); void loadUsage(true); }}
         className={`flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.76rem] font-semibold transition active:scale-[.98] ${open ? "border-[#3217c9] text-[#3217c9]" : "border-transparent text-[#996bf5]"}`}
         aria-label={`오늘 남은 AI 질문 ${usage?.remaining ?? "-"}/${usage?.limit ?? "-"}회, 사용 내역 보기`}
       >

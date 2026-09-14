@@ -8,6 +8,7 @@ import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobileUsageSummary } from "@/components/usage/mobile-usage-summary";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
+import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
 
 const studentPrimaryNavItems = [
@@ -24,7 +25,10 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
 
   async function logout() {
     sessionStorage.removeItem("learncraft_chat");
-    await fetch("/api/auth/logout", { method: "POST" });
+    await Promise.allSettled([
+      clearLearningSessions(),
+      fetch("/api/auth/logout", { method: "POST" }),
+    ]);
     router.push("/login");
     router.refresh();
   }

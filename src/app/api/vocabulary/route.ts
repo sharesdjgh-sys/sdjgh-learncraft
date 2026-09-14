@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   if (!user) return json({ error: "로그인이 필요합니다." }, 401);
   const query = Object.fromEntries(new URL(request.url).searchParams);
   if (!query.course || query.course.length > 100) return json({ error: "과목을 선택해 주세요." }, 400);
-  const units = await getSchoolLearningUnits(user.schoolId, { courseCode: query.course });
+  const units = await getSchoolLearningUnits(user.schoolId, { courseCode: query.course, vocabularyOnly: true });
   if (!units.length) return json({ error: "사용할 수 없는 과목입니다." }, 404);
   if (!query.term) return json({ courseTitle: units[0].courseTitle, entries: buildVocabulary(units) });
   const parsed = inputSchema.safeParse(query);
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "어휘 정보를 확인해 주세요." }, 400);
   const { course, unitId, term } = parsed.data;
-  const units = await getSchoolLearningUnits(user.schoolId, { courseCode: course });
+  const units = await getSchoolLearningUnits(user.schoolId, { courseCode: course, vocabularyOnly: true });
   const selected = units.find(item => item.id === unitId);
   const unit = selected ? chapterVocabularyContext(units, selected) : undefined;
   if (!unit || !unitHasTerm(unit, term)) return json({ error: "사용할 수 없는 교과 어휘입니다." }, 404);

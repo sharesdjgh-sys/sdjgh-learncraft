@@ -77,10 +77,24 @@ export type Bookmark = {
   createdAt: string;
 };
 
+export type BookmarkSummary = Pick<Bookmark, "id" | "unitId" | "title" | "createdAt"> & {
+  preview: string;
+};
+
+export type BookmarkPage = {
+  items: BookmarkSummary[];
+  nextCursor: string | null;
+};
+
 export type BookmarkUnitContext = Pick<LearningUnit,
   "id" | "title" | "subjectCode" | "courseCode" | "courseTitle" | "courseOrder"
   | "chapterOrder" | "sectionTitle" | "sectionOrder" | "topicOrder"
 >;
+
+export type BookmarkOutlineUnit = BookmarkUnitContext & {
+  subjectTitle: string;
+  count: number;
+};
 
 export type TutorMessage = {
   id: string;

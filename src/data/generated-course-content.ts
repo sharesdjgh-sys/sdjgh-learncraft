@@ -18,6 +18,7 @@ import {
 import type { GeneratedCourseDraft } from "@/features/admin/generate-course-content";
 import { sanitizeVocabularyTerms } from "@/features/vocabulary/content";
 import { curriculumTitle } from "@/lib/curriculum-title";
+import { invalidateSchoolCurriculumCache } from "@/lib/curriculum-cache";
 import type { LearningUnit, SubjectCode } from "@/types";
 
 function stableUuid(seed: string) {
@@ -278,14 +279,67 @@ export async function getGeneratedCourseContent(schoolId: string, offeringId: st
       eq(generatedCourseContents.offeringId, offeringId),
     )).limit(1);
   if (!content) throw new Error("생성된 콘텐츠를 찾지 못했습니다.");
-  const sources = await db.select({
-    kind: courseSourceDocuments.kind,
-    title: courseSourceDocuments.title,
-    url: courseSourceDocuments.url,
-  }).from(courseSourceDocuments).where(eq(courseSourceDocuments.offeringId, offeringId));
+  const [sources, normalizedUnits] = await Promise.all([
+    db.select({
+      kind: courseSourceDocuments.kind,
+      title: courseSourceDocuments.title,
+      url: courseSourceDocuments.url,
+    }).from(courseSourceDocuments).where(eq(courseSourceDocuments.offeringId, offeringId)),
+    content.units.length === 0 && content.status === "PUBLISHED"
+      ? db.select({
+        id: units.id,
+        code: units.code,
+        title: units.title,
+        chapterTitle: units.chapterTitle,
+        chapterOrder: units.chapterOrder,
+        sectionTitle: units.sectionTitle,
+        sectionOrder: units.sectionOrder,
+        topicOrder: units.topicOrder,
+        courseCode: courses.code,
+        courseTitle: courses.title,
+        courseOverview: courses.overview,
+        courseOrder: courses.displayOrder,
+        grade: courses.grade,
+        curriculum: curriculumVersions.title,
+        subjectCode: subjects.code,
+        subjectTitle: subjects.title,
+        publisherName: courses.publisherName,
+        sourceUrl: units.sourceUrl,
+        summary: unitContents.summaryMarkdown,
+        keyPoints: unitContents.keyPoints,
+        formulas: unitContents.formulas,
+        examples: unitContents.examples,
+        recommendedQuestions: units.recommendedQuestions,
+        keywords: units.keywords,
+        prerequisites: units.prerequisites,
+        commonMistakes: units.commonMistakes,
+        scopeExcluded: units.scopeExcluded,
+        assessmentTags: units.assessmentTags,
+        tutorInstructions: units.tutorPrompt,
+      }).from(units)
+        .innerJoin(courses, eq(courses.id, units.courseId))
+        .innerJoin(subjects, eq(subjects.id, courses.subjectId))
+        .innerJoin(curriculumVersions, eq(curriculumVersions.id, courses.curriculumVersionId))
+        .innerJoin(unitContents, and(eq(unitContents.unitId, units.id), eq(unitContents.version, 1)))
+        .where(eq(units.courseId, content.courseId))
+        .orderBy(units.displayOrder)
+      : Promise.resolve([]),
+  ]);
+  const restoredUnits: LearningUnit[] = normalizedUnits.map((unit) => ({
+    ...unit,
+    subjectCode: unit.subjectCode as SubjectCode,
+    courseCategory: "GENERAL" as const,
+    grade: unit.grade as 1 | 2 | 3,
+    recommendedGrades: [unit.grade as 1 | 2 | 3],
+    publisherCode: "GENERIC" as const,
+    schoolAdopted: true,
+    schoolPublisherName: unit.publisherName || undefined,
+    sourceUrl: unit.sourceUrl || undefined,
+  }));
+  const contentUnits = content.units.length > 0 ? content.units : restoredUnits;
   return {
     ...content,
-    units: content.units.map((unit) => ({
+    units: contentUnits.map((unit) => ({
       ...unit,
       title: curriculumTitle(unit.title),
       chapterTitle: curriculumTitle(unit.chapterTitle),
@@ -322,6 +376,7 @@ export async function publishGeneratedCourseContent(schoolId: string, adminId: s
   const [course] = await db.select({ code: courses.code }).from(courses).where(eq(courses.id, content.courseId)).limit(1);
   if (!course) throw new Error("연결할 과목 콘텐츠를 찾지 못했습니다.");
   await db.update(generatedCourseContents).set({
+    unitsJson: [],
     status: "PUBLISHED",
     reviewerId,
     reviewedAt: publishedAt,
@@ -333,5 +388,6 @@ export async function publishGeneratedCourseContent(schoolId: string, adminId: s
     contentCourseCode: course.code,
     updatedAt: publishedAt,
   }).where(eq(schoolCourseOfferings.id, offeringId));
+  invalidateSchoolCurriculumCache(schoolId);
   return getGeneratedCourseContent(schoolId, offeringId);
 }

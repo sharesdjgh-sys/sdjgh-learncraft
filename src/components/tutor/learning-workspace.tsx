@@ -3,6 +3,8 @@ import { fillImageSlots, validImageUpdate } from "@/lib/image-slots";
 import { ImageRetryContext } from "@/components/tutor/image-retry-context";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
+import { detachInlineLearningImages } from "@/lib/bookmark-content";
+import { readLearningSession, writeLearningSession } from "@/lib/learning-session-cache";
 import Image from "next/image";
 import { UnitVocabulary } from "./unit-vocabulary";
 import { buildChapterVocabulary, chapterVocabularyContext, unitVocabularyTerms, vocabularyExplanationSchema, vocabularyExplanationMarkdown, vocabularyTermKey } from "@/features/vocabulary/content";
@@ -273,6 +275,16 @@ function dataUrlFromBlob(blob: Blob) {
   });
 }
 
+function webpBlobFromDataUrl(dataUrl: string) {
+  const prefix = "data:image/webp;base64,";
+  const encoded = dataUrl.startsWith(prefix) ? dataUrl.slice(prefix.length) : "";
+  if (!encoded) throw new Error("생성 이미지를 읽지 못했어요.");
+  const binary = window.atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: "image/webp" });
+}
+
 async function inlinePdfMedia(root: HTMLElement) {
   root.querySelectorAll<HTMLCanvasElement>("canvas").forEach((canvas) => {
     const image = document.createElement("img");
@@ -480,7 +492,7 @@ function MessageTextSizeControl({ value, onChange, className }: {
 }
 
 type SavedLearningCache = {
-  version: 2;
+  version: 2 | 3;
   homeOpen?: boolean;
   conversationOpen?: boolean;
   activeUnitId: string;
@@ -516,7 +528,7 @@ function isCachedUnitSession(value: unknown): value is CachedUnitSession {
 function isSavedLearningCache(value: unknown): value is SavedLearningCache {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedLearningCache>;
-  return candidate.version === 2
+  return (candidate.version === 2 || candidate.version === 3)
     && typeof candidate.activeUnitId === "string"
     && (candidate.grade === undefined || isSupportedGrade(candidate.grade))
     && (candidate.courseOverviewOpen === undefined || typeof candidate.courseOverviewOpen === "boolean")
@@ -547,6 +559,7 @@ function cacheUnitSession(cache: Map<string, CachedUnitSession>, unitId: string,
 type LearningWorkspaceProps = {
   units: LearningUnit[];
   initialGrade: number;
+  studentId: string;
   studentName: string;
   schoolName: string;
 };
@@ -617,7 +630,7 @@ function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorksp
   );
 }
 
-function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
+function LearningWorkspaceContent({ units, initialGrade, studentId, studentName, schoolName, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
   const availableGrades = availableGradesFor(units);
   const requestedInitialGrade = supportedGrade(initialGrade);
   const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
@@ -690,17 +703,18 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       .sort(compareCurriculumOrder),
     [units, grade, subject],
   );
-  const [courseDetails, setCourseDetails] = useState<Record<string, LearningUnit[]>>({});
+  const [unitDetails, setUnitDetails] = useState<Record<string, LearningUnit>>({});
+  const [vocabularyDetails, setVocabularyDetails] = useState<Record<string, LearningUnit[]>>({});
   const [failedCourse, setFailedCourse] = useState<string | null>(null);
   const [detailAttempt, setDetailAttempt] = useState(0);
   const selectedOutline = (units.find((unit) => unit.id === selectedUnitId) ?? filteredUnits[0] ?? units[0])!;
   const courseCode = selectedOutline.courseCode;
-  const loadedCourse = courseDetails[courseCode];
-  const selectedUnit = loadedCourse?.find((unit) => unit.id === selectedOutline.id) ?? selectedOutline;
-  const detailsReady = Boolean(loadedCourse?.some((unit) => unit.id === selectedOutline.id));
+  const loadedUnit = unitDetails[selectedOutline.id];
+  const selectedUnit = loadedUnit ?? selectedOutline;
+  const detailsReady = Boolean(loadedUnit);
   const selectedCourseUnits = useMemo(
-    () => loadedCourse ?? filteredUnits.filter((unit) => unit.courseCode === courseCode),
-    [filteredUnits, courseCode, loadedCourse],
+    () => vocabularyDetails[courseCode] ?? filteredUnits.filter((unit) => unit.courseCode === courseCode),
+    [filteredUnits, courseCode, vocabularyDetails],
   );
 
   const vocabularyChapters = useMemo(() => buildChapterVocabulary(selectedCourseUnits), [selectedCourseUnits]);
@@ -731,24 +745,39 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }, [selectedCourseUnits, vocabularyChapter.chapterOrder, vocabularyChapter.chapterTitle]);
 
   useEffect(() => {
-    if (homeOpen || loadedCourse || failedCourse === courseCode) return;
+    if (homeOpen || loadedUnit || failedCourse === selectedOutline.id) return;
     const controller = new AbortController();
-    fetch(`/api/curriculum?course=${encodeURIComponent(courseCode)}`, { signal: controller.signal, cache: "no-store" })
+    fetch(`/api/curriculum?unit=${encodeURIComponent(selectedOutline.id)}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Course request failed");
         return response.json() as Promise<{ units: LearningUnit[] }>;
       })
       .then((data) => {
         if (controller.signal.aborted) return;
-        const expected = units.filter((unit) => unit.courseCode === courseCode);
-        if (!expected.every((unit) => data.units.some((detail) => detail.id === unit.id))) {
+        const detail = data.units.find((unit) => unit.id === selectedOutline.id);
+        if (!detail) {
           throw new Error("Course curriculum changed");
         }
-        setCourseDetails((current) => ({ ...current, [courseCode]: data.units }));
+        setUnitDetails((current) => ({ ...current, [selectedOutline.id]: detail }));
       })
-      .catch(() => { if (!controller.signal.aborted) setFailedCourse(courseCode); });
+      .catch(() => { if (!controller.signal.aborted) setFailedCourse(selectedOutline.id); });
     return () => controller.abort();
-  }, [courseCode, homeOpen, loadedCourse, failedCourse, detailAttempt, units]);
+  }, [homeOpen, loadedUnit, failedCourse, detailAttempt, selectedOutline.id]);
+
+  useEffect(() => {
+    if (!vocabularyOpen || vocabularyDetails[courseCode]) return;
+    const controller = new AbortController();
+    fetch(`/api/curriculum?view=vocabulary&course=${encodeURIComponent(courseCode)}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Vocabulary curriculum request failed");
+        return response.json() as Promise<{ units: LearningUnit[] }>;
+      })
+      .then((data) => {
+        if (!controller.signal.aborted) setVocabularyDetails((current) => ({ ...current, [courseCode]: data.units }));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [courseCode, vocabularyDetails, vocabularyOpen]);
 
   useEffect(() => {
     fetch("/api/usage")
@@ -786,26 +815,30 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
   }
 
   useEffect(() => {
-    let savedSession: SavedLearningSession | null = null;
-    let savedCache: SavedLearningCache | null = null;
-    let savedUnit: LearningUnit | undefined;
-    try {
-      const raw = sessionStorage.getItem(learningCacheKey);
-      if (raw) {
-        const saved: unknown = JSON.parse(raw);
-        if (isSavedLearningCache(saved)) {
-          savedCache = saved;
-          savedUnit = units.find((unit) => unit.id === saved.activeUnitId);
-        } else if (isSavedSession(saved)) {
-          savedUnit = units.find((unit) => unit.id === saved.unitId);
-          if (savedUnit) savedSession = saved;
+    let cancelled = false;
+    void (async () => {
+      let savedSession: SavedLearningSession | null = null;
+      let savedCache: SavedLearningCache | null = null;
+      let savedUnit: LearningUnit | undefined;
+      let saved: unknown = null;
+      try { saved = await readLearningSession<unknown>(studentId); }
+      catch { /* Fall back to the legacy tab cache when IndexedDB is unavailable. */ }
+      if (!saved) {
+        try {
+          const raw = sessionStorage.getItem(learningCacheKey);
+          saved = raw ? JSON.parse(raw) : null;
+        } catch {
+          try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
         }
       }
-    } catch {
-      try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
-    }
-
-    const restoreTimer = window.setTimeout(() => {
+      if (isSavedLearningCache(saved)) {
+        savedCache = saved;
+        savedUnit = units.find((unit) => unit.id === saved.activeUnitId);
+      } else if (isSavedSession(saved)) {
+        savedUnit = units.find((unit) => unit.id === saved.unitId);
+        if (savedUnit) savedSession = saved;
+      }
+      if (cancelled) return;
       if (savedCache) {
         for (const [unitId, session] of Object.entries(savedCache.sessions)) {
           if (!units.some((unit) => unit.id === unitId)) continue;
@@ -837,13 +870,12 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
           && (savedCache?.conversationOpen ?? Boolean(restored?.messages.length)));
       }
       setSessionReady(true);
-    }, 0);
-
-    return () => window.clearTimeout(restoreTimer);
-  }, [units]);
+    })();
+    return () => { cancelled = true; };
+  }, [studentId, units]);
 
   useEffect(() => {
-    if (!sessionReady || !selectedUnitId) return;
+    if (!sessionReady || !selectedUnitId || loading) return;
     if (!homeOpen && !courseOverviewOpen) {
       cacheUnitSession(unitSessionsRef.current, selectedUnitId, {
         learningLevel,
@@ -851,7 +883,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       });
     }
     const cache: SavedLearningCache = {
-      version: 2,
+      version: 3,
       activeUnitId: selectedUnitId,
       grade,
       homeOpen,
@@ -860,16 +892,23 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       vocabularyOpen,
       sessions: Object.fromEntries(unitSessionsRef.current),
     };
-    try { sessionStorage.setItem(learningCacheKey, JSON.stringify(cache)); } catch {
-      // Preserve navigation even when inline images exceed the tab's storage quota.
-      try { sessionStorage.setItem(learningCacheKey, JSON.stringify({
-        ...cache, conversationOpen: false,
-        sessions: { [selectedUnitId]: { learningLevel, messages: [] } },
-      } satisfies SavedLearningCache)); } catch {
+    const timer = window.setTimeout(() => {
+      void writeLearningSession(studentId, cache).then(() => {
         try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
-      }
-    }
-  }, [conversationOpen, courseOverviewOpen, vocabularyOpen, grade, homeOpen, learningLevel, messages, selectedUnitId, sessionReady]);
+      }).catch(() => {
+        // Preserve same-tab navigation on browsers where IndexedDB is disabled.
+        try { sessionStorage.setItem(learningCacheKey, JSON.stringify(cache)); } catch {
+          try { sessionStorage.setItem(learningCacheKey, JSON.stringify({
+            ...cache, conversationOpen: false,
+            sessions: { [selectedUnitId]: { learningLevel, messages: [] } },
+          } satisfies SavedLearningCache)); } catch {
+            try { sessionStorage.removeItem(learningCacheKey); } catch { /* Storage may be disabled. */ }
+          }
+        }
+      });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [conversationOpen, courseOverviewOpen, vocabularyOpen, grade, homeOpen, learningLevel, loading, messages, selectedUnitId, sessionReady, studentId]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -1224,7 +1263,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
       console.log("[LearnCraft AI 답변 완료]", {
         requestId: response.headers.get("X-Request-Id"),
         unit: selectedUnit.title,
-        answer: accumulated,
+        characters: accumulated.length,
+        generatedImages: (accumulated.match(/data:image\/webp;base64,/g) ?? []).length,
       });
       setMessages((current) => current.map((message) => message.id === answerId ? { ...message, content: accumulated, completed: true } : message));
     } catch (error) {
@@ -1242,21 +1282,27 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
 
   async function bookmarkMessage(message: TutorMessage) {
     if (!selectedUnit || !message.completed || savedIds.has(message.id)) return;
-    const response = await fetch("/api/bookmarks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      const prepared = detachInlineLearningImages(message.content);
+      const body = new FormData();
+      body.set("payload", JSON.stringify({
         clientAnswerId: message.id,
         unitId: selectedUnit.id,
         answerMode: message.action ?? "QUESTION",
         title: makeBookmarkTitle(messages, message),
-        answerMarkdown: message.content,
-      }),
-    });
-    if (response.ok) {
+        answerMarkdown: prepared.answerMarkdown,
+      }));
+      for (const image of prepared.images) {
+        body.append(`image:${image.id}`, webpBlobFromDataUrl(image.dataUrl), `${image.id}.webp`);
+      }
+      const response = await fetch("/api/bookmarks", { method: "POST", body });
+      if (!response.ok) throw new Error("북마크를 저장하지 못했어요.");
       setSavedIds((current) => new Set(current).add(message.id));
       setNotice("답변을 학습 북마크에 저장했어요.");
       window.setTimeout(() => setNotice(""), 2400);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "북마크를 저장하지 못했어요.");
+      window.setTimeout(() => setNotice(""), 3000);
     }
   }
 
@@ -1474,7 +1520,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
             {homeOpen ? (
               <LearnCraftIntro studentName={studentName} onOpenCurriculum={openCoursePicker} />
             ) : !detailsReady ? (
-              <CurriculumLoadStatus error={failedCourse === courseCode} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />
+              <CurriculumLoadStatus error={failedCourse === selectedOutline.id} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />
             ) : courseOverviewOpen ? (
               <CourseOverview units={selectedCourseUnits} onOpenCurriculum={openCourseOutline} />
             ) : !vocabularyOpen && (!conversationOpen || messages.length === 0) ? (
@@ -1806,7 +1852,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentName, schoolName
         </Sheet>
       )}
       <Sheet id="concept-note-sheet" title="단원 핵심 노트" open={conceptOpen} onClose={() => { setConceptOpen(false); window.requestAnimationFrame(() => conceptTriggerRef.current?.focus()); }} side="right">
-        {detailsReady ? <ConceptPanel unit={selectedUnit} /> : <CurriculumLoadStatus error={failedCourse === courseCode} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />}
+        {detailsReady ? <ConceptPanel unit={selectedUnit} /> : <CurriculumLoadStatus error={failedCourse === selectedOutline.id} onRetry={() => { setFailedCourse(null); setDetailAttempt((value) => value + 1); }} />}
       </Sheet>
 
       {notice && <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-[11px] border border-brand/20 bg-surface px-4 py-3 text-center text-sm font-semibold text-brand-dark shadow-[var(--lift-3)] min-[1024px]:bottom-6 min-[1024px]:whitespace-nowrap"><Check size={16} className="shrink-0" />{notice}</div>}

@@ -211,7 +211,13 @@ export async function getCourseSourceBundle(
   const fingerprint = sharedCourseSourceFingerprint(identity);
   const legacyFingerprint = legacyCourseSourceFingerprint(identity);
   const [sharedRows, offeringBundle] = await Promise.all([
-    db.select().from(sharedCourseSourceBundles)
+    db.select({
+      sourceFingerprint: sharedCourseSourceBundles.sourceFingerprint,
+      bundleJson: sharedCourseSourceBundles.bundleJson,
+      sourceModel: sharedCourseSourceBundles.sourceModel,
+      researchExcerpt: sharedCourseSourceBundles.researchExcerpt,
+      retrievedAt: sharedCourseSourceBundles.retrievedAt,
+    }).from(sharedCourseSourceBundles)
       .where(eq(sharedCourseSourceBundles.sourceFingerprint, fingerprint))
       .limit(1),
     getOfferingSourceBundle(offeringId, new Set([fingerprint, legacyFingerprint])),

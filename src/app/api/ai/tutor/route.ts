@@ -25,13 +25,14 @@ import { LEARNING_ESSENTIALS_PROMPT } from "@/features/tutor/follow-up";
 import {
   completeAiUsage,
   completeAiUsageWithTokens,
-  getStudentUsage,
+  getStudentUsageCounter,
   refundAiUsage,
   reserveAiUsage,
   switchAiUsageModel,
 } from "@/features/usage/repository";
 import { requireLearner } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
+import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
 
 const google = createGoogleGenerativeAI({
   apiKey: env.GEMINI_API_KEY,
@@ -260,6 +261,11 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+  const requestIdentity = { userId: user.id, schoolId: user.schoolId, ip: requestIp(request) };
+  const tutorRateLimit = await checkRequestRateLimit({ category: "tutor", ...requestIdentity });
+  if (!tutorRateLimit.allowed) {
+    return errorResponse("RATE_LIMITED", "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", 429, input.requestId);
+  }
   const unit = await getSchoolLearningUnit(user.schoolId, input.unitId);
   if (!unit) {
     return errorResponse("UNIT_NOT_AVAILABLE", "사용할 수 없는 단원입니다.", 404, input.requestId);
@@ -273,10 +279,16 @@ export async function POST(request: Request) {
 
   const vocabularyMode = input.mode === "VOCABULARY";
   const vocabularyUnit = vocabularyMode
-    ? chapterVocabularyContext(await getSchoolLearningUnits(user.schoolId, { courseCode: unit.courseCode }), unit)
+    ? chapterVocabularyContext(await getSchoolLearningUnits(user.schoolId, { courseCode: unit.courseCode, vocabularyOnly: true }), unit)
     : unit;
   if (vocabularyMode && !isGeminiConfigured) return errorResponse("AI_UNAVAILABLE", "현재 어휘 질문을 사용할 수 없어요.", 503);
   const explicitImage = !vocabularyMode && input.action === "QUESTION" && requestsGeneratedImage(input.message ?? "");
+  if (explicitImage) {
+    const imageRateLimit = await checkRequestRateLimit({ category: "image", ...requestIdentity });
+    if (!imageRateLimit.allowed) {
+      return errorResponse("IMAGE_RATE_LIMITED", "이미지 생성 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", 429, input.requestId);
+    }
+  }
   if (explicitImage && (!isGeminiConfigured || env.GEMINI_IMAGE_ENABLED !== "true")) {
     return errorResponse("IMAGE_UNAVAILABLE", "현재 Nano Banana 이미지 생성을 사용할 수 없어요. 잠시 후 다시 요청해 주세요.", 503, input.requestId);
   }
@@ -289,7 +301,7 @@ export async function POST(request: Request) {
         action: input.action,
         modelId: env.GEMINI_PRIMARY_MODEL_ID,
       })
-    : { ok: true as const, remaining: (await getStudentUsage(user)).remaining, duplicate: false };
+    : { ok: true as const, remaining: (await getStudentUsageCounter(user)).remaining, duplicate: false };
   if (!reservation.ok) {
     if (reservation.duplicate) {
       return errorResponse("DUPLICATE_REQUEST", "이미 처리된 요청입니다.", 409, input.requestId);

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accountCredentials, users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth";
+import { invalidateAccountStatusCache, requireAdmin } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { hashPassword } from "@/lib/password";
 import { registrationSchema, statusSchema, type AccountRole } from "./model";
@@ -91,5 +91,6 @@ export async function changeAccountStatus(request: Request, role: AccountRole) {
   const [account] = await db.update(users).set({ active: parsed.data.active, updatedAt: new Date() })
     .where(and(eq(users.id, parsed.data.id), eq(users.schoolId, admin.schoolId), eq(users.role, role))).returning(projection);
   if (!account) return fail("해당 계정을 찾을 수 없습니다.", 404);
+  invalidateAccountStatusCache();
   return NextResponse.json({ account });
 }

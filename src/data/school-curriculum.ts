@@ -18,13 +18,14 @@ import {
   units,
   users,
 } from "@/db/schema";
-import { learningUnits } from "@/data/curriculum";
+import { getUnit, learningUnits } from "@/data/curriculum";
 import {
   defaultSelectedSchoolCourseKeys,
   schoolCourseCatalog,
 } from "@/data/school-course-catalog";
 import { findContentCourseCode } from "@/lib/course-content-match";
 import { curriculumTitle } from "@/lib/curriculum-title";
+import { cachedCurriculumData, invalidateSchoolCurriculumCache } from "@/lib/curriculum-cache";
 import type {
   CurriculumManagementState,
   CurriculumOffering,
@@ -128,7 +129,16 @@ async function knownAdminId(schoolId: string, adminId: string) {
 async function databaseState(schoolId: string, selectedVersionId?: string) {
   if (!db) return null;
   const versionRows = await db
-    .select()
+    .select({
+      id: schoolCurriculumVersions.id,
+      academicYear: schoolCurriculumVersions.academicYear,
+      revision: schoolCurriculumVersions.revision,
+      title: schoolCurriculumVersions.title,
+      status: schoolCurriculumVersions.status,
+      sourceFileName: schoolCurriculumVersions.sourceFileName,
+      publishedAt: schoolCurriculumVersions.publishedAt,
+      updatedAt: schoolCurriculumVersions.updatedAt,
+    })
     .from(schoolCurriculumVersions)
     .where(eq(schoolCurriculumVersions.schoolId, schoolId))
     .orderBy(desc(schoolCurriculumVersions.academicYear), desc(schoolCurriculumVersions.revision));
@@ -136,27 +146,59 @@ async function databaseState(schoolId: string, selectedVersionId?: string) {
     return { activeVersionId: null, selectedVersion: null, versions: [] } satisfies CurriculumManagementState;
   }
 
-  const offeringRows = await db
-    .select()
-    .from(schoolCourseOfferings)
-    .where(inArray(schoolCourseOfferings.versionId, versionRows.map((version) => version.id)))
-    .orderBy(schoolCourseOfferings.displayOrder);
-  const generatedRows = offeringRows.length > 0
-    ? await db.select({
-        offeringId: generatedCourseContents.offeringId,
-        status: generatedCourseContents.status,
-        sourceModel: generatedCourseContents.sourceModel,
-        units: generatedCourseContents.unitsJson,
-        updatedAt: generatedCourseContents.updatedAt,
-      }).from(generatedCourseContents)
-        .where(inArray(generatedCourseContents.offeringId, offeringRows.map((row) => row.id)))
-    : [];
+  const activeRow = versionRows.find((version) => version.status === "PUBLISHED") ?? null;
+  const selectedRow = versionRows.find((version) => version.id === selectedVersionId)
+    ?? versionRows.find((version) => version.status === "DRAFT")
+    ?? activeRow
+    ?? versionRows[0];
+  const versionIds = versionRows.map((version) => version.id);
+  const [countRows, offeringRows, generatedRows] = await Promise.all([
+    db.select({
+      versionId: schoolCourseOfferings.versionId,
+      courseCount: sql<number>`count(*)::int`,
+      selectedCount: sql<number>`count(*) filter (where ${schoolCourseOfferings.enabled})::int`,
+      contentReadyCount: sql<number>`count(*) filter (where ${schoolCourseOfferings.enabled} and ${schoolCourseOfferings.contentCourseCode} is not null)::int`,
+    }).from(schoolCourseOfferings)
+      .where(inArray(schoolCourseOfferings.versionId, versionIds))
+      .groupBy(schoolCourseOfferings.versionId),
+    db.select({
+      id: schoolCourseOfferings.id,
+      versionId: schoolCourseOfferings.versionId,
+      rowKey: schoolCourseOfferings.rowKey,
+      grade: schoolCourseOfferings.grade,
+      subjectCode: schoolCourseOfferings.subjectCode,
+      subjectTitle: schoolCourseOfferings.subjectTitle,
+      courseTitle: schoolCourseOfferings.courseTitle,
+      publisherName: schoolCourseOfferings.publisherName,
+      textbookTitle: schoolCourseOfferings.textbookTitle,
+      contentCourseCode: schoolCourseOfferings.contentCourseCode,
+      enabled: schoolCourseOfferings.enabled,
+      confidence: schoolCourseOfferings.confidence,
+      reviewRequired: schoolCourseOfferings.reviewRequired,
+      displayOrder: schoolCourseOfferings.displayOrder,
+    }).from(schoolCourseOfferings)
+      .where(eq(schoolCourseOfferings.versionId, selectedRow.id))
+      .orderBy(schoolCourseOfferings.displayOrder),
+    db.select({
+      offeringId: generatedCourseContents.offeringId,
+      status: generatedCourseContents.status,
+      sourceModel: generatedCourseContents.sourceModel,
+      unitCount: sql<number>`case
+        when jsonb_array_length(${generatedCourseContents.unitsJson}) > 0
+          then jsonb_array_length(${generatedCourseContents.unitsJson})
+        else (select count(*)::int from ${units} where ${units.courseId} = ${generatedCourseContents.courseId})
+      end`,
+      updatedAt: generatedCourseContents.updatedAt,
+    }).from(generatedCourseContents)
+      .innerJoin(schoolCourseOfferings, eq(schoolCourseOfferings.id, generatedCourseContents.offeringId))
+      .where(eq(schoolCourseOfferings.versionId, selectedRow.id)),
+  ]);
+  const countsByVersion = new Map(countRows.map((row) => [row.versionId, row]));
   const generatedByOffering = new Map(generatedRows.map((row) => [row.offeringId, row]));
-  const itemsByVersion = new Map<string, CurriculumOffering[]>();
+  const selectedItems: CurriculumOffering[] = [];
   for (const row of offeringRows) {
-    const items = itemsByVersion.get(row.versionId) ?? [];
     const generated = generatedByOffering.get(row.id);
-    items.push({
+    selectedItems.push({
       id: row.id,
       rowKey: row.rowKey,
       grade: row.grade as 1 | 2 | 3,
@@ -172,16 +214,15 @@ async function databaseState(schoolId: string, selectedVersionId?: string) {
       displayOrder: row.displayOrder,
       generatedContent: generated ? {
         status: generated.status,
-        unitCount: generated.units.length,
+        unitCount: generated.unitCount,
         sourceModel: generated.sourceModel,
         updatedAt: generated.updatedAt.toISOString(),
       } : null,
     });
-    itemsByVersion.set(row.versionId, items);
   }
 
-  const details: CurriculumVersionDetail[] = versionRows.map((row) => {
-    const items = itemsByVersion.get(row.id) ?? [];
+  const summaries: CurriculumVersionSummary[] = versionRows.map((row) => {
+    const counts = countsByVersion.get(row.id);
     return {
       id: row.id,
       academicYear: row.academicYear,
@@ -189,23 +230,19 @@ async function databaseState(schoolId: string, selectedVersionId?: string) {
       title: row.title,
       status: row.status,
       sourceFileName: row.sourceFileName,
-      courseCount: items.length,
-      selectedCount: items.filter((item) => item.enabled).length,
-      contentReadyCount: items.filter((item) => item.enabled && item.contentCourseCode).length,
+      courseCount: counts?.courseCount ?? 0,
+      selectedCount: counts?.selectedCount ?? 0,
+      contentReadyCount: counts?.contentReadyCount ?? 0,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),
-      items,
     };
   });
-  const active = details.find((version) => version.status === "PUBLISHED") ?? null;
-  const selected = details.find((version) => version.id === selectedVersionId)
-    ?? details.find((version) => version.status === "DRAFT")
-    ?? active
-    ?? details[0];
+  const selectedSummary = summaries.find((version) => version.id === selectedRow.id)!;
+  const selected: CurriculumVersionDetail = { ...selectedSummary, items: selectedItems };
   return {
-    activeVersionId: active?.id ?? null,
+    activeVersionId: activeRow?.id ?? null,
     selectedVersion: selected,
-    versions: details.map(summary),
+    versions: summaries,
   } satisfies CurriculumManagementState;
 }
 
@@ -435,7 +472,21 @@ export async function createReviewDraftFromVersion(
   }).returning({ id: schoolCurriculumVersions.id });
   if (!draft) throw new Error("수정용 검토본을 만들지 못했습니다.");
 
-  const sourceRows = await db.select().from(schoolCourseOfferings)
+  const sourceRows = await db.select({
+    id: schoolCourseOfferings.id,
+    rowKey: schoolCourseOfferings.rowKey,
+    grade: schoolCourseOfferings.grade,
+    subjectCode: schoolCourseOfferings.subjectCode,
+    subjectTitle: schoolCourseOfferings.subjectTitle,
+    courseTitle: schoolCourseOfferings.courseTitle,
+    publisherName: schoolCourseOfferings.publisherName,
+    textbookTitle: schoolCourseOfferings.textbookTitle,
+    contentCourseCode: schoolCourseOfferings.contentCourseCode,
+    contentCourseId: schoolCourseOfferings.contentCourseId,
+    enabled: schoolCourseOfferings.enabled,
+    confidence: schoolCourseOfferings.confidence,
+    displayOrder: schoolCourseOfferings.displayOrder,
+  }).from(schoolCourseOfferings)
     .where(eq(schoolCourseOfferings.versionId, sourceVersionId))
     .orderBy(schoolCourseOfferings.displayOrder);
   if (sourceRows.length > 0) {
@@ -457,7 +508,18 @@ export async function createReviewDraftFromVersion(
     }))).returning({ id: schoolCourseOfferings.id, rowKey: schoolCourseOfferings.rowKey });
     const copiedByKey = new Map(copiedRows.map((item) => [item.rowKey, item.id]));
     const sourceById = new Map(sourceRows.map((item) => [item.id, item]));
-    const sourceDocuments = await db.select().from(courseSourceDocuments)
+    const sourceDocuments = await db.select({
+      id: courseSourceDocuments.id,
+      offeringId: courseSourceDocuments.offeringId,
+      kind: courseSourceDocuments.kind,
+      title: courseSourceDocuments.title,
+      url: courseSourceDocuments.url,
+      publisherName: courseSourceDocuments.publisherName,
+      excerpt: courseSourceDocuments.excerpt,
+      sourceFingerprint: courseSourceDocuments.sourceFingerprint,
+      sourceModel: courseSourceDocuments.sourceModel,
+      retrievedAt: courseSourceDocuments.retrievedAt,
+    }).from(courseSourceDocuments)
       .where(inArray(courseSourceDocuments.offeringId, sourceRows.map((item) => item.id)));
     if (sourceDocuments.length > 0) {
       const copiedDocumentIds = new Map<string, string>();
@@ -480,9 +542,24 @@ export async function createReviewDraftFromVersion(
       }
       const sourceDocumentIds = sourceDocuments.map((document) => document.id);
       const [tocRows, standardRows] = await Promise.all([
-        db.select().from(courseTocEntries)
+        db.select({
+          offeringId: courseTocEntries.offeringId,
+          sourceDocumentId: courseTocEntries.sourceDocumentId,
+          chapterTitle: courseTocEntries.chapterTitle,
+          chapterOrder: courseTocEntries.chapterOrder,
+          sectionTitle: courseTocEntries.sectionTitle,
+          sectionOrder: courseTocEntries.sectionOrder,
+          topicTitle: courseTocEntries.topicTitle,
+          topicOrder: courseTocEntries.topicOrder,
+        }).from(courseTocEntries)
           .where(inArray(courseTocEntries.sourceDocumentId, sourceDocumentIds)),
-        db.select().from(courseAchievementStandards)
+        db.select({
+          offeringId: courseAchievementStandards.offeringId,
+          sourceDocumentId: courseAchievementStandards.sourceDocumentId,
+          code: courseAchievementStandards.code,
+          content: courseAchievementStandards.content,
+          displayOrder: courseAchievementStandards.displayOrder,
+        }).from(courseAchievementStandards)
           .where(inArray(courseAchievementStandards.sourceDocumentId, sourceDocumentIds)),
       ]);
       if (tocRows.length > 0) {
@@ -517,7 +594,19 @@ export async function createReviewDraftFromVersion(
         }));
       }
     }
-    const generatedRows = await db.select().from(generatedCourseContents)
+    const generatedRows = await db.select({
+      offeringId: generatedCourseContents.offeringId,
+      courseId: generatedCourseContents.courseId,
+      status: generatedCourseContents.status,
+      sourceModel: generatedCourseContents.sourceModel,
+      promptVersion: generatedCourseContents.promptVersion,
+      inputTokens: generatedCourseContents.inputTokens,
+      outputTokens: generatedCourseContents.outputTokens,
+      reviewerId: generatedCourseContents.reviewerId,
+      reviewedAt: generatedCourseContents.reviewedAt,
+      publishedAt: generatedCourseContents.publishedAt,
+      errorMessage: generatedCourseContents.errorMessage,
+    }).from(generatedCourseContents)
       .where(inArray(generatedCourseContents.offeringId, sourceRows.map((item) => item.id)));
     if (generatedRows.length > 0) {
       await db.insert(generatedCourseContents).values(generatedRows.flatMap((content) => {
@@ -528,7 +617,7 @@ export async function createReviewDraftFromVersion(
           schoolId,
           offeringId,
           courseId: content.courseId,
-          unitsJson: content.unitsJson,
+          unitsJson: [],
           status: content.status,
           sourceModel: content.sourceModel,
           promptVersion: content.promptVersion,
@@ -588,6 +677,7 @@ export async function publishCurriculumVersion(schoolId: string, adminId: string
   await db.update(curriculumImports)
     .set({ status: "COMPLETED", updatedAt: new Date() })
     .where(eq(curriculumImports.versionId, versionId));
+  invalidateSchoolCurriculumCache(schoolId);
   return getCurriculumManagementState(schoolId, versionId);
 }
 
@@ -606,9 +696,9 @@ async function legacyContentCodes(schoolId: string) {
   return new Set(rows.map((row) => row.contentCourseCode).filter((code): code is string => Boolean(code)));
 }
 
-export async function getSchoolLearningUnits(
+async function loadSchoolLearningUnits(
   schoolId: string,
-  options: { outlineOnly?: boolean; courseCode?: string } = {},
+  options: { outlineOnly?: boolean; vocabularyOnly?: boolean; courseCode?: string } = {},
 ) {
   let enabledCourseCodes: Set<string>;
   let generatedUnits: typeof learningUnits = [];
@@ -647,7 +737,7 @@ export async function getSchoolLearningUnits(
         topicOrder: units.topicOrder,
         courseCode: courses.code,
         courseTitle: courses.title,
-        courseOverview: options.outlineOnly ? sql<string>`''` : courses.overview,
+        courseOverview: options.outlineOnly || options.vocabularyOnly ? sql<string>`''` : courses.overview,
         courseOrder: courses.displayOrder,
         grade: courses.grade,
         curriculum: curriculumVersions.title,
@@ -657,15 +747,15 @@ export async function getSchoolLearningUnits(
         sourceUrl: units.sourceUrl,
         summary: options.outlineOnly ? sql<string>`''` : unitContents.summaryMarkdown,
         keyPoints: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : unitContents.keyPoints,
-        formulas: options.outlineOnly ? sql<typeof learningUnits[number]["formulas"]>`'[]'::jsonb` : unitContents.formulas,
-        examples: options.outlineOnly ? sql<typeof learningUnits[number]["examples"]>`'[]'::jsonb` : unitContents.examples,
-        recommendedQuestions: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.recommendedQuestions,
+        formulas: options.outlineOnly || options.vocabularyOnly ? sql<typeof learningUnits[number]["formulas"]>`'[]'::jsonb` : unitContents.formulas,
+        examples: options.outlineOnly || options.vocabularyOnly ? sql<typeof learningUnits[number]["examples"]>`'[]'::jsonb` : unitContents.examples,
+        recommendedQuestions: options.outlineOnly || options.vocabularyOnly ? sql<string[]>`'[]'::jsonb` : units.recommendedQuestions,
         keywords: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.keywords,
-        prerequisites: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.prerequisites,
-        commonMistakes: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.commonMistakes,
+        prerequisites: options.outlineOnly || options.vocabularyOnly ? sql<string[]>`'[]'::jsonb` : units.prerequisites,
+        commonMistakes: options.outlineOnly || options.vocabularyOnly ? sql<string[]>`'[]'::jsonb` : units.commonMistakes,
         scopeExcluded: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.scopeExcluded,
-        assessmentTags: options.outlineOnly ? sql<string[]>`'[]'::jsonb` : units.assessmentTags,
-        tutorInstructions: options.outlineOnly ? sql<string>`''` : units.tutorPrompt,
+        assessmentTags: options.outlineOnly || options.vocabularyOnly ? sql<string[]>`'[]'::jsonb` : units.assessmentTags,
+        tutorInstructions: options.outlineOnly || options.vocabularyOnly ? sql<string>`''` : units.tutorPrompt,
       })
         .from(generatedCourseContents)
         .innerJoin(
@@ -714,23 +804,144 @@ export async function getSchoolLearningUnits(
     && (!options.courseCode || unit.courseCode === options.courseCode));
   const seen = new Set(staticUnits.map((unit) => unit.id));
   const result = [...staticUnits, ...generatedUnits.filter((unit) => !seen.has(unit.id))];
-  return options.outlineOnly ? result.map((unit) => ({
+  return options.outlineOnly || options.vocabularyOnly ? result.map((unit) => ({
     ...unit,
     courseOverview: "",
-    summary: "",
-    keyPoints: [],
+    summary: options.outlineOnly ? "" : unit.summary,
+    keyPoints: options.outlineOnly ? [] : unit.keyPoints,
     formulas: [],
     examples: [],
     recommendedQuestions: [],
-    keywords: [],
+    keywords: options.outlineOnly ? [] : unit.keywords,
     prerequisites: [],
     commonMistakes: [],
-    scopeExcluded: [],
+    scopeExcluded: options.outlineOnly ? [] : unit.scopeExcluded,
     assessmentTags: [],
     tutorInstructions: "",
   })) : result;
 }
 
+export async function getSchoolLearningUnits(
+  schoolId: string,
+  options: { outlineOnly?: boolean; vocabularyOnly?: boolean; courseCode?: string } = {},
+) {
+  if (!db) return loadSchoolLearningUnits(schoolId, options);
+  return cachedCurriculumData(
+    schoolId,
+    ["units", options.outlineOnly ? "outline" : options.vocabularyOnly ? "vocabulary" : "detail", options.courseCode ?? "all"],
+    () => loadSchoolLearningUnits(schoolId, options),
+  );
+}
+
+async function loadSchoolLearningUnit(schoolId: string, unitId: string) {
+  const staticUnit = getUnit(unitId);
+  if (!db) {
+    ensureMemoryDefault(schoolId);
+    const active = memoryVersions.get(schoolId)!.find((version) => version.status === "PUBLISHED");
+    return staticUnit && active?.items.some((item) => item.enabled && item.contentCourseCode === staticUnit.courseCode)
+      ? staticUnit
+      : undefined;
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unitId)) {
+    return undefined;
+  }
+
+  const [active] = await db.select({ id: schoolCurriculumVersions.id })
+    .from(schoolCurriculumVersions)
+    .where(and(
+      eq(schoolCurriculumVersions.schoolId, schoolId),
+      eq(schoolCurriculumVersions.status, "PUBLISHED"),
+    ))
+    .orderBy(desc(schoolCurriculumVersions.publishedAt))
+    .limit(1);
+  if (!active) {
+    const enabledCourseCodes = await legacyContentCodes(schoolId);
+    return staticUnit && enabledCourseCodes.has(staticUnit.courseCode) ? staticUnit : undefined;
+  }
+
+  const generatedQuery = db.select({
+    id: units.id,
+    code: units.code,
+    title: units.title,
+    chapterTitle: units.chapterTitle,
+    chapterOrder: units.chapterOrder,
+    sectionTitle: units.sectionTitle,
+    sectionOrder: units.sectionOrder,
+    topicOrder: units.topicOrder,
+    courseCode: courses.code,
+    courseTitle: courses.title,
+    courseOverview: courses.overview,
+    courseOrder: courses.displayOrder,
+    grade: courses.grade,
+    curriculum: curriculumVersions.title,
+    subjectCode: subjects.code,
+    subjectTitle: subjects.title,
+    publisherName: courses.publisherName,
+    sourceUrl: units.sourceUrl,
+    summary: unitContents.summaryMarkdown,
+    keyPoints: unitContents.keyPoints,
+    formulas: unitContents.formulas,
+    examples: unitContents.examples,
+    recommendedQuestions: units.recommendedQuestions,
+    keywords: units.keywords,
+    prerequisites: units.prerequisites,
+    commonMistakes: units.commonMistakes,
+    scopeExcluded: units.scopeExcluded,
+    assessmentTags: units.assessmentTags,
+    tutorInstructions: units.tutorPrompt,
+  }).from(units)
+    .innerJoin(courses, eq(courses.id, units.courseId))
+    .innerJoin(subjects, eq(subjects.id, courses.subjectId))
+    .innerJoin(curriculumVersions, eq(curriculumVersions.id, courses.curriculumVersionId))
+    .innerJoin(generatedCourseContents, and(
+      eq(generatedCourseContents.courseId, courses.id),
+      eq(generatedCourseContents.schoolId, schoolId),
+      eq(generatedCourseContents.status, "PUBLISHED"),
+    ))
+    .innerJoin(schoolCourseOfferings, and(
+      eq(schoolCourseOfferings.id, generatedCourseContents.offeringId),
+      eq(schoolCourseOfferings.versionId, active.id),
+      eq(schoolCourseOfferings.enabled, true),
+    ))
+    .innerJoin(unitContents, and(
+      eq(unitContents.unitId, units.id),
+      eq(unitContents.version, 1),
+      eq(unitContents.status, "PUBLISHED"),
+    ))
+    .where(and(eq(units.id, unitId), eq(units.status, "PUBLISHED")))
+    .limit(1);
+  const staticAvailabilityQuery = staticUnit
+    ? db.select({ id: schoolCourseOfferings.id })
+      .from(schoolCourseOfferings)
+      .where(and(
+        eq(schoolCourseOfferings.versionId, active.id),
+        eq(schoolCourseOfferings.enabled, true),
+        eq(schoolCourseOfferings.contentCourseCode, staticUnit.courseCode),
+      ))
+      .limit(1)
+    : Promise.resolve([]);
+  const [[row], staticAvailability] = await Promise.all([generatedQuery, staticAvailabilityQuery]);
+  if (row) {
+    return {
+      ...row,
+      title: curriculumTitle(row.title),
+      chapterTitle: curriculumTitle(row.chapterTitle),
+      sectionTitle: curriculumTitle(row.sectionTitle),
+      subjectCode: row.subjectCode as typeof learningUnits[number]["subjectCode"],
+      courseCategory: "GENERAL" as const,
+      grade: row.grade as 1 | 2 | 3,
+      recommendedGrades: [row.grade as 1 | 2 | 3],
+      publisherCode: "GENERIC" as const,
+      publisherName: row.publisherName || "학교 교육과정",
+      schoolAdopted: true,
+      schoolPublisherName: row.publisherName || undefined,
+      sourceUrl: row.sourceUrl || undefined,
+    };
+  }
+  return staticUnit && staticAvailability.length > 0 ? staticUnit : undefined;
+}
+
 export async function getSchoolLearningUnit(schoolId: string, unitId: string) {
-  return (await getSchoolLearningUnits(schoolId)).find((unit) => unit.id === unitId);
+  if (!db) return loadSchoolLearningUnit(schoolId, unitId);
+  return cachedCurriculumData(schoolId, ["unit", unitId], () => loadSchoolLearningUnit(schoolId, unitId));
 }

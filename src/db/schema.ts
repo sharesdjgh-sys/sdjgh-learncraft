@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const userRole = pgEnum("user_role", ["STUDENT", "TEACHER", "ADMIN"]);
 export const contentStatus = pgEnum("content_status", [
@@ -116,6 +117,7 @@ export const feedback = pgTable("feedback", {
   uniqueIndex("feedback_student_request_idx").on(table.studentId, table.requestId),
   index("feedback_school_created_idx").on(table.schoolId, table.createdAt),
   index("feedback_student_created_idx").on(table.studentId, table.createdAt),
+  index("feedback_school_status_created_id_idx").on(table.schoolId, table.status, table.createdAt.desc(), table.id.desc()),
 ]);
 
 export const curriculumVersions = pgTable("curriculum_versions", {
@@ -191,6 +193,9 @@ export const schoolCurriculumVersions = pgTable(
       table.academicYear,
       table.revision,
     ),
+    index("school_curriculum_published_idx")
+      .on(table.schoolId, table.publishedAt.desc())
+      .where(sql`${table.status} = 'PUBLISHED'`),
   ],
 );
 
@@ -369,7 +374,10 @@ export const generatedCourseContents = pgTable(
     errorMessage: text("error_message"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("generated_course_content_offering_idx").on(table.offeringId)],
+  (table) => [
+    uniqueIndex("generated_course_content_offering_idx").on(table.offeringId),
+    index("generated_course_school_status_course_idx").on(table.schoolId, table.status, table.courseId),
+  ],
 );
 
 export const units = pgTable(
@@ -434,11 +442,15 @@ export const bookmarks = pgTable(
     unitId: uuid("unit_id").references(() => units.id).notNull(),
     clientAnswerId: text("client_answer_id").notNull(),
     answerMarkdown: text("answer_markdown").notNull(),
+    previewText: text("preview_text").default("").notNull(),
     answerMode: tutorAction("answer_mode").notNull(),
     title: text("title").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("bookmarks_student_answer_idx").on(table.studentId, table.clientAnswerId)],
+  (table) => [
+    uniqueIndex("bookmarks_student_answer_idx").on(table.studentId, table.clientAnswerId),
+    index("bookmarks_student_school_created_id_idx").on(table.studentId, table.schoolId, table.createdAt.desc(), table.id.desc()),
+  ],
 );
 
 export const dailyUsage = pgTable(
@@ -480,16 +492,22 @@ export const usageEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (table) => [uniqueIndex("usage_events_student_request_idx").on(table.studentId, table.requestId)],
+  (table) => [
+    uniqueIndex("usage_events_student_request_idx").on(table.studentId, table.requestId),
+    index("usage_events_school_status_created_idx").on(table.schoolId, table.status, table.createdAt.desc()),
+    index("usage_events_student_school_status_created_idx").on(table.studentId, table.schoolId, table.status, table.createdAt.desc()),
+  ],
 );
 
 export const pricingConfigs = pgTable("pricing_configs", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  provider: text("provider").notNull(),
-  modelId: text("model_id").notNull(),
-  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
-  effectiveTo: timestamp("effective_to", { withTimezone: true }),
-  inputUsdPerMillion: numeric("input_usd_per_million", { precision: 12, scale: 6 }).notNull(),
-  outputUsdPerMillion: numeric("output_usd_per_million", { precision: 12, scale: 6 }).notNull(),
-  cachedInputUsdPerMillion: numeric("cached_input_usd_per_million", { precision: 12, scale: 6 }).notNull(),
-});
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: text("provider").notNull(),
+    modelId: text("model_id").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    inputUsdPerMillion: numeric("input_usd_per_million", { precision: 12, scale: 6 }).notNull(),
+    outputUsdPerMillion: numeric("output_usd_per_million", { precision: 12, scale: 6 }).notNull(),
+    cachedInputUsdPerMillion: numeric("cached_input_usd_per_million", { precision: 12, scale: 6 }).notNull(),
+  },
+  (table) => [index("pricing_model_effective_idx").on(table.modelId, table.effectiveFrom.desc())],
+);

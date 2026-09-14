@@ -141,6 +141,8 @@ async function main() {
   Object.assign(modules, {
     zod: { z }, "next/server": { NextResponse: Response },
     "@/lib/auth": { requireLearner: async () => ({ schoolId: "route-school", id: "student" }) },
+    "@/lib/rate-limit": { checkRequestRateLimit: async () => ({ allowed: true }), requestIp: () => "test" },
+    "@/features/tutor/learning-image-storage": { learningImageStorageAvailable: () => false, saveLearningImage: async () => undefined },
     "@/lib/env": { env: { GEMINI_PRIMARY_MODEL_ID: "test", GEMINI_FALLBACK_MODEL_ID: "", GEMINI_IMAGE_ENABLED: "true" }, isGeminiConfigured: true },
     "@/data/school-curriculum": { getSchoolLearningUnit: async () => unit, getSchoolLearningUnits: async () => [unit, other] },
     "@ai-sdk/google": { createGoogleGenerativeAI: () => () => ({}) },
@@ -152,7 +154,7 @@ async function main() {
     "@/lib/deferred-illustrations": { createDeferredIllustrations: () => ({}), appendDeferredIllustrations: (stream: unknown) => stream },
     "@/features/usage/repository": {
       reserveAiUsage: async () => { reserved++; return { ok: true, remaining: 9 }; },
-      getStudentUsage: async () => ({ remaining: 9 }),
+      getStudentUsageCounter: async () => ({ remaining: 9 }),
       completeAiUsageWithTokens: async () => { completed++; }, refundAiUsage: async () => { refunded++; },
     },
     ai: { stepCountIs: () => ({}), streamText: (options: { tools: object; system: string; onEnd: (event: unknown) => Promise<void> }) => {

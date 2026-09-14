@@ -1,21 +1,24 @@
 import type { LearningUnit } from "@/types";
 
-type OutlineTopic = Pick<LearningUnit,
-  "id" | "code" | "title" | "chapterTitle" | "chapterOrder" | "sectionTitle" | "sectionOrder" | "topicOrder"
->;
+type OutlineTopic = Pick<LearningUnit, "id" | "title" | "topicOrder">;
+type OutlineSection = { title: string; order: number; topics: OutlineTopic[] };
+type OutlineChapter = { title: string; order: number; sections: OutlineSection[] };
 type OutlineCourse = Pick<LearningUnit,
   "courseCode" | "courseTitle" | "courseCategory" | "courseOrder" | "grade" | "recommendedGrades"
   | "subjectCode" | "subjectTitle" | "curriculum" | "publisherCode" | "publisherName"
   | "schoolAdopted" | "schoolPublisherName"
 >;
 
-export type LearningOutline = Array<{ course: OutlineCourse; topics: OutlineTopic[] }>;
+export type LearningOutline = Array<{ course: OutlineCourse; chapters: OutlineChapter[] }>;
+export type ExpandedOutlineTopic = OutlineTopic & Pick<LearningUnit,
+  "chapterTitle" | "chapterOrder" | "sectionTitle" | "sectionOrder"
+>;
 
-// Course metadata is shared by every topic; transmit it once per course.
+// Chapter and section names are transmitted once instead of being repeated for every topic.
 export function packLearningOutline(units: LearningUnit[]): LearningOutline {
-  const groups = new Map<string, LearningOutline[number]>();
+  const courses = new Map<string, LearningOutline[number]>();
   for (const unit of units) {
-    let group = groups.get(unit.courseCode);
+    let group = courses.get(unit.courseCode);
     if (!group) {
       group = {
         course: {
@@ -33,28 +36,40 @@ export function packLearningOutline(units: LearningUnit[]): LearningOutline {
           schoolAdopted: unit.schoolAdopted,
           schoolPublisherName: unit.schoolPublisherName,
         },
-        topics: [],
+        chapters: [],
       };
-      groups.set(unit.courseCode, group);
+      courses.set(unit.courseCode, group);
     }
-    group.topics.push({
-      id: unit.id,
-      code: unit.code,
-      title: unit.title,
-      chapterTitle: unit.chapterTitle,
-      chapterOrder: unit.chapterOrder,
-      sectionTitle: unit.sectionTitle,
-      sectionOrder: unit.sectionOrder,
-      topicOrder: unit.topicOrder,
-    });
+    let chapter = group.chapters.find((item) => item.order === unit.chapterOrder);
+    if (!chapter) {
+      chapter = { title: unit.chapterTitle, order: unit.chapterOrder, sections: [] };
+      group.chapters.push(chapter);
+    }
+    let section = chapter.sections.find((item) => item.order === unit.sectionOrder);
+    if (!section) {
+      section = { title: unit.sectionTitle, order: unit.sectionOrder, topics: [] };
+      chapter.sections.push(section);
+    }
+    section.topics.push({ id: unit.id, title: unit.title, topicOrder: unit.topicOrder });
   }
-  return [...groups.values()];
+  return [...courses.values()];
+}
+
+export function flattenOutlineTopics(item: LearningOutline[number]): ExpandedOutlineTopic[] {
+  return item.chapters.flatMap((chapter) => chapter.sections.flatMap((section) => section.topics.map((topic) => ({
+    ...topic,
+    chapterTitle: chapter.title,
+    chapterOrder: chapter.order,
+    sectionTitle: section.title,
+    sectionOrder: section.order,
+  }))));
 }
 
 export function expandLearningOutline(outline: LearningOutline): LearningUnit[] {
-  return outline.flatMap(({ course, topics }) => topics.map((topic) => ({
-    ...course,
+  return outline.flatMap((item) => flattenOutlineTopics(item).map((topic) => ({
+    ...item.course,
     ...topic,
+    code: "",
     courseOverview: "",
     summary: "",
     keyPoints: [],

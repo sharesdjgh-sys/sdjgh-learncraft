@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { FinishReason } from "ai";
+import { unstable_cache } from "next/cache";
 import { completeUsage as completeDemoUsage, getUsage as getDemoUsage, refundUsage as refundDemoUsage, reserveUsage as reserveDemoUsage } from "@/data/demo-store";
 import { db } from "@/db";
 import { courses, dailyUsage, schools, subjects, units, usageEvents } from "@/db/schema";
@@ -35,20 +36,63 @@ function today() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: env.APP_TIMEZONE }).format(new Date());
 }
 
-export async function getStudentUsage(user: SessionUser, usageDate = today()) {
+const getModelPrice = unstable_cache(async (modelId: string) => {
+  if (!db) return null;
+  const result = await db.execute(sql`
+    SELECT input_usd_per_million::float,
+           output_usd_per_million::float,
+           cached_input_usd_per_million::float
+    FROM pricing_configs
+    WHERE model_id = ${modelId}
+      AND effective_from <= now()
+      AND (effective_to IS NULL OR effective_to > now())
+    ORDER BY effective_from DESC
+    LIMIT 1
+  `);
+  return ((result as unknown as { rows?: Array<{
+    input_usd_per_million: number;
+    output_usd_per_million: number;
+    cached_input_usd_per_million: number;
+  }> }).rows ?? [])[0] ?? null;
+}, ["model-price-v1"], { revalidate: 3600, tags: ["model-pricing"] });
+
+export async function getStudentUsageCounter(user: SessionUser, usageDate = today()) {
   if (!db) {
     const usage = getDemoUsage(user.id);
     return {
       ...usage,
       remaining: Math.max(0, usage.limit - usage.count),
       date: usageDate,
-      byCourse: [],
     };
   }
-  const [schoolRows, usageRows, courseUsageResult] = await Promise.all([
+  const [schoolRows, usageRows] = await Promise.all([
     db.select({ limit: schools.dailyAiLimit }).from(schools).where(eq(schools.id, user.schoolId)).limit(1),
-    db.select().from(dailyUsage).where(and(eq(dailyUsage.studentId, user.id), eq(dailyUsage.usageDate, usageDate))).limit(1),
-    db.execute(sql`
+    db.select({
+      reservedCount: dailyUsage.reservedCount,
+      completedCount: dailyUsage.completedCount,
+    }).from(dailyUsage).where(and(
+      eq(dailyUsage.schoolId, user.schoolId),
+      eq(dailyUsage.studentId, user.id),
+      eq(dailyUsage.usageDate, usageDate),
+    )).limit(1),
+  ]);
+  const [school] = schoolRows;
+  const limit = school?.limit ?? 20;
+  const [row] = usageRows;
+  const count = row?.reservedCount ?? 0;
+  return {
+    count,
+    completed: row?.completedCount ?? 0,
+    limit,
+    remaining: Math.max(0, limit - count),
+    date: usageDate,
+  };
+}
+
+export async function getStudentUsage(user: SessionUser, usageDate = today(), includeCourseBreakdown = false) {
+  const usage = await getStudentUsageCounter(user, usageDate);
+  if (!includeCourseBreakdown || !db) return { ...usage, byCourse: [] };
+  const courseUsageResult = await db.execute(sql`
       SELECT
         s.title AS subject_title,
         c.title AS course_title,
@@ -60,16 +104,13 @@ export async function getStudentUsage(user: SessionUser, usageDate = today()) {
       JOIN ${courses} c ON c.id = u.course_id
       JOIN ${subjects} s ON s.id = c.subject_id
       WHERE e.student_id = ${user.id}::uuid
+        AND e.school_id = ${user.schoolId}::uuid
         AND e.status = 'SUCCEEDED'
-        AND (e.created_at AT TIME ZONE ${env.APP_TIMEZONE})::date = ${usageDate}::date
+        AND e.created_at >= (${usageDate}::date::timestamp AT TIME ZONE ${env.APP_TIMEZONE})
+        AND e.created_at < ((${usageDate}::date + 1)::timestamp AT TIME ZONE ${env.APP_TIMEZONE})
       GROUP BY s.id, c.id
       ORDER BY MAX(e.created_at) DESC
-    `),
-  ]);
-  const [school] = schoolRows;
-  const limit = school?.limit ?? 20;
-  const [row] = usageRows;
-  const count = row?.reservedCount ?? 0;
+    `);
   const courseUsageRows = (courseUsageResult as unknown as { rows?: Array<{
     subject_title: string;
     course_title: string;
@@ -78,11 +119,7 @@ export async function getStudentUsage(user: SessionUser, usageDate = today()) {
     last_used_at: string;
   }> }).rows ?? [];
   return {
-    count,
-    completed: row?.completedCount ?? 0,
-    limit,
-    remaining: Math.max(0, limit - count),
-    date: usageDate,
+    ...usage,
     byCourse: courseUsageRows.map((item) => ({
       subjectTitle: item.subject_title,
       courseTitle: item.course_title,
@@ -125,7 +162,7 @@ export async function getStudentUsageInsights(user: SessionUser, days: UsagePeri
     }> }).rows ?? [];
     return rows.map((row) => ({ date: row.date, courseId: row.course_id, courseTitle: row.course_title, subjectTitle: row.subject_title, count: Number(row.count) }));
   };
-  const [usage, rows] = await Promise.all([getStudentUsage(user, date), activities()]);
+  const [usage, rows] = await Promise.all([getStudentUsageCounter(user, date), activities()]);
   return { days, date, timeZone: env.APP_TIMEZONE, usage, history: summarizeUsage(rows, dates) };
 }
 
@@ -154,10 +191,10 @@ export async function reserveAiUsage(input: { user: SessionUser; requestId: stri
   }
   const existing = await db.select({ id: usageEvents.id }).from(usageEvents).where(and(eq(usageEvents.studentId, input.user.id), eq(usageEvents.requestId, input.requestId))).limit(1);
   if (existing.length) {
-    const current = await getStudentUsage(input.user);
+    const current = await getStudentUsageCounter(input.user);
     return { ok: false as const, remaining: current.remaining, duplicate: true };
   }
-  const current = await getStudentUsage(input.user);
+  const current = await getStudentUsageCounter(input.user);
   const result = await db.execute(sql`
     INSERT INTO daily_usage (school_id, student_id, usage_date, reserved_count, completed_count)
     VALUES (${input.user.schoolId}::uuid, ${input.user.id}::uuid, ${today()}::date, 1, 0)
@@ -229,8 +266,7 @@ export async function completeAiUsageWithTokens(
   const outputTokens = usage.outputTokens ?? 0;
   const cachedInputTokens = usage.cachedInputTokens ?? 0;
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-  const priceResult = await db.execute(sql`SELECT input_usd_per_million::float, output_usd_per_million::float, cached_input_usd_per_million::float FROM pricing_configs WHERE model_id = ${modelId} AND effective_from <= now() AND (effective_to IS NULL OR effective_to > now()) ORDER BY effective_from DESC LIMIT 1`);
-  const price = ((priceResult as unknown as { rows?: Array<{ input_usd_per_million: number; output_usd_per_million: number; cached_input_usd_per_million: number }> }).rows ?? [])[0];
+  const price = await getModelPrice(modelId);
   const estimatedCost = price
     ? ((uncachedInputTokens * price.input_usd_per_million) + (outputTokens * price.output_usd_per_million) + (cachedInputTokens * price.cached_input_usd_per_million)) / 1_000_000
     : 0;

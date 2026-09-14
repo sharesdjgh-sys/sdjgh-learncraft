@@ -1,6 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { after } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import { and, eq, or, sql } from "drizzle-orm";
@@ -167,18 +168,33 @@ export async function clearSession() {
 
 // Recheck persisted status on every authenticated request so disabling an
 // account also blocks an already-issued session, not just the next login.
-async function activeSessionUser(user: SessionUser): Promise<SessionUser | null> {
-  if (!db) return user;
-  const configured = configuredCredentials().some((credential) => credential.user.id === user.id && credential.user.schoolId === user.schoolId);
+const readActiveAccount = unstable_cache(async (
+  userId: string,
+  schoolId: string,
+  externalId: string,
+  configured: boolean,
+) => {
+  if (!db) return null;
   const [account] = await db.select({
     id: users.id, externalId: users.externalId, schoolId: users.schoolId,
     name: users.name, schoolName: schools.name, role: users.role,
     officialGrade: users.officialGrade, learningGrade: users.learningGrade,
     active: users.active, schoolActive: schools.active,
   }).from(users).innerJoin(schools, eq(schools.id, users.schoolId)).where(and(
-    eq(users.schoolId, user.schoolId),
-    or(eq(users.id, user.id), configured ? eq(users.externalId, user.externalId) : undefined),
+    eq(users.schoolId, schoolId),
+    or(eq(users.id, userId), configured ? eq(users.externalId, externalId) : undefined),
   )).limit(1);
+  return account ?? null;
+}, ["active-account-v1"], { revalidate: 60, tags: ["account-status"] });
+
+export function invalidateAccountStatusCache() {
+  revalidateTag("account-status", { expire: 0 });
+}
+
+async function activeSessionUser(user: SessionUser): Promise<SessionUser | null> {
+  if (!db) return user;
+  const configured = configuredCredentials().some((credential) => credential.user.id === user.id && credential.user.schoolId === user.schoolId);
+  const account = await readActiveAccount(user.id, user.schoolId, user.externalId, configured);
   if (!account) return configured ? user : null;
   if (!account.active || !account.schoolActive) return null;
   return {

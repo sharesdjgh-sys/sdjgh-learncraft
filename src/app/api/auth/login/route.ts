@@ -2,6 +2,7 @@ import { homeForRole } from "@/lib/roles";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateCredentials, createSession } from "@/lib/auth";
+import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
 
 const inputSchema = z.object({
   loginId: z.string().trim().min(1).max(80),
@@ -16,6 +17,18 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: { code: "VALIDATION_ERROR", message: "아이디와 비밀번호를 모두 입력해 주세요." } },
       { status: 400 },
+    );
+  }
+
+  const rateLimit = await checkRequestRateLimit({
+    category: "login",
+    userId: parsed.data.loginId.normalize("NFKC").toLocaleLowerCase("ko"),
+    ip: requestIp(request),
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: { code: "RATE_LIMITED", message: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요." } },
+      { status: 429, headers: { "Retry-After": "600" } },
     );
   }
 
