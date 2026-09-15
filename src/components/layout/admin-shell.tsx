@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, LibraryBig, LogOut, Settings, ShieldCheck, UsersRound, MessageSquareText } from "lucide-react";
+import { BarChart3, DraftingCompass, LibraryBig, LogOut, Settings, ShieldCheck, UsersRound, MessageSquareText } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
@@ -12,6 +13,7 @@ const links = [
   { href: "/admin/curriculum", label: "교육과정", icon: LibraryBig },
   { href: "/admin/accounts", label: "계정 관리", icon: UsersRound },
   { href: "/admin/feedback", label: "피드백", icon: MessageSquareText },
+  { href: "/admin/math-figures", label: "수학 도형", icon: DraftingCompass },
   { href: "/admin/settings", label: "운영 설정", icon: Settings },
 ] as const;
 
@@ -36,7 +38,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
               return (
                 <Link
                   key={href}
-                  href={href}
+                  href={href as Route}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
@@ -64,13 +66,13 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
         </div>
       </header>
       <main className="pb-[calc(4.8rem+env(safe-area-inset-bottom))] min-[1024px]:pb-0">{children}</main>
-      <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line px-2 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 관리자 메뉴">
+      <nav className="veil fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-line px-1 pb-[calc(.45rem+env(safe-area-inset-bottom))] pt-1.5 min-[1024px]:hidden" aria-label="모바일 관리자 메뉴">
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
-              href={href}
+              href={href as Route}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.72rem] font-semibold transition-[border-color,color] duration-200 active:scale-[.98] sm:text-[.78rem]",
