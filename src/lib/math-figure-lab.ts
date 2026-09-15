@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { evaluateMeasurement } from "./math-expression";
+import { angleBinding, resizeAngle } from "./math-figure-angle";
+import { hemisphereBinding, resizeHemisphereSection } from "./math-figure-hemisphere";
+import { constructionSchema, figureConstraintSchema } from "./math-figure-construction-schema";
+import { enforceFigureConstraints } from "./math-figure-constraints";
 
 const finiteCoordinate = z.number().finite().min(-1000).max(1000);
 // Gemini structured output does not accept JSON Schema tuple prefixItems.
@@ -25,6 +30,8 @@ export const mathFigureShapeSchema = z.discriminatedUnion("type", [
 ]);
 
 export const mathFigureSpecSchema = z.object({
+  construction: constructionSchema.optional(),
+  constraints: z.array(figureConstraintSchema).max(30).optional(),
   hemisphereSection: z.object({
     center: coordinate, radius: z.number().positive().max(1000), axis: coordinate,
     depthRatio: z.number().min(0.01).max(0.95), degrees: z.number().min(1).max(89),
@@ -205,7 +212,7 @@ function sameCoordinate(a: Coordinate, b: Coordinate) {
   return Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.001;
 }
 
-function replaceSharedCoordinate(shape: MathFigureShape, before: Coordinate, after: Coordinate): MathFigureShape {
+export function replaceSharedCoordinate(shape: MathFigureShape, before: Coordinate, after: Coordinate): MathFigureShape {
   const replace = (value: Coordinate) => sameCoordinate(value, before) ? after : value;
   switch (shape.type) {
     case "line": return { ...shape, from: replace(shape.from), to: replace(shape.to) };
@@ -227,53 +234,33 @@ function replaceSharedCoordinate(shape: MathFigureShape, before: Coordinate, aft
   }
 }
 
-function parsedNumber(value: string) {
-  const match = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
-  return match ? Number(match[0]) : null;
-}
-
-function angleGap(a: number, b: number) {
-  return Math.abs(((a - b + 540) % 360) - 180);
-}
-
 export function reconcileVariationGeometry(spec: MathFigureSpec): MathFigureSpec {
-  let shapes = [...spec.shapes];
-  for (let index = 0; index < shapes.length; index += 1) {
-    const measurement = shapes[index];
-    const value = measurement && (measurement.type === "text" || measurement.type === "dimension") ? parsedNumber(measurement.text) : null;
-    if (!measurement || value === null || value <= 0) continue;
-
-    if (measurement.type === "text" && measurement.text.includes("°")) {
-      const angleArc = shapes.map((shape, shapeIndex) => ({ shape, shapeIndex })).filter((item): item is { shape: Extract<MathFigureShape, { type: "arc" }>; shapeIndex: number } => item.shape.type === "arc").sort((a, b) => {
-        const score = (item: typeof a) => Math.abs(Math.hypot(measurement.at[0] - item.shape.center[0], measurement.at[1] - item.shape.center[1]) - item.shape.radius) + item.shape.radius * 0.03;
-        return score(a) - score(b);
-      })[0];
-      if (!angleArc) continue;
-      const direction = Math.sign(angleArc.shape.endAngle - angleArc.shape.startAngle) || 1;
-      const nextEnd = angleArc.shape.startAngle + direction * Math.min(359, value);
-      if (Math.abs(nextEnd - angleArc.shape.endAngle) < 0.1) continue;
-      const rays = shapes.filter((shape): shape is Extract<MathFigureShape, { type: "line" }> => shape.type === "line").flatMap((line) => {
-        if (sameCoordinate(line.from, angleArc.shape.center)) return [{ endpoint: line.to, angle: Math.atan2(line.to[1] - line.from[1], line.to[0] - line.from[0]) * 180 / Math.PI }];
-        if (sameCoordinate(line.to, angleArc.shape.center)) return [{ endpoint: line.from, angle: Math.atan2(line.from[1] - line.to[1], line.from[0] - line.to[0]) * 180 / Math.PI }];
-        return [];
-      }).sort((a, b) => angleGap(a.angle, angleArc.shape.endAngle) - angleGap(b.angle, angleArc.shape.endAngle));
-      const ray = rays[0];
-      if (!ray || angleGap(ray.angle, angleArc.shape.endAngle) > 25) continue;
-      const rotation = (nextEnd - angleArc.shape.endAngle) * Math.PI / 180;
-      const dx = ray.endpoint[0] - angleArc.shape.center[0], dy = ray.endpoint[1] - angleArc.shape.center[1];
-      const moved = [angleArc.shape.center[0] + dx * Math.cos(rotation) - dy * Math.sin(rotation), angleArc.shape.center[1] + dx * Math.sin(rotation) + dy * Math.cos(rotation)];
-      shapes = shapes.map((shape) => replaceSharedCoordinate(shape, ray.endpoint, moved));
-      shapes[angleArc.shapeIndex] = { ...angleArc.shape, endAngle: nextEnd };
-      const updated = shapes[index];
-      if (updated?.type === "text") shapes[index] = { ...updated, autoPosition: true };
-    } else if (measurement.type === "dimension") {
-      const currentLength = Math.hypot(measurement.to[0] - measurement.from[0], measurement.to[1] - measurement.from[1]);
-      if (currentLength < 0.001 || Math.abs(currentLength - value) < 0.01) continue;
-      const moved = [measurement.from[0] + (measurement.to[0] - measurement.from[0]) / currentLength * value, measurement.from[1] + (measurement.to[1] - measurement.from[1]) / currentLength * value];
-      shapes = shapes.map((shape) => replaceSharedCoordinate(shape, measurement.to, moved));
-    }
+  let next = spec;
+  const warnings = [...spec.notes];
+  const warn = (message: string) => { if (!warnings.includes(message)) warnings.push(message); };
+  for (let index = 0; index < spec.shapes.length; index++) {
+    const measurement = next.shapes[index];
+    if (measurement.type !== "text" && measurement.type !== "dimension") continue;
+    const { value, angle } = evaluateMeasurement(measurement.text);
+    if (measurement.type === "text" && !angle) continue;
+    if (value === null || value <= 0) { warn(`‘${measurement.text}’은 양의 수치로 계산할 수 없어 자동 변형하지 않았습니다.`); continue; }
+    try {
+      if (measurement.type === "dimension") {
+        if (next.projection === "spatial") { warn("공간도형의 투영 길이를 실제 길이로 간주하지 않습니다. 계산 유형의 매개변수를 사용해 주세요."); continue; }
+        const length = Math.hypot(measurement.to[0] - measurement.from[0], measurement.to[1] - measurement.from[1]);
+        if (length < 0.001) { warn("길이가 0인 보조표시는 자동 변형하지 않았습니다."); continue; }
+        const moved = measurement.from.map((v, i) => v + (measurement.to[i] - v) * value / length);
+        next = enforceFigureConstraints(mathFigureSpecSchema.parse({ ...next, shapes: next.shapes.map(s => replaceSharedCoordinate(s, measurement.to, moved)) }));
+      } else {
+        const candidates = next.shapes.flatMap((s, i) => s.type === "arc" && Math.hypot(measurement.at[0] - s.center[0], measurement.at[1] - s.center[1]) <= s.radius * 3 && (angleBinding(next, s) || hemisphereBinding(next, i)) ? [i] : []);
+        if (candidates.length !== 1) { warn("각도 라벨과 연결된 호가 불명확하여 자동 변형하지 않았습니다."); continue; }
+        const arcIndex = candidates[0], hemisphere = hemisphereBinding(next, arcIndex);
+        if (next.projection === "spatial" && !hemisphere) { warn("공간 각도의 실제 방향을 확인할 수 없어 자동 변형하지 않았습니다."); continue; }
+        next = enforceFigureConstraints(hemisphere ? resizeHemisphereSection(next, hemisphere, value) : resizeAngle(next, arcIndex, value, "start"));
+      }
+    } catch { warn(`‘${measurement.text}’의 조건을 적용할 수 없어 해당 자동 변형을 취소했습니다.`); }
   }
-  return mathFigureSpecSchema.parse({ ...spec, shapes });
+  return mathFigureSpecSchema.parse({ ...next, notes: warnings.slice(-8) });
 }
 
 export const MATH_FIGURE_SYSTEM_PROMPT = `당신은 대한민국 수학 시험지용 도형을 복원하는 기하 도면 전문가입니다.

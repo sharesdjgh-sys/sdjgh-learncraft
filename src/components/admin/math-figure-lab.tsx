@@ -10,6 +10,12 @@ import { mathFigureSpecSchema, type MathFigureShape, type MathFigureSpec } from 
 import { dimensionStrokes, updateDimensionStrokes, type DimensionCurve } from "@/lib/math-figure-dimension";
 import { angleBinding, resizeAngle } from "@/lib/math-figure-angle";
 import { hemisphereBinding, isHemisphereAngle, resizeHemisphereSection } from "@/lib/math-figure-hemisphere";
+import { enforceFigureConstraints } from "@/lib/math-figure-constraints";
+import { MathFigureCalculation, MathFigureConstraints } from "./math-figure-calculation";
+import { rightMedianBinding, resizeRightMedian } from "@/lib/math-figure-reference-edit";
+
+// Retain the implemented generator, but keep the teacher workflow focused on reference images.
+const SHOW_CALCULATION_TOOLS = false;
 
 type Mode = "clean" | "variation";
 type EditorTab = "labels" | "strokes";
@@ -49,12 +55,15 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
   const spanX = spec.xRange[1] - spec.xRange[0];
   const spanY = spec.yRange[1] - spec.yRange[0];
   const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanY);
-  const drawingWidth = spanX * scale;
-  const drawingHeight = spanY * scale;
+  const statistical = spec.construction?.kind === "normal" || spec.construction?.kind === "binomial";
+  const scaleX = statistical ? (width - padding * 2) / spanX : scale;
+  const scaleY = statistical ? (height - padding * 2) / spanY : scale;
+  const drawingWidth = spanX * scaleX;
+  const drawingHeight = spanY * scaleY;
   const offsetX = (width - drawingWidth) / 2;
   const offsetY = (height - drawingHeight) / 2;
-  const x = (value: number) => offsetX + (value - spec.xRange[0]) * scale;
-  const y = (value: number) => offsetY + (spec.yRange[1] - value) * scale;
+  const x = (value: number) => offsetX + (value - spec.xRange[0]) * scaleX;
+  const y = (value: number) => offsetY + (spec.yRange[1] - value) * scaleY;
   const point = (value: Position) => ({ x: x(value[0]), y: y(value[1]) });
   const selectedArc = selectedIndex === null ? null : spec.shapes[selectedIndex];
   const angle = selectedArc?.type === "arc" ? angleBinding(spec, selectedArc) : null;
@@ -68,7 +77,7 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
     if (!bounds) return null;
     const svgX = (event.clientX - bounds.left) * width / bounds.width;
     const svgY = (event.clientY - bounds.top) * height / bounds.height;
-    return [spec.xRange[0] + (svgX - offsetX) / scale, spec.yRange[1] - (svgY - offsetY) / scale];
+    return [spec.xRange[0] + (svgX - offsetX) / scaleX, spec.yRange[1] - (svgY - offsetY) / scaleY];
   }
 
   function editableTextProps(index: number) {
@@ -433,6 +442,7 @@ function FormulaValue({ value }: { value: string }) {
 
 
 export function MathFigureLab() {
+  const [sourcePanel, setSourcePanel] = useState<"image" | "calculation">("image");
   const [mode, setMode] = useState<Mode>("clean");
   const [file, setFile] = useState<File | null>(null);
   const [instruction, setInstruction] = useState("");
@@ -472,6 +482,7 @@ export function MathFigureLab() {
   const selectedShape = selectedIndex === null ? null : spec?.shapes[selectedIndex] ?? null;
   const selectedStroke = selectedIndex === null ? null : strokes.find((item) => item.index === selectedIndex) ?? null;
   const selectedAngle = spec && selectedStroke?.shape.type === "arc" ? angleBinding(spec, selectedStroke.shape) : null;
+  const selectedMedian = spec && selectedStroke?.shape.type === "arc" ? rightMedianBinding(spec,selectedStroke.index) : null;
   const selectedHemisphere = spec && selectedStroke?.shape.type === "arc" ? hemisphereBinding(spec, selectedStroke.index) : null;
   const hemisphereRequired = spec && selectedStroke ? isHemisphereAngle(spec, selectedStroke.index) : false;
 
@@ -480,9 +491,16 @@ export function MathFigureLab() {
   }
 
   function commitSpec(next: MathFigureSpec, recordHistory = true) {
-    const parsed = mathFigureSpecSchema.parse(next);
-    if (recordHistory) rememberCurrentSpec();
-    setSpec(parsed);
+    try {
+      const parsed = enforceFigureConstraints(next);
+      if (recordHistory) rememberCurrentSpec();
+      setSpec(parsed);
+      setRequestError("");
+      return true;
+    } catch (error) {
+      setRequestError(error instanceof Error && error.name !== "ZodError" ? error.message : "도형의 좌표·수치 범위나 수학적 조건을 유지할 수 없어 변경하지 않았습니다.");
+      return false;
+    }
   }
 
   function updateShape(index: number, update: (shape: MathFigureShape) => MathFigureShape, recordHistory = true) {
@@ -534,8 +552,7 @@ export function MathFigureLab() {
     if (!spec || !selectedStroke) return;
     try {
       if (hemisphereRequired && !selectedHemisphere) throw new Error("반구의 밑면과 단면 곡선을 연결하지 못했습니다. 각도 변경 전 도형으로 되돌린 후 다시 선택해 주세요.");
-      commitSpec(selectedHemisphere ? resizeHemisphereSection(spec, selectedHemisphere, value) : resizeAngle(spec, selectedStroke.index, value, angleFixed));
-      setRequestError("");
+      commitSpec(selectedMedian ? resizeRightMedian(spec,value) : selectedHemisphere ? resizeHemisphereSection(spec, selectedHemisphere, value) : resizeAngle(spec, selectedStroke.index, value, angleFixed));
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "각도를 조절하지 못했습니다.");
     }
@@ -570,7 +587,8 @@ export function MathFigureLab() {
 
   function deleteShape(index: number) {
     if (!spec || !spec.shapes[index]) return;
-    commitSpec({ ...spec, hemisphereSection: undefined, shapes: spec.shapes.filter((_, shapeIndex) => shapeIndex !== index) });
+    const constraints = spec.constraints?.filter(rule => rule.target !== index && rule.reference !== index).map(rule => ({ ...rule, target: rule.target > index ? rule.target - 1 : rule.target, reference: rule.reference > index ? rule.reference - 1 : rule.reference }));
+    commitSpec({ ...spec, constraints, hemisphereSection: undefined, shapes: spec.shapes.filter((_, shapeIndex) => shapeIndex !== index) });
     setSelectedIndex(null);
     setSegmentIndex("");
   }
@@ -607,12 +625,13 @@ export function MathFigureLab() {
       form.set("image", file);
       form.set("mode", mode);
       form.set("instruction", instruction.trim());
+      if (mode === "variation" && spec) form.set("currentSpec", JSON.stringify(spec));
       const response = await fetch("/api/admin/math-figures/analyze", { method: "POST", body: form });
       const data = await response.json().catch(() => null) as { spec?: unknown; error?: string } | null;
       if (!response.ok || !data?.spec) throw new Error(data?.error || "도형을 분석하지 못했습니다.");
       const next = mathFigureSpecSchema.parse(data.spec);
-      setSpec(next);
-      setHistory([]);
+      if (mode === "variation" && spec) { if (!commitSpec(next)) return; }
+      else { setSpec(next); setHistory([]); }
       const firstLabel = next.shapes.findIndex((shape) => shape.type === "text" || shape.type === "point");
       setSelectedIndex(firstLabel >= 0 ? firstLabel : null);
       const firstSegment = next.shapes.findIndex((shape) => shape.type === "line");
@@ -730,7 +749,7 @@ export function MathFigureLab() {
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> 관리자 전용 실험 기능</p>
-          <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수학 도형 실험실</h1>
+          <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수학 그림 문제 제작 AI</h1>
           <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3">교재 도형을 벡터로 복원하고, 미리보기를 보면서 필요한 표시를 바로 다듬습니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 관리자에게만 표시됨</span>
@@ -738,7 +757,8 @@ export function MathFigureLab() {
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
-          <div className="rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-2)]">
+          {SHOW_CALCULATION_TOOLS && <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-3 p-1" role="tablist" aria-label="도형 입력 방식">{([{value:"image",label:"이미지에서 복원"},{value:"calculation",label:"수식·수치로 생성"}] as const).map(item => <button key={item.value} type="button" role="tab" aria-selected={sourcePanel === item.value} onClick={() => setSourcePanel(item.value)} className={cn("min-h-10 rounded-lg text-xs font-bold",sourcePanel === item.value ? "bg-white text-brand shadow-sm" : "text-ink-4")}>{item.label}</button>)}</div>}
+          <div className={cn("rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-2)]",SHOW_CALCULATION_TOOLS && sourcePanel !== "image" && "hidden")}>
             <div className="flex rounded-[12px] bg-surface-3 p-1" role="tablist" aria-label="도형 처리 방식">
               {([{ value: "clean", label: "깔끔하게 복원" }, { value: "variation", label: "수치·조건 변형" }] as const).map((item) => <button key={item.value} role="tab" aria-selected={mode === item.value} onClick={() => setMode(item.value)} className={cn("min-h-10 flex-1 rounded-[9px] px-3 text-[.82rem] font-bold transition", mode === item.value ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item.label}</button>)}
             </div>
@@ -755,6 +775,7 @@ export function MathFigureLab() {
             <p className="mt-3 text-[.75rem] leading-5 text-ink-5">이미지는 분석 요청에만 사용되며 서버나 데이터베이스에 저장하지 않습니다.</p>
           </div>
 
+          {SHOW_CALCULATION_TOOLS && <div className={sourcePanel !== "calculation" ? "hidden" : ""}><MathFigureCalculation key={JSON.stringify(spec?.construction ?? null)} construction={spec?.construction} onBuild={next => { if (commitSpec(next)) { setSelectedIndex(null); setSegmentIndex(""); } }} /></div>}
           <div className="rounded-[15px] border border-warn/20 bg-[var(--warn-page)] p-4 text-[.78rem] leading-6 text-ink-3"><strong className="flex items-center gap-2 text-ink"><AlertCircle size={15} className="text-warn" /> 실험 단계 안내</strong><p className="mt-2">AI가 선과 라벨을 잘못 해석할 수 있습니다. 시험 문제에 사용하기 전 수학적 조건과 표시를 반드시 확인해 주세요.</p></div>
         </aside>
 
@@ -771,6 +792,7 @@ export function MathFigureLab() {
             <section className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-2)] sm:p-5">
               <div><p className="flex items-center gap-2 text-[.74rem] font-bold text-brand"><Sparkles size={14} /> 선생님용 편집 도구</p><h2 className="mt-1.5 text-base font-extrabold">도형 표시 다듬기</h2><p className="mt-1 break-keep text-[.74rem] leading-5 text-ink-4">수정 내용은 왼쪽 미리보기에 바로 반영됩니다.</p></div>
 
+              <MathFigureConstraints key={JSON.stringify(spec.construction ?? spec.title)} spec={spec} onChange={next => { commitSpec(next); }} />
               <div className="mt-4">
                 <div className="grid grid-cols-2 rounded-[11px] bg-surface-3 p-1" role="tablist" aria-label="도형 편집 종류"><button type="button" role="tab" aria-selected={editorTab === "labels"} onClick={() => setEditorTab("labels")} className={cn("min-h-9 rounded-[8px] text-[.78rem] font-bold transition-all", editorTab === "labels" ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>문자·수치</button><button type="button" role="tab" aria-selected={editorTab === "strokes"} onClick={() => setEditorTab("strokes")} className={cn("min-h-9 rounded-[8px] text-[.78rem] font-bold transition-all", editorTab === "strokes" ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>선·보조표시</button></div>
                 {editorTab === "labels" ? <div className="mt-4 rounded-[15px] border border-line bg-surface-2 p-4">
@@ -796,7 +818,10 @@ export function MathFigureLab() {
                   {strokes.length ? <div className="mt-4 space-y-5">
                     <label className="block text-[.78rem] font-bold text-ink-3">편집할 선<select value={selectedStroke ? String(selectedStroke.index) : ""} onChange={(event) => selectShape(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-[10px] border border-line bg-white px-3 outline-none focus:border-brand/45"><option value="" disabled>미리보기에서 선을 선택하세요</option>{strokes.map((stroke) => <option key={stroke.index} value={stroke.index}>{stroke.label} · {stroke.shape.dashed ? "점선" : "실선"}</option>)}</select></label>
                     {selectedStroke ? <div className="space-y-4"><fieldset><legend className="text-[.78rem] font-bold text-ink-3">선 모양</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: false }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>━━ 실선</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: true }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>┅┅ 점선</button></div></fieldset>{selectedStroke.shape.type === "line" ? <fieldset><legend className="text-[.78rem] font-bold text-ink-3">끝 표시</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: false } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>일반 선분</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: true } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>⟶ 벡터</button></div></fieldset> : null}<fieldset className="border-t border-line pt-4"><legend className="px-1 text-[.78rem] font-bold text-ink-3">크기 조정</legend>{selectedStroke.shape.type === "rightAngle" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">직각 표시 크기</span><NumberSpinner value={selectedStroke.shape.size} min={0.05} max={100} step={0.05} onChange={(value) => resizeSelectedStroke("size", value)} /></div> : selectedStroke.shape.type === "line" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">선분 길이</span><NumberSpinner value={Number(Math.hypot(selectedStroke.shape.to[0] - selectedStroke.shape.from[0], selectedStroke.shape.to[1] - selectedStroke.shape.from[1]).toFixed(2))} min={0.1} max={1000} step={0.1} onChange={(value) => resizeSelectedStroke("length", value)} /></div> : selectedStroke.shape.type === "arc" ? <div className="mt-2 space-y-3">
-                        {selectedAngle && (!hemisphereRequired || selectedHemisphere) ? <>
+                        {selectedMedian ? <>
+                          <div className="flex items-center justify-between gap-3"><span className="text-[.74rem] font-bold">중선 AM과 AC 사이 각도</span><NumberSpinner value={Number(Math.abs(selectedStroke.shape.endAngle-selectedStroke.shape.startAngle).toFixed(2))} min={1} max={89} step={1} suffix="°" onChange={changeSelectedAngle} /></div>
+                          <p className="text-[.72rem] leading-5 text-ink-4">직각·중점 M·AC 길이를 유지합니다. AB 길이, 점의 위치, 각도 호와 수치를 함께 변경합니다.</p>
+                        </> : selectedAngle && (!hemisphereRequired || selectedHemisphere) ? <>
                           <div className="flex items-center justify-between gap-3"><span className="text-[.74rem] font-bold text-ink-3">{selectedHemisphere ? "반구 절단면 각도" : spec?.projection === "spatial" ? "화면상 각도" : "각도"}</span><NumberSpinner key={selectedStroke.index} value={Number((selectedHemisphere?.degrees ?? selectedAngle.degrees).toFixed(2))} min={1} max={selectedHemisphere ? 89 : 359} step={1} suffix="°" onChange={changeSelectedAngle} /></div>
                           {!selectedHemisphere ? <div><p className="mb-2 text-[.72rem] font-semibold text-ink-4">고정할 변</p><div className="grid grid-cols-2 gap-2">{(["start", "end"] as const).map((side) => <button key={side} type="button" onClick={() => setAngleFixed(side)} className={cn("min-h-9 rounded-[9px] border px-2 text-[.74rem] font-bold", angleFixed === side ? "border-blue-300 bg-blue-50 text-blue-700" : "border-line bg-white text-ink-4")}>{side === "start" ? selectedAngle.startName : selectedAngle.endName} 고정</button>)}</div></div> : null}
                           <p className="text-[.72rem] leading-5 text-ink-4">{selectedHemisphere ? "반구의 크기와 밑면을 고정하고, 절단면의 중심·반지름·타원을 함께 계산합니다. 라벨의 숫자는 표시 내용에서 수정하세요." : "파란 변은 고정하고 주황 변을 회전합니다. 연결된 점과 선분도 함께 움직입니다. 라벨의 숫자는 표시 내용에서 수정하세요."}</p>

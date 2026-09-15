@@ -12,6 +12,8 @@
     "test:graph": "tsx scripts/verify-graph.tsx",
     "test:figure": "tsx scripts/verify-learning-figures.tsx",
     "test:math-figure-lab": "tsx scripts/verify-math-figure-lab.ts",
+    "test:math-figure-coverage": "tsx scripts/verify-math-figure-coverage.ts",
+    "test:math-figures": "tsx scripts/verify-math-figures.ts",
     "test:feedback": "tsx scripts/verify-feedback.ts",
     "test:markdown": "tsx scripts/verify-markdown-rendering.tsx",
     "test:math": "tsx scripts/verify-math-rendering.ts",

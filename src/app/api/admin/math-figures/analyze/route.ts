@@ -2,7 +2,8 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } from "ai";
 import { requireAdmin } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
-import { aiMathFigureSpecSchema, MATH_FIGURE_SYSTEM_PROMPT, normalizeAiMathFigureSpec, reconcileVariationGeometry } from "@/lib/math-figure-lab";
+import { aiMathFigureSpecSchema, mathFigureSpecSchema, MATH_FIGURE_SYSTEM_PROMPT, normalizeAiMathFigureSpec } from "@/lib/math-figure-lab";
+import { applyReferenceVariation, ReferenceEditError } from "@/lib/math-figure-reference-edit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,7 +18,6 @@ const json = (data: unknown, status = 200) => Response.json(data, {
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return json({ error: "관리자 권한이 필요합니다." }, 403);
-  if (!isGeminiConfigured) return json({ error: "Gemini API 키가 설정되지 않았습니다." }, 503);
 
   const form = await request.formData().catch(() => null);
   const image = form?.get("image");
@@ -31,11 +31,24 @@ export async function POST(request: Request) {
     return json({ error: "변형할 수치나 조건을 입력해 주세요." }, 400);
   }
 
+  // Reuse the current drawing, including teacher edits, instead of regenerating its geometry.
+  const currentSpec = form?.get("currentSpec");
+  if (mode === "variation" && typeof currentSpec === "string") {
+    if (currentSpec.length > 400_000) return json({ error: "현재 도형 데이터가 너무 큽니다." }, 400);
+    try {
+      const source = mathFigureSpecSchema.parse(JSON.parse(currentSpec));
+      return json({ spec: applyReferenceVariation(source,instruction), attempts: 0 });
+    } catch (error) {
+      return json({error:error instanceof ReferenceEditError ? error.message : "현재 도형을 안전하게 변경할 수 없습니다. 원본을 다시 복원해 주세요."},422);
+    }
+  }
+  if (!isGeminiConfigured) return json({ error: "Gemini API 키가 설정되지 않았습니다." }, 503);
+
   try {
     const google = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY });
     const imageData = new Uint8Array(await image.arrayBuffer());
     const task = mode === "variation"
-      ? `원본 도형의 구조와 시험지 스타일을 유지하면서 다음 지시를 반영하세요: ${instruction}`
+      ? "원본 이미지를 수정하지 말고 그대로 복원하세요. 수치 변경은 별도의 계산기로 처리합니다. 원본의 x 같은 미지수, 직각, 중점의 같은 길이 표시, 벡터 방향, 길이 값을 빠짐없이 보존하세요."
       : `원본과 같은 수학적 구조와 표시를 유지하여 깨끗한 시험지용 도형으로 복원하세요.${instruction ? ` 추가 요청: ${instruction}` : ""}`;
     const modelIds = env.GEMINI_FALLBACK_MODEL_ID === env.GEMINI_PRIMARY_MODEL_ID
       ? [env.GEMINI_PRIMARY_MODEL_ID, env.GEMINI_PRIMARY_MODEL_ID]
@@ -69,7 +82,7 @@ export async function POST(request: Request) {
           throw error;
         }
         const normalizedSpec = normalizeAiMathFigureSpec(output);
-        const spec = mode === "variation" ? reconcileVariationGeometry(normalizedSpec) : normalizedSpec;
+        const spec = mode === "variation" ? applyReferenceVariation(normalizedSpec,instruction) : normalizedSpec;
         console.info("admin_math_figure_analysis", {
           adminId: admin.id,
           schoolId: admin.schoolId,
@@ -97,6 +110,7 @@ export async function POST(request: Request) {
     }
     throw lastError ?? new Error("EMPTY_OUTPUT:unknown");
   } catch (error) {
+    if (error instanceof ReferenceEditError) return json({error:error.message},422);
     const nestedError = error instanceof Error && error.cause instanceof Error ? error.cause : error;
     const detail = NoObjectGeneratedError.isInstance(nestedError) && nestedError.cause
       ? ` (${nestedError.cause instanceof Error ? nestedError.cause.message : JSON.stringify(nestedError.cause)})`

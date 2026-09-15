@@ -4,6 +4,7 @@ import { useId, useMemo } from "react";
 import { ChartSpline, TriangleAlert } from "lucide-react";
 import { LearningMath } from "./learning-math";
 import { compactMathScripts } from "@/lib/math-notation";
+import { compileMathExpression as compileExpression } from "@/lib/math-expression";
 
 type Range = [number, number];
 type Curve = {
@@ -24,7 +25,6 @@ type GraphSpec = {
   horizontalAsymptotes: GuideLine[];
 };
 
-type NumericFunction = (x: number) => number;
 type JsonRecord = Record<string, unknown>;
 
 const MAX_PLOT_WIDTH = 560;
@@ -122,148 +122,6 @@ function parseGraphSpec(source: string): GraphSpec {
   };
 }
 
-class ExpressionParser {
-  private cursor = 0;
-
-  constructor(private readonly source: string) {}
-
-  parse(): NumericFunction {
-    const result = this.parseAddition();
-    this.skipSpaces();
-    if (this.cursor !== this.source.length) {
-      throw new Error(`지원하지 않는 식 표기: ${this.source.slice(this.cursor, this.cursor + 12)}`);
-    }
-    return result;
-  }
-
-  private parseAddition(): NumericFunction {
-    let left = this.parseMultiplication();
-    while (true) {
-      if (this.take("+")) {
-        const previous = left;
-        const right = this.parseMultiplication();
-        left = (x) => previous(x) + right(x);
-      } else if (this.take("-")) {
-        const previous = left;
-        const right = this.parseMultiplication();
-        left = (x) => previous(x) - right(x);
-      } else {
-        return left;
-      }
-    }
-  }
-
-  private parseMultiplication(): NumericFunction {
-    let left = this.parseUnary();
-    while (true) {
-      if (this.take("*")) {
-        const previous = left;
-        const right = this.parseUnary();
-        left = (x) => previous(x) * right(x);
-      } else if (this.take("/")) {
-        const previous = left;
-        const right = this.parseUnary();
-        left = (x) => previous(x) / right(x);
-      } else {
-        return left;
-      }
-    }
-  }
-
-  private parseUnary(): NumericFunction {
-    if (this.take("+")) return this.parseUnary();
-    if (this.take("-")) {
-      const value = this.parseUnary();
-      return (x) => -value(x);
-    }
-    return this.parsePower();
-  }
-
-  private parsePower(): NumericFunction {
-    const base = this.parsePrimary();
-    if (!this.take("^")) return base;
-    const exponent = this.parseUnary();
-    return (x) => Math.pow(base(x), exponent(x));
-  }
-
-  private parsePrimary(): NumericFunction {
-    this.skipSpaces();
-    if (this.take("(")) {
-      const value = this.parseAddition();
-      if (!this.take(")")) throw new Error("함수식의 괄호가 닫히지 않았어요.");
-      return value;
-    }
-
-    const number = this.readNumber();
-    if (number !== undefined) return () => number;
-
-    const identifier = this.readIdentifier();
-    if (!identifier) throw new Error("함수식에서 숫자나 변수를 찾지 못했어요.");
-    if (identifier === "x") return (x) => x;
-    if (identifier === "pi") return () => Math.PI;
-    if (identifier === "e") return () => Math.E;
-
-    const functions: Record<string, (value: number) => number> = {
-      sin: Math.sin,
-      cos: Math.cos,
-      tan: Math.tan,
-      asin: Math.asin,
-      acos: Math.acos,
-      atan: Math.atan,
-      sqrt: Math.sqrt,
-      abs: Math.abs,
-      exp: Math.exp,
-      ln: Math.log,
-      log: Math.log10,
-      log10: Math.log10,
-      floor: Math.floor,
-      ceil: Math.ceil,
-    };
-    const operation = functions[identifier];
-    if (!operation) throw new Error(`지원하지 않는 함수예요: ${identifier}`);
-    if (!this.take("(")) throw new Error(`${identifier} 함수 뒤에는 괄호가 필요해요.`);
-    const argument = this.parseAddition();
-    if (!this.take(")")) throw new Error(`${identifier} 함수의 괄호가 닫히지 않았어요.`);
-    return (x) => operation(argument(x));
-  }
-
-  private readNumber() {
-    this.skipSpaces();
-    const match = this.source.slice(this.cursor).match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i);
-    if (!match) return undefined;
-    this.cursor += match[0].length;
-    return Number(match[0]);
-  }
-
-  private readIdentifier() {
-    this.skipSpaces();
-    const match = this.source.slice(this.cursor).match(/^[a-z][a-z0-9]*/i);
-    if (!match) return "";
-    this.cursor += match[0].length;
-    return match[0].toLowerCase();
-  }
-
-  private take(token: string) {
-    this.skipSpaces();
-    if (!this.source.startsWith(token, this.cursor)) return false;
-    this.cursor += token.length;
-    return true;
-  }
-
-  private skipSpaces() {
-    while (/\s/.test(this.source[this.cursor] ?? "")) this.cursor += 1;
-  }
-}
-
-function compileExpression(expression: string) {
-  const normalized = expression
-    .replaceAll("−", "-")
-    .replaceAll("×", "*")
-    .replaceAll("÷", "/")
-    .replaceAll("²", "^2")
-    .replaceAll("³", "^3");
-  return new ExpressionParser(normalized).parse();
-}
 
 function gridStep(scale: number) {
   const rawStep = 24 / scale;
