@@ -13,6 +13,8 @@ import { hemisphereBinding, isHemisphereAngle, resizeHemisphereSection } from "@
 import { enforceFigureConstraints } from "@/lib/math-figure-constraints";
 import { MathFigureCalculation, MathFigureConstraints } from "./math-figure-calculation";
 import { rightMedianBinding, resizeRightMedian } from "@/lib/math-figure-reference-edit";
+import { figureCurveControl, figureFacePaths } from "@/lib/math-figure-face";
+import { isVisibleFigureLabel, setFigureLabelFontSize } from "@/lib/math-figure-labels";
 
 // Retain the implemented generator, but keep the teacher workflow focused on reference images.
 const SHOW_CALCULATION_TOOLS = false;
@@ -141,24 +143,32 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
   }
 
   function renderShape(shape: MathFigureShape, index: number) {
-    const common = { stroke: shape.color, strokeWidth: 2.2, strokeDasharray: shape.dashed ? "8 6" : undefined, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+    const common = { stroke: shape.color, strokeWidth: shape.type === "line" && shape.role === "axis" ? 1.1 : 2.2, strokeDasharray: shape.dashed ? "8 6" : undefined, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
     switch (shape.type) {
       case "line": {
         const from = point(shape.from), to = point(shape.to);
         return <g key={index}>
           {selectedIndex === index ? <line data-editor-selection="true" x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#6847e8" strokeWidth="9" strokeLinecap="round" opacity=".18" /> : null}
-          <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} {...common} markerEnd={shape.arrow ? `url(#${markerId})` : undefined} />
-          {onSelect ? <line data-editor-hit="true" role="button" tabIndex={0} aria-label={`${shape.arrow ? "벡터" : "선분"} 선택`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="transparent" strokeWidth="18" strokeLinecap="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}
+          <line data-line-role={shape.role} x1={from.x} y1={from.y} x2={to.x} y2={to.y} {...common} markerEnd={shape.arrow ? `url(#${markerId}${shape.role === "axis" ? "-axis" : ""})` : undefined} />
+          {onSelect ? <line data-editor-hit="true" role="button" tabIndex={0} aria-label={`${lineKind(shape)} 선택`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="transparent" strokeWidth="18" strokeLinecap="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}
         </g>;
       }
       case "curve": {
         const from = point(shape.from), to = point(shape.to);
-        const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
-        const control = { x: (from.x + to.x) / 2 - dy / length * shape.bend * scale * 2, y: (from.y + to.y) / 2 + dx / length * shape.bend * scale * 2 };
+        const control = figureCurveControl(from, to, shape.bend, scale);
         const path = `M ${from.x} ${from.y} Q ${control.x} ${control.y} ${to.x} ${to.y}`;
         return <g key={index}>{selectedIndex === index ? <path data-editor-selection="true" d={path} fill="none" stroke="#6847e8" strokeWidth="9" strokeLinecap="round" opacity=".18" /> : null}<path d={path} {...common} fill="none" />{onSelect ? <path data-editor-hit="true" role="button" tabIndex={0} aria-label="곡선 선택" d={path} fill="none" stroke="transparent" strokeWidth="18" strokeLinecap="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
       }
       case "polygon": {
+        if (shape.fill !== "none") {
+          const face = figureFacePaths(shape, spec.shapes, point, scale);
+          return <g key={index}>
+            <path data-figure-face="true" d={face.fillPath} fill={shape.fill} stroke="none" pointerEvents="none" />
+            {face.outlinePaths.map((d, edge) => <path key={edge} d={d} {...common} fill="none" />)}
+            {selectedIndex === index ? <path data-editor-selection="true" d={face.fillPath} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}
+            {onSelect ? <path data-editor-hit="true" role="button" tabIndex={0} aria-label="다각형 외곽선 선택" d={face.fillPath} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}
+          </g>;
+        }
         const polygonPoints = points(shape.points);
         return <g key={index}>{selectedIndex === index ? <polygon data-editor-selection="true" points={polygonPoints} fill="none" stroke="#6847e8" strokeWidth="9" strokeLinejoin="round" opacity=".18" /> : null}<polygon points={polygonPoints} {...common} fill={shape.fill} />{onSelect ? <polygon data-editor-hit="true" role="button" tabIndex={0} aria-label="다각형 외곽선 선택" points={polygonPoints} fill="none" stroke="transparent" strokeWidth="18" strokeLinejoin="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
       }
@@ -221,7 +231,8 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
       case "point": {
         const at = point(shape.at), labelAt = point(shape.labelAt ?? [shape.at[0] + 0.18, shape.at[1] + 0.18]);
         const fontSize = shape.fontSize;
-        return <g key={index}>{shape.filled && <circle cx={at.x} cy={at.y} r="4.5" fill={shape.color} />}{shape.label && <>{selectedIndex === index && <rect data-editor-selection="true" x={labelAt.x - Math.max(fontSize * 0.55, shape.label.length * fontSize * 0.34)} y={labelAt.y - fontSize * 0.65} width={Math.max(fontSize * 1.1, shape.label.length * fontSize * 0.68)} height={fontSize * 1.3} rx="5" fill="none" stroke="#6847e8" strokeWidth="1.4" strokeDasharray="4 3" />}<text {...editableTextProps(index)} x={labelAt.x} y={labelAt.y} dy="0.08em" textAnchor="middle" dominantBaseline="middle" fontSize={fontSize} fontStyle="normal" fontFamily={mathFont} fill={shape.color} stroke="#ffffff" strokeWidth="2.2" paintOrder="stroke" strokeLinejoin="round">{shape.label}</text></>}</g>;
+        const markup = shape.label ? mathMarkup(shape.label, true) : null;
+        return <g key={index}>{shape.filled && <circle cx={at.x} cy={at.y} r="4.5" fill={shape.color} />}{shape.label && <>{selectedIndex === index && <rect data-editor-selection="true" x={labelAt.x - Math.max(fontSize * 0.55, shape.label.length * fontSize * 0.34)} y={labelAt.y - fontSize * 0.65} width={Math.max(fontSize * 1.1, shape.label.length * fontSize * 0.68)} height={fontSize * 1.3} rx="5" fill="none" stroke="#6847e8" strokeWidth="1.4" strokeDasharray="4 3" />}{markup ? formulaLabel(shape.label, markup, labelAt, fontSize, shape.color, index) : <text {...editableTextProps(index)} x={labelAt.x} y={labelAt.y} dy="0.08em" textAnchor="middle" dominantBaseline="middle" fontSize={fontSize} fontStyle="normal" fontFamily={mathFont} fill={shape.color} stroke="#ffffff" strokeWidth="2.2" paintOrder="stroke" strokeLinejoin="round">{shape.label}</text>}</>}</g>;
       }
       case "text": {
         const at = textPosition(shape);
@@ -263,7 +274,7 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
     <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${spec.title}. ${spec.description}`} className="block h-auto w-full bg-white">
       <title>{spec.title}</title><desc>{spec.description}</desc>
       <rect data-export-background="true" width={width} height={height} fill="#ffffff" />
-      <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,4 L0,8 Z" fill="#1f2937" /></marker></defs>
+      <defs><marker id={markerId} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,4 L0,8 Z" fill="#1f2937" /></marker><marker id={`${markerId}-axis`} markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,2.5 L0,5 L2,2.5 Z" fill="#1f2937" /></marker></defs>
       <g data-figure-content="true">{spec.shapes.map(renderShape)}</g>
       {angle ? <g data-editor-selection="true" pointerEvents="none">
         <line x1={x(angle.center[0])} y1={y(angle.center[1])} x2={x(angle[angleFixed][0])} y2={y(angle[angleFixed][1])} stroke="#2563eb" strokeWidth="7" opacity=".3" />
@@ -329,6 +340,10 @@ function NumberSpinner({ value, min, max, step, suffix, onChange }: {
       {suffix ? <span className="text-[.76rem] font-semibold text-ink-5">{suffix}</span> : null}
     </div>
   );
+}
+
+function lineKind(shape: Extract<MathFigureShape, {type: "line"}>) {
+  return shape.role === "axis" ? "좌표축" : shape.role === "vector" ? "벡터" : shape.arrow ? "화살표 선" : "선분";
 }
 
 function strokeLabelPosition(shape: StrokeShape): Position {
@@ -417,11 +432,11 @@ function mathExpression(value: string) {
   return /\\[A-Za-z]+|[_^{}]/.test(expression) ? expression : null;
 }
 
-function mathMarkup(value: string) {
+function mathMarkup(value: string, upright = false) {
   const expression = mathExpression(value);
   if (!expression) return null;
   try {
-    return katex.renderToString(expression, { throwOnError: true, strict: "ignore", trust: false, output: "mathml" });
+    return katex.renderToString(upright ? `\\mathrm{${expression}}` : expression, { throwOnError: true, strict: "ignore", trust: false, output: "mathml" });
   } catch {
     return null;
   }
@@ -446,6 +461,7 @@ export function MathFigureLab() {
   const [mode, setMode] = useState<Mode>("clean");
   const [file, setFile] = useState<File | null>(null);
   const [instruction, setInstruction] = useState("");
+  const [allLabelFontSize, setAllLabelFontSize] = useState(22);
   const [spec, setSpec] = useState<MathFigureSpec | null>(null);
   const [history, setHistory] = useState<MathFigureSpec[]>([]);
   const [requestError, setRequestError] = useState("");
@@ -470,7 +486,7 @@ export function MathFigureLab() {
     const pointName = (at: Position) => (spec.shapes.find((shape): shape is PointShape => shape.type === "point" && Math.hypot(shape.at[0] - at[0], shape.at[1] - at[1]) < 0.001))?.label;
     return spec.shapes.map((shape, index) => ({ shape, index })).filter((item): item is { shape: Extract<MathFigureShape, { type: "line" }>; index: number } => item.shape.type === "line").map((item) => {
       const from = pointName(item.shape.from), to = pointName(item.shape.to);
-      const kind = item.shape.arrow ? "벡터" : "선분";
+      const kind = lineKind(item.shape);
       return { ...item, label: from && to ? `${kind} ${from}${to}` : `${kind} ${item.index + 1}` };
     });
   }, [spec]);
@@ -508,6 +524,12 @@ export function MathFigureLab() {
     const shapes = [...spec.shapes];
     shapes[index] = update(shapes[index]);
     commitSpec({ ...spec, shapes }, recordHistory);
+  }
+
+  function resizeAllLabels() {
+    if (!spec) return;
+    const next = setFigureLabelFontSize(spec, allLabelFontSize);
+    if (next !== spec) commitSpec(next);
   }
 
   function moveLabel(index: number, at: Position) {
@@ -614,6 +636,7 @@ export function MathFigureLab() {
       return;
     }
     setFile(next);
+    setInstruction("");
   }
 
   async function analyze() {
@@ -797,6 +820,14 @@ export function MathFigureLab() {
                 <div className="grid grid-cols-2 rounded-[11px] bg-surface-3 p-1" role="tablist" aria-label="도형 편집 종류"><button type="button" role="tab" aria-selected={editorTab === "labels"} onClick={() => setEditorTab("labels")} className={cn("min-h-9 rounded-[8px] text-[.78rem] font-bold transition-all", editorTab === "labels" ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>문자·수치</button><button type="button" role="tab" aria-selected={editorTab === "strokes"} onClick={() => setEditorTab("strokes")} className={cn("min-h-9 rounded-[8px] text-[.78rem] font-bold transition-all", editorTab === "strokes" ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>선·보조표시</button></div>
                 {editorTab === "labels" ? <div className="mt-4 rounded-[15px] border border-line bg-surface-2 p-4">
                   <div className="flex items-center gap-2"><Move size={17} className="text-brand" /><h3 className="text-[.9rem] font-extrabold">라벨·숫자 편집</h3></div>
+                  <fieldset className="mt-3 rounded-[10px] border border-line bg-white p-3">
+                    <legend className="px-1 text-[.76rem] font-bold text-ink-3">전체 글자 크기</legend>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="w-32"><NumberSpinner value={allLabelFontSize} min={10} max={40} step={1} suffix="px" onChange={setAllLabelFontSize} /></div>
+                      <Button size="sm" onClick={resizeAllLabels} disabled={!spec.shapes.some(shape => isVisibleFigureLabel(shape) && shape.fontSize !== allLabelFontSize)}>전체 적용</Button>
+                    </div>
+                    <p className="mt-2 text-[.7rem] leading-5 text-ink-4">점 이름·수치·수식을 같은 크기로 맞춥니다. 적용 후 개별 조절하거나 한 번에 취소할 수 있습니다.</p>
+                  </fieldset>
                   <div className="mt-4 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
                     {editableLabels.map(({ shape, index }) => {
                       const value = shape.type === "point" ? shape.label : shape.text;
@@ -817,7 +848,7 @@ export function MathFigureLab() {
                   <p className="mt-2 text-[.76rem] leading-5 text-ink-4">직선뿐 아니라 호·원·타원의 실선과 점선도 바로잡을 수 있습니다.</p>
                   {strokes.length ? <div className="mt-4 space-y-5">
                     <label className="block text-[.78rem] font-bold text-ink-3">편집할 선<select value={selectedStroke ? String(selectedStroke.index) : ""} onChange={(event) => selectShape(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-[10px] border border-line bg-white px-3 outline-none focus:border-brand/45"><option value="" disabled>미리보기에서 선을 선택하세요</option>{strokes.map((stroke) => <option key={stroke.index} value={stroke.index}>{stroke.label} · {stroke.shape.dashed ? "점선" : "실선"}</option>)}</select></label>
-                    {selectedStroke ? <div className="space-y-4"><fieldset><legend className="text-[.78rem] font-bold text-ink-3">선 모양</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: false }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>━━ 실선</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: true }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>┅┅ 점선</button></div></fieldset>{selectedStroke.shape.type === "line" ? <fieldset><legend className="text-[.78rem] font-bold text-ink-3">끝 표시</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: false } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>일반 선분</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: true } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>⟶ 벡터</button></div></fieldset> : null}<fieldset className="border-t border-line pt-4"><legend className="px-1 text-[.78rem] font-bold text-ink-3">크기 조정</legend>{selectedStroke.shape.type === "rightAngle" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">직각 표시 크기</span><NumberSpinner value={selectedStroke.shape.size} min={0.05} max={100} step={0.05} onChange={(value) => resizeSelectedStroke("size", value)} /></div> : selectedStroke.shape.type === "line" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">선분 길이</span><NumberSpinner value={Number(Math.hypot(selectedStroke.shape.to[0] - selectedStroke.shape.from[0], selectedStroke.shape.to[1] - selectedStroke.shape.from[1]).toFixed(2))} min={0.1} max={1000} step={0.1} onChange={(value) => resizeSelectedStroke("length", value)} /></div> : selectedStroke.shape.type === "arc" ? <div className="mt-2 space-y-3">
+{selectedStroke ? <div className="space-y-4"><fieldset><legend className="text-[.78rem] font-bold text-ink-3">선 모양</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: false }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>━━ 실선</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => ({ ...shape, dashed: true }))} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.dashed ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>┅┅ 점선</button></div></fieldset>{selectedStroke.shape.type === "line" ? <fieldset><legend className="text-[.78rem] font-bold text-ink-3">선 종류와 끝 표시</legend><label className="mt-2 block text-xs text-ink-4">선 종류<select aria-label="선 종류" value={selectedStroke.shape.role ?? "segment"} onChange={(event) => { const role = event.target.value as "axis" | "vector" | "segment"; updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, role } : shape); }} className="mt-1 min-h-10 w-full rounded-[9px] border border-line bg-white px-3"><option value="axis">좌표축</option><option value="segment">일반 선</option><option value="vector">수학 벡터</option></select></label><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: false } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>화살표 없음</button><button type="button" onClick={() => updateShape(selectedStroke.index, (shape) => shape.type === "line" ? { ...shape, arrow: true } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedStroke.shape.arrow ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>화살표 있음</button></div></fieldset> : null}<fieldset className="border-t border-line pt-4"><legend className="px-1 text-[.78rem] font-bold text-ink-3">크기 조정</legend>{selectedStroke.shape.type === "rightAngle" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">직각 표시 크기</span><NumberSpinner value={selectedStroke.shape.size} min={0.05} max={100} step={0.05} onChange={(value) => resizeSelectedStroke("size", value)} /></div> : selectedStroke.shape.type === "line" ? <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[.74rem] text-ink-4">{selectedStroke.shape.role === "axis" ? "축 표시 길이" : "선분 길이"}</span><NumberSpinner value={Number(Math.hypot(selectedStroke.shape.to[0] - selectedStroke.shape.from[0], selectedStroke.shape.to[1] - selectedStroke.shape.from[1]).toFixed(2))} min={0.1} max={1000} step={0.1} onChange={(value) => resizeSelectedStroke("length", value)} /></div> : selectedStroke.shape.type === "arc" ? <div className="mt-2 space-y-3">
                         {selectedMedian ? <>
                           <div className="flex items-center justify-between gap-3"><span className="text-[.74rem] font-bold">중선 AM과 AC 사이 각도</span><NumberSpinner value={Number(Math.abs(selectedStroke.shape.endAngle-selectedStroke.shape.startAngle).toFixed(2))} min={1} max={89} step={1} suffix="°" onChange={changeSelectedAngle} /></div>
                           <p className="text-[.72rem] leading-5 text-ink-4">직각·중점 M·AC 길이를 유지합니다. AB 길이, 점의 위치, 각도 호와 수치를 함께 변경합니다.</p>

@@ -13,9 +13,10 @@ const paint = {
   color: z.string().regex(/^#[0-9a-f]{6}$/i),
   dashed: z.boolean(),
 };
+const lineRole = z.enum(["axis", "vector", "segment"]);
 
 export const mathFigureShapeSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("line"), ...paint, from: coordinate, to: coordinate, arrow: z.boolean() }),
+  z.object({ type: z.literal("line"), ...paint, from: coordinate, to: coordinate, arrow: z.boolean(), role: lineRole.optional() }),
   z.object({ type: z.literal("curve"), ...paint, from: coordinate, to: coordinate, bend: z.number().finite().min(-100).max(100) }),
   z.object({ type: z.literal("polygon"), ...paint, points: z.array(coordinate).min(3).max(40), fill: z.string().regex(/^(none|#[0-9a-f]{6})$/i) }),
   z.object({ type: z.literal("circle"), ...paint, center: coordinate, radius: z.number().positive().max(1000), fill: z.string().regex(/^(none|#[0-9a-f]{6})$/i) }),
@@ -68,7 +69,7 @@ function splitLineAtPoints(shape: Extract<MathFigureShape, { type: "line" }>, ca
     return { point, ratio, distance: Math.hypot(point[0] - projected[0], point[1] - projected[1]) };
   }).filter((item) => item.ratio > 0.001 && item.ratio < 0.999 && item.distance <= Math.max(0.015, length * 0.012)).sort((a, b) => a.ratio - b.ratio);
   const ordered = [shape.from, ...cuts.filter((item, index) => index === 0 || item.ratio - cuts[index - 1].ratio > 0.001).map((item) => item.point), shape.to];
-  return ordered.slice(0, -1).map((from, index) => ({ ...shape, from, to: ordered[index + 1] }));
+  return ordered.slice(0, -1).map((from, index) => ({ ...shape, from, to: ordered[index + 1], arrow: shape.arrow && index === ordered.length - 2 }));
 }
 
 function ellipseAngle(point: Coordinate, center: Coordinate, radiusX: number, radiusY: number, rotation: number) {
@@ -122,7 +123,7 @@ const aiPaint = {
 const pointId = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,19}$/);
 const pointReference = z.union([pointId, coordinate]);
 const aiShapeSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("line"), ...aiPaint, from: pointId, to: pointId, arrow: z.boolean().default(false) }),
+  z.object({ type: z.literal("line"), ...aiPaint, from: pointId, to: pointId, arrow: z.boolean().default(false), role: lineRole.optional() }),
   z.object({ type: z.literal("curve"), ...aiPaint, from: pointId, to: pointId, bend: z.number().finite().min(-100).max(100) }),
   z.object({ type: z.literal("polygon"), ...aiPaint, points: z.array(pointId).min(3).max(40), fill: z.string().regex(/^(none|#[0-9a-f]{6})$/i).default("none") }),
   z.object({ type: z.literal("circle"), ...aiPaint, center: pointReference, radius: z.number().positive().max(1000), fill: z.string().regex(/^(none|#[0-9a-f]{6})$/i).default("none") }),
@@ -264,10 +265,14 @@ export function reconcileVariationGeometry(spec: MathFigureSpec): MathFigureSpec
 }
 
 export const MATH_FIGURE_SYSTEM_PROMPT = `당신은 대한민국 수학 시험지용 도형을 복원하는 기하 도면 전문가입니다.
-입력 이미지를 보고 제공된 JSON 스키마만 반환하세요. 픽셀을 베끼지 말고 점, 선, 원, 각, 직각, 합동 표시와 라벨의 의미를 해석하여 깨끗한 흑백 벡터 도형으로 재구성합니다.
+입력 이미지를 보고 제공된 JSON 스키마만 반환하세요. 원본의 배치, 비율, 투영 방향과 곡률을 충실히 유지하면서 점, 선, 원, 각, 직각, 합동 표시와 라벨을 깨끗한 흑백 벡터 도형으로 복원합니다. 수학적 의미를 추정해서 원본과 다른 모양으로 재설계하지 않습니다.
 
 규칙:
 - 원본에 보이는 정보만 그립니다. 답이나 보조선을 새로 만들지 않습니다.
+- 복원 요청에서는 식이나 수치를 그림 좌표의 길이로 환산하여 재배치하지 않습니다. 공간도형도 원본에 보이는 2차원 투영을 그대로 옮기고 원근을 새로 계산하지 않습니다.
+- 회색 면의 경계가 곡선이면 polygon의 points를 경계 순서대로 정의하고 해당 변의 같은 양 끝점 id를 사용하는 curve를 별도로 정의합니다. 렌더러는 그 곡선을 따라 면을 채우므로 곡선 아래에 직선 현이나 삼각분할 대각선을 추가하지 않습니다. 직선 경계도 별도 line으로 정의하면 개별 편집할 수 있습니다.
+- 곡선 면은 꼭짓점만 잇는 다각형으로 단순화하지 않습니다. 굴곡이 달라지는 지점에서는 여러 curve로 나누고 polygon에도 같은 경계점을 순서대로 포함합니다. 원본에 없는 단면이나 두께 표현을 추가하지 않습니다.
+- shapes 배열에는 뒤쪽 면부터 앞쪽 면 순서로 넣고, 모든 면을 넣은 다음 보이는 경계선과 곡선, 마지막으로 라벨을 넣어 선과 글자가 채움에 덮이지 않게 합니다. 가려진 선을 임의로 관통시키지 않습니다.
 - 모든 선과 글자가 xRange/yRange 안에 있고 서로 불필요하게 겹치지 않게 배치합니다.
 - 일반 선은 #1f2937과 dashed=false를 사용합니다. 원본의 점선, 숨은 선, 투영선은 반드시 dashed=true로 구분합니다. 채움은 기본 none입니다.
 - 공간도형은 projection=spatial로 설정하고 가려진 모서리는 반드시 별도의 line과 dashed=true로 표시합니다. 실선과 점선이 섞인 외곽선은 하나의 polygon으로 합치지 않습니다.
@@ -289,9 +294,11 @@ export const MATH_FIGURE_SYSTEM_PROMPT = `당신은 대한민국 수학 시험�
 - 원이나 타원이 두 점 A, B를 지나고 위·아래 호를 따로 조절할 수 있어야 하면 전체 circle/ellipse 하나로 만들지 말고 A와 B를 경계로 한 arc/ellipticArc 두 개를 만듭니다. 실선 부분과 점선 부분도 반드시 별도 호로 분리합니다.
 - 정확한 원호가 아니라 두 점 사이를 완만하게 잇는 일반 곡선이나 보조 곡선은 curve(from,to,bend)를 사용합니다. bend의 부호는 휘는 방향, 절댓값은 휘어짐 정도입니다.
 - point의 labelAt은 "top" 같은 단어가 아니라 반드시 [x,y] 좌표입니다.
-- 선분과 벡터는 모두 type=line입니다. 원본 끝에 화살촉이 보이는 벡터나 반직선은 반드시 arrow=true, 일반 선분은 arrow=false로 구분하며 type=vector는 사용하지 않습니다. 점선 여부인 dashed와 화살표 여부인 arrow는 서로 독립적으로 판정합니다.
+- 모든 직선은 type=line이며 role로 의미를 구분합니다. x/y/z 좌표축은 role=axis, 실제 수학 벡터는 role=vector, 일반 선분·함수 그래프의 직선 구간·좌표 보조선은 role=segment입니다. 화살표가 있다는 이유만으로 벡터로 판정하지 않습니다. 좌표축의 숫자·눈금·공점·폐점도 벡터가 아닙니다.
+- arrow는 끝에 화살촉이 보일 때만 true이며 role과 독립적입니다. 좌표축을 분할해도 모든 조각은 role=axis를 유지하고 마지막 조각만 arrow=true입니다. dashed는 점선 여부입니다.
+- 좌표축을 여러 line으로 나눌 때 화살표는 원본 화살촉이 있는 마지막 조각에만 둡니다. 중간 조각과 원점에는 화살표를 추가하지 않습니다.
 - shapes의 종류와 필드는 다음만 사용합니다:
-  line(from,to,arrow), curve(from,to,bend), polygon(points,fill), circle(center,radius,fill), ellipse(center,radiusX,radiusY,rotation,fill), arc(center,radius,startAngle,endAngle), ellipticArc(center,radiusX,radiusY,rotation,startAngle,endAngle), rightAngle(vertex,from,to,size), tick(from,to,count,size), text(at,text,fontSize), dimension(from,to,offset,text,fontSize).
+  line(from,to,arrow,role), curve(from,to,bend), polygon(points,fill), circle(center,radius,fill), ellipse(center,radiusX,radiusY,rotation,fill), arc(center,radius,startAngle,endAngle), ellipticArc(center,radiusX,radiusY,rotation,startAngle,endAngle), rightAngle(vertex,from,to,size), tick(from,to,count,size), text(at,text,fontSize), dimension(from,to,offset,text,fontSize).
 - 모든 shape에는 color="#1f2937"와 dashed 값을 명시합니다. dashed는 원본이 실선이면 false, 점선이면 true입니다.
 - 출력 예시: {"title":"삼각형 ABC","description":"점 A, B, C로 이루어진 삼각형","projection":"plane","xRange":[0,10],"yRange":[0,7],"points":[{"id":"A","at":[5,6],"label":"A","labelAt":[5,6.5],"filled":false},{"id":"B","at":[1,1],"label":"B","labelAt":[0.6,0.7],"filled":false},{"id":"C","at":[9,1],"label":"C","labelAt":[9.4,0.7],"filled":false}],"shapes":[{"type":"polygon","points":["A","B","C"],"color":"#1f2937","dashed":false,"fill":"none"}],"notes":[]}
 - notes에는 인식이 불확실한 부분이나 사용자가 확인해야 할 수학 조건만 기록합니다.`;

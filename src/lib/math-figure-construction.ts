@@ -22,8 +22,8 @@ export function binomialProbability(n: number, p: number, k: number) {
 
 function axes(xRange: P, yRange: P): MathFigureShape[] {
   const shapes: MathFigureShape[] = [];
-  if (yRange[0] <= 0 && yRange[1] >= 0) shapes.push({ ...line([xRange[0], 0], [xRange[1], 0]), arrow: true } as MathFigureShape);
-  if (xRange[0] <= 0 && xRange[1] >= 0) shapes.push({ ...line([0, yRange[0]], [0, yRange[1]]), arrow: true } as MathFigureShape);
+  if (yRange[0] <= 0 && yRange[1] >= 0) shapes.push({ ...line([xRange[0], 0], [xRange[1], 0]), arrow: true, role: "axis" } as MathFigureShape);
+  if (xRange[0] <= 0 && xRange[1] >= 0) shapes.push({ ...line([0, yRange[0]], [0, yRange[1]]), arrow: true, role: "axis" } as MathFigureShape);
   const niceStep = (span: number) => { const raw = span / 6, power = 10 ** Math.floor(Math.log10(raw)), ratio = raw / power; return (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10) * power; };
   const step = niceStep(xRange[1] - xRange[0]), tick = (yRange[1] - yRange[0]) * 0.012;
   if (yRange[0] <= 0 && yRange[1] >= 0) for (let i = Math.ceil(xRange[0]/step); i <= Math.floor(xRange[1]/step); i++) {

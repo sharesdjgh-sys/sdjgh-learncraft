@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 const scripts = [
+  "scripts/verify-math-figure-label-sizes.tsx",
+  "scripts/verify-math-figure-axes.tsx",
+  "scripts/verify-math-figure-faces.tsx",
+  "scripts/verify-math-figure-point-labels.tsx",
   "scripts/verify-math-figure-coverage.ts",
   "scripts/verify-math-figure-lab.ts",
   "scripts/verify-math-figure-angle.ts",
