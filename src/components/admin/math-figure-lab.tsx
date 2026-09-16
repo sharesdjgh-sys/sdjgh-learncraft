@@ -23,6 +23,7 @@ type Mode = "clean" | "variation";
 type EditorTab = "labels" | "strokes";
 type Position = number[];
 type EditableShape = Extract<MathFigureShape, { type: "point" | "text" | "dimension" }>;
+type EditableMeasurement = { kind: "angle" | "length"; label: string; value: number };
 type PointShape = Extract<MathFigureShape, { type: "point" }>;
 type StrokeShape = Extract<MathFigureShape, { type: "line" | "curve" | "polygon" | "circle" | "ellipse" | "arc" | "ellipticArc" | "rightAngle" }>;
 
@@ -460,7 +461,8 @@ export function MathFigureLab() {
   const [sourcePanel, setSourcePanel] = useState<"image" | "calculation">("image");
   const [mode, setMode] = useState<Mode>("clean");
   const [file, setFile] = useState<File | null>(null);
-  const [instruction, setInstruction] = useState("");
+  const [editableMeasurements, setEditableMeasurements] = useState<EditableMeasurement[] | null>(null);
+  const [measurementDrafts, setMeasurementDrafts] = useState<Record<number, number>>({});
   const [allLabelFontSize, setAllLabelFontSize] = useState(22);
   const [spec, setSpec] = useState<MathFigureSpec | null>(null);
   const [history, setHistory] = useState<MathFigureSpec[]>([]);
@@ -479,7 +481,11 @@ export function MathFigureLab() {
   const previewUrl = useMemo(() => file ? URL.createObjectURL(file) : "", [file]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-  const canAnalyze = Boolean(file && !loading && (mode === "clean" || instruction.trim()));
+  const canAnalyze = Boolean(file && !loading);
+  useEffect(() => {
+    setMeasurementDrafts(Object.fromEntries((editableMeasurements ?? []).map((measurement, index) => [index, measurement.value])));
+  }, [editableMeasurements]);
+  const hasMeasurementChanges = editableMeasurements?.some((measurement, index) => Math.abs((measurementDrafts[index] ?? measurement.value) - measurement.value) > 0.000001) ?? false;
   const editableLabels = useMemo(() => spec?.shapes.map((shape, index) => ({ shape, index })).filter((item): item is { shape: EditableShape; index: number } => item.shape.type === "point" || item.shape.type === "text" || item.shape.type === "dimension") ?? [], [spec]);
   const segments = useMemo(() => {
     if (!spec) return [];
@@ -530,6 +536,33 @@ export function MathFigureLab() {
     if (!spec) return;
     const next = setFigureLabelFontSize(spec, allLabelFontSize);
     if (next !== spec) commitSpec(next);
+  }
+
+  async function renderVariation() {
+    if (!file || !editableMeasurements?.length || !hasMeasurementChanges || loading) return;
+    setLoading(true);
+    setRequestError("");
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      form.set("mode", "variation");
+      form.set("measurements", JSON.stringify(editableMeasurements.map((measurement, index) => ({ ...measurement, nextValue: measurementDrafts[index] ?? measurement.value })).filter((measurement) => Math.abs(measurement.nextValue - measurement.value) > 0.000001)));
+      const response = await fetch("/api/admin/math-figures/analyze", { method: "POST", body: form });
+      const data = await response.json().catch(() => null) as { spec?: unknown; error?: string } | null;
+      if (!response.ok || !data?.spec) throw new Error(data?.error || "변경한 수치로 도형을 만들지 못했습니다.");
+      const next = mathFigureSpecSchema.parse(data.spec);
+      setSpec(next);
+      setHistory([]);
+      setEditableMeasurements(null);
+      const firstLabel = next.shapes.findIndex((shape) => shape.type === "text" || shape.type === "point");
+      setSelectedIndex(firstLabel >= 0 ? firstLabel : null);
+      const firstSegment = next.shapes.findIndex((shape) => shape.type === "line");
+      setSegmentIndex(firstSegment >= 0 ? String(firstSegment) : "");
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "변경한 수치로 도형을 만들지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function moveLabel(index: number, at: Position) {
@@ -627,6 +660,7 @@ export function MathFigureLab() {
   function chooseFile(next: File | null) {
     setRequestError("");
     setSpec(null);
+    setEditableMeasurements(null);
     setHistory([]);
     setSelectedIndex(null);
     if (!next) { setFile(null); return; }
@@ -636,7 +670,6 @@ export function MathFigureLab() {
       return;
     }
     setFile(next);
-    setInstruction("");
   }
 
   async function analyze() {
@@ -647,14 +680,21 @@ export function MathFigureLab() {
       const form = new FormData();
       form.set("image", file);
       form.set("mode", mode);
-      form.set("instruction", instruction.trim());
-      if (mode === "variation" && spec) form.set("currentSpec", JSON.stringify(spec));
       const response = await fetch("/api/admin/math-figures/analyze", { method: "POST", body: form });
-      const data = await response.json().catch(() => null) as { spec?: unknown; error?: string } | null;
-      if (!response.ok || !data?.spec) throw new Error(data?.error || "도형을 분석하지 못했습니다.");
+      const data = await response.json().catch(() => null) as { spec?: unknown; measurements?: EditableMeasurement[]; error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || "도형을 분석하지 못했습니다.");
+      if (mode === "variation") {
+        if (!data?.measurements) throw new Error(data?.error || "변경 가능한 수치를 찾지 못했습니다.");
+        setEditableMeasurements(data.measurements);
+        setSpec(null);
+        setHistory([]);
+        setSelectedIndex(null);
+        setSegmentIndex("");
+        return;
+      }
+      if (!data?.spec) throw new Error(data?.error || "도형을 분석하지 못했습니다.");
       const next = mathFigureSpecSchema.parse(data.spec);
-      if (mode === "variation" && spec) { if (!commitSpec(next)) return; }
-      else { setSpec(next); setHistory([]); }
+      setSpec(next); setHistory([]);
       const firstLabel = next.shapes.findIndex((shape) => shape.type === "text" || shape.type === "point");
       setSelectedIndex(firstLabel >= 0 ? firstLabel : null);
       const firstSegment = next.shapes.findIndex((shape) => shape.type === "line");
@@ -783,7 +823,7 @@ export function MathFigureLab() {
           {SHOW_CALCULATION_TOOLS && <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-3 p-1" role="tablist" aria-label="도형 입력 방식">{([{value:"image",label:"이미지에서 복원"},{value:"calculation",label:"수식·수치로 생성"}] as const).map(item => <button key={item.value} type="button" role="tab" aria-selected={sourcePanel === item.value} onClick={() => setSourcePanel(item.value)} className={cn("min-h-10 rounded-lg text-xs font-bold",sourcePanel === item.value ? "bg-white text-brand shadow-sm" : "text-ink-4")}>{item.label}</button>)}</div>}
           <div className={cn("rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-2)]",SHOW_CALCULATION_TOOLS && sourcePanel !== "image" && "hidden")}>
             <div className="flex rounded-[12px] bg-surface-3 p-1" role="tablist" aria-label="도형 처리 방식">
-              {([{ value: "clean", label: "깔끔하게 복원" }, { value: "variation", label: "수치·조건 변형" }] as const).map((item) => <button key={item.value} role="tab" aria-selected={mode === item.value} onClick={() => setMode(item.value)} className={cn("min-h-10 flex-1 rounded-[9px] px-3 text-[.82rem] font-bold transition", mode === item.value ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item.label}</button>)}
+              {([{ value: "clean", label: "깔끔하게 복원" }, { value: "variation", label: "수치·조건 변형" }] as const).map((item) => <button key={item.value} role="tab" aria-selected={mode === item.value} onClick={() => { setMode(item.value); setSpec(null); setEditableMeasurements(null); setHistory([]); setSelectedIndex(null); }} className={cn("min-h-10 flex-1 rounded-[9px] px-3 text-[.82rem] font-bold transition", mode === item.value ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item.label}</button>)}
             </div>
 
             <button type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); chooseFile(event.dataTransfer.files[0] ?? null); }} className="mt-4 flex min-h-40 w-full flex-col items-center justify-center rounded-[15px] border border-dashed border-brand/30 bg-brand-page/50 p-4 text-center transition-all duration-300 ease-out hover:border-brand/55 hover:bg-brand-page active:scale-[.99]">
@@ -792,9 +832,11 @@ export function MathFigureLab() {
             <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => chooseFile(event.target.files?.[0] ?? null)} />
             {file && <div className="mt-3 flex items-center justify-between gap-3 text-[.76rem]"><span className="min-w-0 truncate text-ink-4">{file.name}</span><button onClick={() => { chooseFile(null); if (inputRef.current) inputRef.current.value = ""; }} className="shrink-0 font-bold text-brand">다른 이미지</button></div>}
 
-            <label htmlFor="figure-instruction" className="mt-5 block text-[.82rem] font-bold">{mode === "variation" ? "어떻게 바꿀까요?" : "추가 요청 (선택)"}</label>
-            <textarea id="figure-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={3} maxLength={500} placeholder={mode === "variation" ? "예: 60°를 45°로 바꾸고 관련 선의 위치도 조정해 주세요." : "예: 점선과 직각 표시를 특히 선명하게 복원해 주세요."} className="mt-2 w-full resize-y rounded-[12px] border border-line bg-white px-3.5 py-3 text-[.82rem] leading-6 outline-none transition placeholder:text-ink-5 focus:border-brand/45 focus:ring-3 focus:ring-brand/10" />
-            <Button onClick={analyze} disabled={!canAnalyze} size="lg" className="mt-4 w-full">{loading ? <LoaderCircle size={18} className="animate-spin" /> : <Sparkles size={18} />}{loading ? "도형을 분석하는 중..." : mode === "variation" ? "변형 도형 만들기" : "벡터 도형으로 복원"}</Button>
+            <Button onClick={analyze} disabled={!canAnalyze} size="lg" className="mt-4 w-full">{loading ? <LoaderCircle size={18} className="animate-spin" /> : <Sparkles size={18} />}{loading ? "도형을 분석하는 중..." : mode === "variation" ? "변경할 수치 찾기" : "벡터 도형으로 복원"}</Button>
+            {mode === "variation" && editableMeasurements !== null ? <div className="mt-4 rounded-[13px] border border-brand/15 bg-brand-page/45 p-3.5">
+              <div className="flex items-center gap-2"><Ruler size={15} className="text-brand" /><h2 className="text-[.82rem] font-extrabold">변경 가능한 수치</h2></div>
+              {editableMeasurements.length ? <><div className="mt-3 space-y-2.5">{editableMeasurements.map((measurement, index) => <div key={`${measurement.kind}-${measurement.label}-${index}`} className="flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-2.5"><span className="min-w-0 truncate text-[.76rem] font-bold text-ink-3">{measurement.label}</span><NumberSpinner value={Number((measurementDrafts[index] ?? measurement.value).toFixed(4))} min={0.1} max={measurement.kind === "angle" ? 359.9 : 1000} step={measurement.kind === "angle" ? 1 : 0.1} suffix={measurement.kind === "angle" ? "°" : undefined} onChange={(value) => setMeasurementDrafts((current) => ({ ...current, [index]: value }))} /></div>)}</div><Button onClick={renderVariation} disabled={!hasMeasurementChanges || loading} size="sm" className="mt-3 w-full">{loading ? <LoaderCircle size={15} className="animate-spin" /> : <Sparkles size={15} />}{loading ? "도형을 만드는 중..." : "변경한 수치로 도형 만들기"}</Button></> : <p className="mt-3 text-[.74rem] leading-5 text-ink-4">변경 가능한 각도나 길이 수치를 찾지 못했습니다. 원본에 수치와 치수 표시가 선명하게 보이는지 확인해 주세요.</p>}
+            </div> : null}
             <p className="mt-3 text-[.75rem] leading-5 text-ink-5">이미지는 분석 요청에만 사용되며 서버나 데이터베이스에 저장하지 않습니다.</p>
           </div>
 
@@ -804,7 +846,7 @@ export function MathFigureLab() {
 
         <div className="min-w-0">
           {requestError && <div role="alert" className="mb-5 flex items-start gap-2 rounded-[13px] border border-danger/20 bg-[var(--danger-page)] p-4 text-[.84rem] text-danger"><AlertCircle size={17} className="mt-0.5 shrink-0" />{requestError}</div>}
-          {!spec ? <div className="grid min-h-[520px] place-items-center rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)]"><div className="max-w-sm px-6 text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-3 text-ink-5"><ImageIcon size={25} /></span><h2 className="mt-5 text-lg font-extrabold">결과가 여기에 표시됩니다</h2><p className="mt-2 break-keep text-[.84rem] leading-6 text-ink-4">왼쪽에서 이미지를 선택하고 복원 방식을 실행해 원본과 벡터 결과를 비교해 보세요.</p></div></div> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)]">
+          {!spec ? <div className="grid min-h-[520px] place-items-center rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)]"><div className="max-w-sm px-6 text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-3 text-ink-5"><ImageIcon size={25} /></span><h2 className="mt-5 text-lg font-extrabold">{editableMeasurements !== null ? "수치를 변경한 뒤 도형을 만드세요" : "결과가 여기에 표시됩니다"}</h2><p className="mt-2 break-keep text-[.84rem] leading-6 text-ink-4">{editableMeasurements !== null ? "왼쪽에서 원하는 숫자만 바꾸고 도형 만들기를 누르면 최종 결과가 한 번 생성됩니다." : "왼쪽에서 이미지를 선택하고 복원 방식을 실행해 원본과 벡터 결과를 비교해 보세요."}</p></div></div> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)]">
             <section className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)] lg:sticky lg:top-5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3"><div className="min-w-0"><div className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" /><h2 className="truncate text-[.9rem] font-extrabold">{spec.title}</h2></div></div><div className="flex flex-wrap gap-1.5"><Button variant="ghost" size="sm" onClick={undo} disabled={!history.length}><Undo2 size={14} /> 취소</Button><Button variant="secondary" size="sm" onClick={downloadSvg}><FileCode2 size={14} /> SVG</Button><Button variant="secondary" size="sm" onClick={downloadPng}><Download size={14} /> PNG</Button></div></div>
               <div className="border-b border-line bg-brand-page/45 px-3 py-2 text-center text-[.7rem] font-semibold text-brand-dark"><Move size={13} className="mr-1 inline" />선을 클릭하거나 문자·숫자를 드래그하세요.</div>
