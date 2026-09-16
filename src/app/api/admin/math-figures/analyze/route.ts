@@ -39,10 +39,6 @@ export async function POST(request: Request) {
       const source = mathFigureSpecSchema.parse(JSON.parse(currentSpec));
       return json({ spec: applyReferenceVariation(source,instruction), attempts: 0 });
     } catch (error) {
-      console.warn(`admin_math_figure_reference_edit_failed ${error instanceof Error ? `${error.name}: ${error.message}` : "UnknownError"}`, {
-        adminId: admin.id,
-        instruction,
-      });
       return json({error:error instanceof ReferenceEditError ? error.message : "현재 도형을 안전하게 변경할 수 없습니다. 원본을 다시 복원해 주세요."},422);
     }
   }
