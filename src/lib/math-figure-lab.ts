@@ -154,6 +154,13 @@ export const aiMathFigureSpecSchema = z.object({
   notes: z.array(z.string().trim().min(1).max(160)).max(8).default([]),
 });
 
+export function normalizeMathFigureNote(note: string) {
+  return note
+    .replace(/\$(-?\d+(?:\.\d+)?)\s*\^\s*\{?\s*\\circ\s*\}?\$/g, "$1°")
+    .replace(/(-?\d+(?:\.\d+)?)\s*\^\s*\{?\s*\\circ\s*\}?/g, "$1°")
+    .replace(/(-?\d+(?:\.\d+)?)\s*\\circ\b/g, "$1°");
+}
+
 export function normalizeAiMathFigureSpec(input: z.input<typeof aiMathFigureSpecSchema>): MathFigureSpec {
   const parsed = aiMathFigureSpecSchema.parse(input);
   const points = new Map(parsed.points.map((item) => [item.id, item.at]));
@@ -206,7 +213,7 @@ export function normalizeAiMathFigureSpec(input: z.input<typeof aiMathFigureSpec
     filled: item.filled,
     fontSize: item.fontSize,
   })));
-  return mathFigureSpecSchema.parse({ ...parsed, shapes });
+  return mathFigureSpecSchema.parse({ ...parsed, shapes, notes: parsed.notes.map(normalizeMathFigureNote) });
 }
 
 function sameCoordinate(a: Coordinate, b: Coordinate) {

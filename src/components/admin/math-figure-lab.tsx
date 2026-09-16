@@ -6,7 +6,7 @@ import katex from "katex";
 import { AlertCircle, CheckCircle2, Download, DraftingCompass, FileCode2, ImageIcon, LoaderCircle, Move, Plus, Ruler, ShieldCheck, Sparkles, Trash2, Undo2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { mathFigureSpecSchema, type MathFigureShape, type MathFigureSpec } from "@/lib/math-figure-lab";
+import { mathFigureSpecSchema, normalizeMathFigureNote, type MathFigureShape, type MathFigureSpec } from "@/lib/math-figure-lab";
 import { dimensionStrokes, updateDimensionStrokes, type DimensionCurve } from "@/lib/math-figure-dimension";
 import { angleBinding, resizeAngle } from "@/lib/math-figure-angle";
 import { hemisphereBinding, isHemisphereAngle, resizeHemisphereSection } from "@/lib/math-figure-hemisphere";
@@ -851,7 +851,7 @@ export function MathFigureLab() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3"><div className="min-w-0"><div className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" /><h2 className="truncate text-[.9rem] font-extrabold">{spec.title}</h2></div></div><div className="flex flex-wrap gap-1.5"><Button variant="ghost" size="sm" onClick={undo} disabled={!history.length}><Undo2 size={14} /> 취소</Button><Button variant="secondary" size="sm" onClick={downloadSvg}><FileCode2 size={14} /> SVG</Button><Button variant="secondary" size="sm" onClick={downloadPng}><Download size={14} /> PNG</Button></div></div>
               <div className="border-b border-line bg-brand-page/45 px-3 py-2 text-center text-[.7rem] font-semibold text-brand-dark"><Move size={13} className="mr-1 inline" />선을 클릭하거나 문자·숫자를 드래그하세요.</div>
               <div className="bg-white p-2"><MathFigureSvg spec={spec} svgRef={svgRef} selectedIndex={selectedIndex} angleFixed={selectedHemisphere?.baseSide ?? angleFixed} onSelect={selectShape} onMove={moveLabel} onMoveStart={rememberCurrentSpec} /></div>
-              {spec.notes.length > 0 && <details className="border-t border-line bg-surface-2"><summary className="cursor-pointer px-4 py-2.5 text-[.74rem] font-bold text-ink-3">확인이 필요한 부분 {spec.notes.length}개</summary><ul className="space-y-1 border-t border-line px-4 py-3 text-[.74rem] leading-5 text-ink-4">{spec.notes.map((note, index) => <li key={index}>· {note}</li>)}</ul></details>}
+              {spec.notes.length > 0 && <details className="border-t border-line bg-surface-2"><summary className="cursor-pointer px-4 py-2.5 text-[.74rem] font-bold text-ink-3">확인이 필요한 부분 {spec.notes.length}개</summary><ul className="space-y-1 border-t border-line px-4 py-3 text-[.74rem] leading-5 text-ink-4">{spec.notes.map((note, index) => <li key={index}>· {normalizeMathFigureNote(note)}</li>)}</ul></details>}
             </section>
 
             <section className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-2)] sm:p-5">

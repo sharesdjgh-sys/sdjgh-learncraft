@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { normalizeAiMathFigureSpec, reconcileVariationGeometry } from "../src/lib/math-figure-lab";
+import { normalizeAiMathFigureSpec, normalizeMathFigureNote, reconcileVariationGeometry } from "../src/lib/math-figure-lab";
+
+assert.equal(normalizeMathFigureNote("각 PAH의 각도를 60도에서 45^\\circ로 변경함."), "각 PAH의 각도를 60도에서 45°로 변경함.");
+assert.equal(normalizeMathFigureNote("각도를 $30^{\\circ}$로 변경함."), "각도를 30°로 변경함.");
 
 const spec = normalizeAiMathFigureSpec({
   title: "구간 분할 검사",
