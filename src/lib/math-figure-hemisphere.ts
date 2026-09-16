@@ -38,7 +38,7 @@ export function isHemisphereAngle(spec: MathFigureSpec, index: number) {
   if (/반구/.test(`${spec.title} ${spec.description}`)) return true;
   const selected = spec.shapes[index];
   if (selected?.type !== "arc") return false;
-  return spec.shapes.some((base) => (base.type === "ellipse" || base.type === "ellipticArc") && base.radiusX > base.radiusY * 1.05 && Math.abs(distance(base.center, selected.center) - base.radiusX) < base.radiusX * 0.04 && spec.shapes.some((rim) => (rim.type === "circle" || rim.type === "arc") && distance(rim.center, base.center) < 0.001 && Math.abs(rim.radius - base.radiusX) < base.radiusX * 0.04));
+  return spec.shapes.some((base) => (base.type === "ellipse" || base.type === "ellipticArc") && base.radiusX > base.radiusY * 1.05 && Math.abs(distance(base.center, selected.center) - base.radiusX) < base.radiusX * 0.08 && spec.shapes.some((rim) => (rim.type === "circle" || rim.type === "arc") && distance(rim.center, base.center) < base.radiusX * 0.02 && Math.abs(rim.radius - base.radiusX) < base.radiusX * 0.08));
 }
 
 export function hemisphereBinding(spec: MathFigureSpec, angleIndex: number): Model | null {
@@ -50,11 +50,13 @@ export function hemisphereBinding(spec: MathFigureSpec, angleIndex: number): Mod
   const binding = angleBinding(spec, arc, 0.5);
   if (!binding) return null;
   const ellipses = spec.shapes.flatMap((shape, index) => shape.type === "ellipse" || shape.type === "ellipticArc" ? [{ shape, index }] : []);
-  const bases = ellipses.filter(({ shape }) => shape.radiusX > shape.radiusY * 1.05 && ellipsePointInfo(shape, arc.center).error < 0.08 && Math.abs(distance(shape.center, arc.center) - shape.radiusX) < Math.max(0.001, shape.radiusX * 0.012) && spec.shapes.some((rim) => (rim.type === "circle" || rim.type === "arc") && distance(rim.center, shape.center) < 0.001 && Math.abs(rim.radius - shape.radiusX) < shape.radiusX * 0.04));
+  // Tolerances are loosened from pixel-perfect matching: AI-reconstructed drawings are never exact,
+  // and the follow-up resize always recomputes exact coordinates from the recognized model anyway.
+  const bases = ellipses.filter(({ shape }) => shape.radiusX > shape.radiusY * 1.05 && ellipsePointInfo(shape, arc.center).error < 0.18 && Math.abs(distance(shape.center, arc.center) - shape.radiusX) < Math.max(0.002, shape.radiusX * 0.035) && spec.shapes.some((rim) => (rim.type === "circle" || rim.type === "arc") && distance(rim.center, shape.center) < Math.max(0.002, shape.radiusX * 0.02) && Math.abs(rim.radius - shape.radiusX) < shape.radiusX * 0.08));
   const uniqueBases = bases.filter((item, i) => !bases.slice(0, i).some((previous) => distance(previous.shape.center, item.shape.center) < 0.001 && Math.abs(previous.shape.radiusX - item.shape.radiusX) < 0.001));
   if (uniqueBases.length !== 1) return null;
   const base = uniqueBases[0].shape, r = base.radiusX;
-  const tolerance = Math.max(0.001, r * 0.012);
+  const tolerance = Math.max(0.002, r * 0.03);
   const baseAngle = direction(arc.center, base.center);
   const baseSide = angleDifference(direction(arc.center, binding.start), baseAngle) < 1 ? "start" : angleDifference(direction(arc.center, binding.end), baseAngle) < 1 ? "end" : null;
   if (!baseSide) return null;
@@ -76,7 +78,7 @@ export function hemisphereBinding(spec: MathFigureSpec, angleIndex: number): Mod
   const feet = spec.shapes.filter((shape): shape is Extract<MathFigureShape, { type: "rightAngle" }> => shape.type === "rightAngle" && (distance(shape.from, base.center) < tolerance || distance(shape.to, base.center) < tolerance) && Math.abs(distance(arc.center, shape.vertex) + distance(shape.vertex, top) - distance(arc.center, top)) < tolerance);
   if (feet.length > 1) return null;
   const foot = feet[0]?.vertex;
-  const candidates = ellipses.filter(({ shape }) => distance(shape.center, base.center) > r * 0.05 && distance(shape.center, sectionCenter) < r * 0.15 && ellipsePointInfo(shape, arc.center).error < 0.25 && ellipsePointInfo(shape, top).error < 0.25);
+  const candidates = ellipses.filter(({ shape }) => distance(shape.center, base.center) > r * 0.05 && distance(shape.center, sectionCenter) < r * 0.25 && ellipsePointInfo(shape, arc.center).error < 0.4 && ellipsePointInfo(shape, top).error < 0.4);
   if (!candidates.length) {
     const curves = spec.shapes.flatMap((shape, index) => {
       if (shape.type !== "curve") return [];
@@ -88,9 +90,9 @@ export function hemisphereBinding(spec: MathFigureSpec, angleIndex: number): Mod
     return { center: base.center, radius: r, axis, depthRatio, degrees, angleIndex, baseSide, markerRadius: arc.radius, top, sectionCenter, anchor: arc.center, foot, pieces: curves.map(({ index, side }) => ({ index, start: side < 0 ? 0 : 180, end: side < 0 ? 180 : 360, closed: false })) };
   }
   const first = candidates[0].shape;
-  if (candidates.some(({ shape }) => distance(shape.center, first.center) > r * 0.02 || Math.abs(shape.radiusX - first.radiusX) > r * 0.02 || Math.abs(shape.radiusY - first.radiusY) > r * 0.02 || angleDifference(shape.rotation, first.rotation) > 1)) return null;
+  if (candidates.some(({ shape }) => distance(shape.center, first.center) > r * 0.05 || Math.abs(shape.radiusX - first.radiusX) > r * 0.05 || Math.abs(shape.radiusY - first.radiusY) > r * 0.05 || angleDifference(shape.rotation, first.rotation) > 3)) return null;
   const total = candidates.reduce((sum, { shape }) => sum + (shape.type === "ellipse" ? 360 : Math.abs(shape.endAngle - shape.startAngle)), 0);
-  if (Math.abs(total - 360) > 2) return null;
+  if (Math.abs(total - 360) > 6) return null;
   return { center: base.center, radius: r, axis, depthRatio, degrees, angleIndex, baseSide, markerRadius: arc.radius, top, sectionCenter: first.center, anchor: arc.center, foot, pieces: candidates.map(({ shape, index }) => {
     const phase = ellipsePointInfo(shape, arc.center).angle;
     return { index, start: shape.type === "ellipse" ? 0 : shape.startAngle - phase, end: shape.type === "ellipse" ? 360 : shape.endAngle - phase, closed: shape.type === "ellipse" };

@@ -12,7 +12,7 @@ function edges(spec: MathFigureSpec) {
   return spec.shapes.flatMap((shape) => shape.type === "line" ? [{ from: shape.from, to: shape.to }] : shape.type === "polygon" ? shape.points.map((from, index) => ({ from, to: shape.points[(index + 1) % shape.points.length] })) : []);
 }
 
-export function angleBinding(spec: MathFigureSpec, arc: Arc, collinearTolerance = 0.01): AngleBinding | null {
+export function angleBinding(spec: MathFigureSpec, arc: Arc, collinearTolerance = 0.5): AngleBinding | null {
   const degrees = Math.abs(arc.endAngle - arc.startAngle);
   if (degrees < 0.1 || degrees >= 360) return null;
   const rays: Position[] = [];
@@ -21,18 +21,19 @@ export function angleBinding(spec: MathFigureSpec, arc: Arc, collinearTolerance 
     if (length < 0.001) continue;
     // Includes a vertex in the middle of an unsplit straight line.
     const cross = Math.abs((arc.center[0] - edge.from[0]) * (edge.to[1] - edge.from[1]) - (arc.center[1] - edge.from[1]) * (edge.to[0] - edge.from[0])) / length;
-    if (cross > 0.001 || distance(edge.from, arc.center) + distance(arc.center, edge.to) > length + 0.002) continue;
+    // Loosened from a pixel-perfect 0.001/0.002 so AI-reconstructed coordinates (never exact) still bind.
+    if (cross > 0.03 || distance(edge.from, arc.center) + distance(arc.center, edge.to) > length + 0.05) continue;
     rays.push(...[edge.from, edge.to].filter((p) => !same(p, arc.center)));
   }
   const match = (angle: number) => {
-    let endpoint = rays.filter((p) => angularDistance(direction(arc.center, p), angle) < 1).sort((a, b) => distance(b, arc.center) - distance(a, arc.center))[0];
+    let endpoint = rays.filter((p) => angularDistance(direction(arc.center, p), angle) < 4).sort((a, b) => distance(b, arc.center) - distance(a, arc.center))[0];
     if (!endpoint) return undefined;
     const rayAngle = direction(arc.center, endpoint);
     for (let pass = 0; pass < spec.shapes.length; pass++) {
       const before = distance(arc.center, endpoint);
       for (const edge of edges(spec)) {
         for (const [near, far] of [[edge.from, edge.to], [edge.to, edge.from]]) {
-          if (distance(arc.center, near) <= distance(arc.center, endpoint) + 0.001 && distance(arc.center, far) > distance(arc.center, endpoint) && angularDistance(direction(arc.center, near), rayAngle) < collinearTolerance && angularDistance(direction(arc.center, far), rayAngle) < collinearTolerance) endpoint = far;
+          if (distance(arc.center, near) <= distance(arc.center, endpoint) + 0.02 && distance(arc.center, far) > distance(arc.center, endpoint) && angularDistance(direction(arc.center, near), rayAngle) < collinearTolerance && angularDistance(direction(arc.center, far), rayAngle) < collinearTolerance) endpoint = far;
         }
       }
       if (distance(arc.center, endpoint) <= before) break;
