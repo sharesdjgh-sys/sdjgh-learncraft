@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { normalizeAiMathFigureSpec, normalizeMathFigureNote, reconcileVariationGeometry } from "../src/lib/math-figure-lab";
+import { mathFigureSpecSchema, normalizeAiMathFigureSpec, normalizeMathFigureNote, reconcileVariationGeometry, removeMathFigureShape, resizeMathFigureLine } from "../src/lib/math-figure-lab";
 
 assert.equal(normalizeMathFigureNote("각 PAH의 각도를 60도에서 45^\\circ로 변경함."), "각 PAH의 각도를 60도에서 45°로 변경함.");
 assert.equal(normalizeMathFigureNote("각도를 $30^{\\circ}$로 변경함."), "각도를 30°로 변경함.");
@@ -67,5 +67,40 @@ const lengthSpec = reconcileVariationGeometry({
 });
 const adjustedLine = lengthSpec.shapes.find((shape) => shape.type === "line");
 assert.ok(adjustedLine?.type === "line" && Math.abs(Math.hypot(adjustedLine.to[0] - adjustedLine.from[0], adjustedLine.to[1] - adjustedLine.from[1]) - 6) < 0.01, "길이 보조표시가 6이면 연결 선분도 길이 6으로 조정되어야 합니다.");
+
+const removableSpec = mathFigureSpecSchema.parse({
+  title: "요소 삭제",
+  description: "선과 각도 표시 삭제 검증",
+  projection: "plane",
+  xRange: [-1, 4],
+  yRange: [-1, 4],
+  shapes: [
+    { type: "line", color: "#1f2937", dashed: false, from: [0, 0], to: [3, 0], arrow: false },
+    { type: "line", color: "#1f2937", dashed: false, from: [0, 0], to: [2, 2], arrow: false },
+    { type: "arc", color: "#1f2937", dashed: false, center: [0, 0], radius: 0.5, startAngle: 0, endAngle: 45 },
+  ],
+  constraints: [{ kind: "perpendicular", target: 1, reference: 0 }],
+  hemisphereSection: { center: [0, 0], radius: 3, axis: [1, 0], depthRatio: 0.5, degrees: 45, angleIndex: 2, baseSide: "start", markerRadius: 0.5, top: [0, 3], sectionCenter: [0, 1], pieces: [{ index: 1, start: 0, end: 180, closed: false }] },
+  notes: [],
+});
+const withoutLine = removeMathFigureShape(removableSpec, 0);
+assert.equal(withoutLine.shapes.length, 2, "선택한 선만 삭제되어야 합니다.");
+assert.deepEqual(withoutLine.constraints, [], "삭제한 선을 참조하는 제약조건도 제거되어야 합니다.");
+assert.equal(withoutLine.hemisphereSection?.angleIndex, 1, "앞선 요소 삭제 후 각도 표시 인덱스를 보정해야 합니다.");
+assert.equal(withoutLine.hemisphereSection?.pieces[0]?.index, 0, "앞선 요소 삭제 후 단면 조각 인덱스를 보정해야 합니다.");
+const withoutAngle = removeMathFigureShape(withoutLine, 1);
+assert.equal(withoutAngle.shapes.some((shape) => shape.type === "arc"), false, "선택한 각도 표시를 삭제할 수 있어야 합니다.");
+assert.equal(withoutAngle.hemisphereSection, undefined, "각도 표시 삭제 시 연결 정보도 제거되어야 합니다.");
+
+const directionalLine = removableSpec.shapes[0];
+assert.equal(directionalLine.type, "line");
+if (directionalLine.type === "line") {
+  const fixedStart = resizeMathFigureLine(directionalLine, 5, "start");
+  assert.deepEqual(fixedStart.from, [0, 0], "시작점을 고르면 시작점은 고정되어야 합니다.");
+  assert.deepEqual(fixedStart.to, [5, 0], "시작점을 고르면 끝점 방향으로 길어져야 합니다.");
+  const fixedEnd = resizeMathFigureLine(directionalLine, 5, "end");
+  assert.deepEqual(fixedEnd.from, [-2, 0], "끝점을 고르면 시작점 방향으로 길어져야 합니다.");
+  assert.deepEqual(fixedEnd.to, [3, 0], "끝점을 고르면 끝점은 고정되어야 합니다.");
+}
 
 console.log("Math figure segment splitting verification passed.");

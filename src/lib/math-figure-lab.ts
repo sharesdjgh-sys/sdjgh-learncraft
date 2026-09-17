@@ -242,6 +242,56 @@ export function replaceSharedCoordinate(shape: MathFigureShape, before: Coordina
   }
 }
 
+export function removeMathFigureShape(spec: MathFigureSpec, index: number): MathFigureSpec {
+  if (!Number.isInteger(index) || index < 0 || index >= spec.shapes.length) return spec;
+
+  const constraints = spec.constraints
+    ?.filter((rule) => rule.target !== index && rule.reference !== index)
+    .map((rule) => ({
+      ...rule,
+      target: rule.target > index ? rule.target - 1 : rule.target,
+      reference: rule.reference > index ? rule.reference - 1 : rule.reference,
+    }));
+  const remainingHemispherePieces = spec.hemisphereSection?.pieces
+    .filter((piece) => piece.index !== index)
+    .map((piece) => ({ ...piece, index: piece.index > index ? piece.index - 1 : piece.index }));
+  const hemisphereSection = spec.hemisphereSection
+    ? spec.hemisphereSection.angleIndex === index || !remainingHemispherePieces?.length
+      ? undefined
+      : {
+          ...spec.hemisphereSection,
+          angleIndex: spec.hemisphereSection.angleIndex > index
+            ? spec.hemisphereSection.angleIndex - 1
+            : spec.hemisphereSection.angleIndex,
+          pieces: remainingHemispherePieces,
+        }
+    : undefined;
+
+  return mathFigureSpecSchema.parse({
+    ...spec,
+    constraints,
+    hemisphereSection,
+    shapes: spec.shapes.filter((_, shapeIndex) => shapeIndex !== index),
+  });
+}
+
+export function resizeMathFigureLine(
+  shape: Extract<MathFigureShape, { type: "line" }>,
+  length: number,
+  fixed: "start" | "end",
+): Extract<MathFigureShape, { type: "line" }> {
+  if (!Number.isFinite(length) || length <= 0) return shape;
+  const dx = shape.to[0] - shape.from[0];
+  const dy = shape.to[1] - shape.from[1];
+  const currentLength = Math.hypot(dx, dy);
+  if (currentLength < 0.0001) return shape;
+  const offset: Coordinate = [dx / currentLength * length, dy / currentLength * length];
+
+  return fixed === "start"
+    ? { ...shape, to: [shape.from[0] + offset[0], shape.from[1] + offset[1]] }
+    : { ...shape, from: [shape.to[0] - offset[0], shape.to[1] - offset[1]] };
+}
+
 export function reconcileVariationGeometry(spec: MathFigureSpec): MathFigureSpec {
   let next = spec;
   const warnings = [...spec.notes];
