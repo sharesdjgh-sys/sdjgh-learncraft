@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import NextImage from "next/image";
 import katex from "katex";
-import { AlertCircle, CheckCircle2, Download, DraftingCompass, FileCode2, ImageIcon, LoaderCircle, Move, Plus, Ruler, ShieldCheck, Sparkles, Trash2, Undo2, UploadCloud } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Download, DraftingCompass, FileCode2, ImageIcon, LoaderCircle, Move, Plus, Ruler, ShieldCheck, Sigma, Sparkles, Trash2, Undo2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { mathFigureSpecSchema, normalizeMathFigureNote, removeMathFigureShape, resizeMathFigureLine, type MathFigureShape, type MathFigureSpec } from "@/lib/math-figure-lab";
@@ -456,6 +456,19 @@ function FormulaValue({ value }: { value: string }) {
   return markup ? <span className="graph-math-label inline-flex items-center" dangerouslySetInnerHTML={{ __html: markup }} /> : <>{value}</>;
 }
 
+const mathInputSnippets = [
+  { name: "제곱근", preview: "\\sqrt{x}", insert: "\\sqrt{}", cursorBack: 1 },
+  { name: "도", preview: "30^\\circ", insert: "^\\circ", cursorBack: 0 },
+  { name: "분수", preview: "\\frac{a}{b}", insert: "\\frac{}{}", cursorBack: 3 },
+  { name: "제곱", preview: "x^{n}", insert: "^{}", cursorBack: 1 },
+  { name: "아래첨자", preview: "a_{n}", insert: "_{}", cursorBack: 1 },
+  { name: "사인", preview: "\\sin x", insert: "\\sin ", cursorBack: 0 },
+  { name: "코사인", preview: "\\cos x", insert: "\\cos ", cursorBack: 0 },
+  { name: "탄젠트", preview: "\\tan x", insert: "\\tan ", cursorBack: 0 },
+  { name: "파이", preview: "\\pi", insert: "\\pi", cursorBack: 0 },
+  { name: "로그", preview: "\\log_{2}x", insert: "\\log_{}", cursorBack: 1 },
+] as const;
+
 
 export function MathFigureLab() {
   const [sourcePanel, setSourcePanel] = useState<"image" | "calculation">("image");
@@ -477,6 +490,7 @@ export function MathFigureLab() {
   const [angleFixed, setAngleFixed] = useState<"start" | "end">("start");
   const [lineFixed, setLineFixed] = useState<"start" | "end">("start");
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const previewUrl = useMemo(() => file ? URL.createObjectURL(file) : "", [file]);
@@ -536,6 +550,22 @@ export function MathFigureLab() {
     const shapes = [...spec.shapes];
     shapes[index] = update(shapes[index]);
     commitSpec({ ...spec, shapes }, recordHistory);
+  }
+
+  function insertMathSnippet(insert: string, cursorBack: number) {
+    if (selectedIndex === null || !selectedShape || (selectedShape.type !== "point" && selectedShape.type !== "text" && selectedShape.type !== "dimension")) return;
+    const input = labelInputRef.current;
+    const value = selectedShape.type === "point" ? selectedShape.label : selectedShape.text;
+    const start = input?.selectionStart ?? value.length;
+    const end = input?.selectionEnd ?? start;
+    const maxLength = selectedShape.type === "point" ? 20 : 40;
+    const nextValue = `${value.slice(0, start)}${insert}${value.slice(end)}`.slice(0, maxLength);
+    const nextCursor = Math.min(start + insert.length - cursorBack, nextValue.length);
+    updateShape(selectedIndex, (shape) => shape.type === "point" ? { ...shape, label: nextValue } : shape.type === "text" || shape.type === "dimension" ? { ...shape, text: nextValue || " " } : shape);
+    requestAnimationFrame(() => {
+      labelInputRef.current?.focus();
+      labelInputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
   }
 
   function resizeAllLabels() {
@@ -888,7 +918,22 @@ export function MathFigureLab() {
                   </div>
 
                   {selectedShape && (selectedShape.type === "point" || selectedShape.type === "text" || selectedShape.type === "dimension") ? <div className="mt-5 space-y-4 border-t border-line pt-5">
-                    <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_140px]"><label className="block min-w-0 text-[.78rem] font-bold text-ink-3">표시 내용<input value={selectedShape.type === "point" ? selectedShape.label : selectedShape.text} maxLength={40} onChange={(event) => updateShape(selectedIndex!, (shape) => shape.type === "point" ? { ...shape, label: event.target.value.slice(0, 20) } : shape.type === "text" || shape.type === "dimension" ? { ...shape, text: event.target.value || " " } : shape)} className="mt-2 min-h-10 w-full rounded-[9px] border border-line bg-white px-3 text-sm font-semibold outline-none focus:border-brand/45 focus:ring-3 focus:ring-brand/10" /></label><div><span className="block text-[.78rem] font-bold text-ink-3">글자 크기</span><div className="mt-2"><NumberSpinner value={selectedShape.fontSize} min={12} max={40} step={1} suffix="px" onChange={(value) => updateShape(selectedIndex!, (shape) => shape.type === "point" || shape.type === "text" || shape.type === "dimension" ? { ...shape, fontSize: value } : shape)} /></div></div></div>
+                    <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_140px]"><label className="block min-w-0 text-[.78rem] font-bold text-ink-3">표시 내용<input ref={labelInputRef} value={selectedShape.type === "point" ? selectedShape.label : selectedShape.text} maxLength={selectedShape.type === "point" ? 20 : 40} onChange={(event) => updateShape(selectedIndex!, (shape) => shape.type === "point" ? { ...shape, label: event.target.value.slice(0, 20) } : shape.type === "text" || shape.type === "dimension" ? { ...shape, text: event.target.value || " " } : shape)} className="mt-2 min-h-10 w-full rounded-[9px] border border-line bg-white px-3 text-sm font-semibold outline-none focus:border-brand/45 focus:ring-3 focus:ring-brand/10" /></label><div><span className="block text-[.78rem] font-bold text-ink-3">글자 크기</span><div className="mt-2"><NumberSpinner value={selectedShape.fontSize} min={12} max={40} step={1} suffix="px" onChange={(value) => updateShape(selectedIndex!, (shape) => shape.type === "point" || shape.type === "text" || shape.type === "dimension" ? { ...shape, fontSize: value } : shape)} /></div></div></div>
+                    <details className="group rounded-[11px] border border-line bg-white">
+                      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[.78rem] font-bold text-ink-3 outline-none transition hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-brand/10 [&::-webkit-details-marker]:hidden">
+                        <Sigma size={15} className="text-brand" />
+                        <span>수식 기호 넣기</span>
+                        <span className="ml-auto text-[.7rem] font-semibold text-ink-5">루트 · 도 · sin · cos 등</span>
+                        <ChevronDown size={15} className="text-ink-5 transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="border-t border-line px-3 pb-3 pt-2.5">
+                        <p className="text-[.7rem] leading-5 text-ink-5">표시 내용에서 원하는 위치에 커서를 두고 버튼을 누르세요. 빈칸 안으로 커서가 이동하면 값만 입력하면 됩니다.</p>
+                        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                          {mathInputSnippets.map((snippet) => <button key={snippet.name} type="button" aria-label={`${snippet.name} 수식 넣기`} title={`${snippet.name} 수식 넣기`} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMathSnippet(snippet.insert, snippet.cursorBack)} className="flex min-h-11 flex-col items-center justify-center rounded-[8px] border border-line bg-surface px-2 py-1.5 text-ink transition hover:border-brand/30 hover:bg-brand-page focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand/10"><span className="text-[.86rem] font-semibold"><FormulaValue value={snippet.preview} /></span><span className="mt-0.5 text-[.62rem] font-bold text-ink-5">{snippet.name}</span></button>)}
+                        </div>
+                        <p className="mt-2.5 rounded-[8px] bg-brand-page/60 px-2.5 py-2 text-[.68rem] leading-5 text-brand-dark"><strong>예:</strong> 4를 입력한 뒤 √ 버튼을 누르고 3을 입력하면 <FormulaValue value={"4\\sqrt{3}"} />으로 표시됩니다.</p>
+                      </div>
+                    </details>
                     {selectedShape.type === "point" ? <fieldset><legend className="text-[.78rem] font-bold text-ink-3">꼭짓점 표시</legend><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => updateShape(selectedIndex!, (shape) => shape.type === "point" ? { ...shape, filled: false } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", !selectedShape.filled ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}>점 표시 없음</button><button type="button" onClick={() => updateShape(selectedIndex!, (shape) => shape.type === "point" ? { ...shape, filled: true } : shape)} className={cn("min-h-10 rounded-[9px] border text-[.8rem] font-bold transition", selectedShape.filled ? "border-brand/35 bg-brand-soft text-brand-dark" : "border-line bg-white text-ink-4 hover:border-brand/25")}><span className="mr-1">●</span> 검은 점</button></div></fieldset> : null}
                     {selectedShape.type === "dimension" ? <div className="flex items-center justify-between gap-4"><span className="text-[.78rem] font-bold text-ink-3">점선 휘어짐</span><NumberSpinner value={selectedShape.offset} min={-2.5} max={2.5} step={0.1} onChange={(value) => updateShape(selectedIndex!, (shape) => shape.type === "dimension" ? { ...shape, offset: value } : shape)} /></div> : null}
                     {<div className="flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-2.5 text-[.76rem] text-ink-4"><span><Move size={14} className="mr-1.5 inline text-brand" />위 도형에서 직접 드래그하세요.</span><button onClick={() => updateShape(selectedIndex!, (shape) => shape.type === "text" ? { ...shape, autoPosition: true } : shape.type === "dimension" ? { ...shape, labelAt: undefined } : shape.type === "point" ? { ...shape, labelAt: [shape.at[0], shape.at[1] + 0.45] } : shape)} className="shrink-0 font-bold text-brand">위치 초기화</button></div>}
