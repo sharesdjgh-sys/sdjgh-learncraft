@@ -497,9 +497,6 @@ export function MathFigureLab() {
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const canAnalyze = Boolean(file && !loading);
-  useEffect(() => {
-    setMeasurementDrafts(Object.fromEntries((editableMeasurements ?? []).map((measurement, index) => [index, measurement.value])));
-  }, [editableMeasurements]);
   const hasMeasurementChanges = editableMeasurements?.some((measurement, index) => Math.abs((measurementDrafts[index] ?? measurement.value) - measurement.value) > 0.000001) ?? false;
   const editableLabels = useMemo(() => spec?.shapes.map((shape, index) => ({ shape, index })).filter((item): item is { shape: EditableShape; index: number } => item.shape.type === "point" || item.shape.type === "text" || item.shape.type === "dimension") ?? [], [spec]);
   const segments = useMemo(() => {
@@ -725,6 +722,7 @@ export function MathFigureLab() {
       if (mode === "variation") {
         if (!data?.measurements) throw new Error(data?.error || "변경 가능한 수치를 찾지 못했습니다.");
         setEditableMeasurements(data.measurements);
+        setMeasurementDrafts(Object.fromEntries(data.measurements.map((measurement, index) => [index, measurement.value])));
         setSpec(null);
         setHistory([]);
         setSelectedIndex(null);
