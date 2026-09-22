@@ -659,6 +659,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   const [progressStage, setProgressStage] = useState<TutorProgressStage>("preparing");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [savingPdfMessageId, setSavingPdfMessageId] = useState<string | null>(null);
+  const [savingBookmarkMessageId, setSavingBookmarkMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(initialPickerOpen);
@@ -1281,7 +1282,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   }
 
   async function bookmarkMessage(message: TutorMessage) {
-    if (!selectedUnit || !message.completed || savedIds.has(message.id)) return;
+    if (!selectedUnit || !message.completed || savedIds.has(message.id) || savingBookmarkMessageId) return;
+    setSavingBookmarkMessageId(message.id);
     try {
       const prepared = detachInlineLearningImages(message.content);
       const body = new FormData();
@@ -1303,6 +1305,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "북마크를 저장하지 못했어요.");
       window.setTimeout(() => setNotice(""), 3000);
+    } finally {
+      setSavingBookmarkMessageId(null);
     }
   }
 
@@ -1605,9 +1609,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                                   {copiedMessageId === message.id ? <Check className="size-3.5 sm:size-4" /> : <Copy className="size-3.5 sm:size-4" />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
                                 </button>}
-                                <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
-                                  {savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
-                                  <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
+                                <button onClick={() => void bookmarkMessage(message)} disabled={savingBookmarkMessageId !== null || savedIds.has(message.id)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px disabled:cursor-wait disabled:opacity-55 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)} aria-busy={savingBookmarkMessageId === message.id}>
+                                  {savingBookmarkMessageId === message.id ? <LoaderCircle className="size-3.5 animate-spin sm:size-4" /> : savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
+                                  <span>{savingBookmarkMessageId === message.id ? "저장 중" : savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
                                 </button>
                               </div>
                             </div>

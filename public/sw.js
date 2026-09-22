@@ -1,4 +1,4 @@
-const CACHE_NAME = "learncraft-static-v2";
+const CACHE_NAME = "learncraft-static-v3";
 const PRECACHE_URLS = ["/offline", "/pwa-icon/192?v=2", "/pwa-icon/512?v=2"];
 
 self.addEventListener("install", (event) => {
@@ -17,6 +17,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+  if (request.headers.has("range")) return;
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
@@ -34,9 +35,9 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (response.ok) {
+      if (response.status === 200) {
         const copy = response.clone();
-        void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => undefined);
       }
       return response;
     })),
