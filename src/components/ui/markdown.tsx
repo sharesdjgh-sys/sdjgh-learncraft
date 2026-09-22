@@ -331,10 +331,12 @@ function normalizePlainMath(value: string) {
     (match, expression: string) => expression.trim() ? `\n\n$$\n${expression.trim()}\n$$\n\n` : match,
   );
   const dimensionalUnitsNormalized = normalizeDimensionalUnits(texDisplayNormalized);
-  const escapedStrongNormalized = normalizeEscapedStrongMarkers(dimensionalUnitsNormalized);
+  const parenthesizedUnitsNormalized = normalizeParenthesizedDimensionalMath(dimensionalUnitsNormalized);
+  const escapedStrongNormalized = normalizeEscapedStrongMarkers(parenthesizedUnitsNormalized);
   const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
   const brokenLineMathNormalized = normalizeBrokenLineMath(emphasisNormalized);
-  const adjacentMathNormalized = normalizeAdjacentDollarMath(brokenLineMathNormalized);
+  const inlineBeforeKoreanNormalized = normalizeInlineMathBeforeKorean(brokenLineMathNormalized);
+  const adjacentMathNormalized = normalizeAdjacentDollarMath(inlineBeforeKoreanNormalized);
   const unclosedLineMathNormalized = normalizeUnclosedLineMath(adjacentMathNormalized);
   const shortDisplayMathNormalized = normalizeShortDisplayMath(unclosedLineMathNormalized);
   const displayMathNormalized = shortDisplayMathNormalized.replace(
@@ -372,6 +374,44 @@ function normalizeDimensionalUnits(value: string) {
       const symbol = delimitedSymbol ?? plainSymbol;
       return symbol ? `$[${symbol.trim()}] = ${unit.trim()}$` : match;
     },
+  );
+}
+
+/**
+ * Generated curriculum data sometimes puts a parenthesized dimensional
+ * equation across several lines and mixes display delimiters into the prose.
+ * Rebuild the whole parenthesis as one inline equation before the general
+ * dollar-delimiter repair runs.
+ */
+function normalizeParenthesizedDimensionalMath(value: string) {
+  return value.replace(
+    /\(\s*(?:\${1,3}\s*)?(\[[A-Za-zΑ-Ωα-ω][A-Za-z0-9_]*\]\s*=\s*[^()]{1,180}?)(?:\s*\${1,3})?\s*\)/g,
+    (match, rawExpression: string) => {
+      if (/[\p{Script=Hangul}\p{Script=Han}]/u.test(rawExpression)) return match;
+
+      const expression = rawExpression
+        .replace(/(?<!\\)\$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/[⋅·]/g, String.raw`\cdot `)
+        .replace(
+          /(\\text\{[^{}\r\n]+\}|[A-Za-zΑ-Ωα-ω])\s+([+-]?\d+)(?=\s*(?:\/|\\cdot\b|$))/g,
+          "$1^{$2}",
+        );
+
+      return expression ? `($${expression}$)` : match;
+    },
+  );
+}
+
+/**
+ * A single-dollar inline equation followed by a Korean particle may be closed
+ * with three dollars when a model accidentally appends a display delimiter.
+ */
+function normalizeInlineMathBeforeKorean(value: string) {
+  return value.replace(
+    /(?<!\\)\$([^$\r\n]+?)\${3}(?=[\p{Script=Hangul}])/gu,
+    (_, expression: string) => `$${expression.trim()}$`,
   );
 }
 

@@ -73,6 +73,30 @@ const streamingFencedHtml = renderToStaticMarkup(<Markdown repairGeneratedFence 
 assert.match(streamingFencedHtml, /<strong[^>]*>상황<\/strong>/, "스트리밍 중에도 Markdown 코드 울타리의 시작을 즉시 제거해야 합니다.");
 assert.doesNotMatch(streamingFencedHtml, /<pre|language-markdown|\*\*/, "스트리밍 중 Markdown 문법이 코드로 노출되면 안 됩니다.");
 
+const malformedPhysicsExplanation = String.raw`F는 두 점전하 사이의 전기력(
+
+[F]=N
+),
+k는 쿨롱 상수(
+
+$$[k] = \text{N}
+⋅m
+2
+ /C
+2
+ ), $q_{\scriptscriptstyle 1}, q_{\scriptscriptstyle 2}$$$는 두 입자의 전하량(
+
+[q] = \text{C}
+
+$$), $r$$$은 두 전하 사이의 거리(
+
+[r] = \text{m}$$)입니다.`;
+const malformedPhysicsHtml = renderToStaticMarkup(<Markdown>{malformedPhysicsExplanation}</Markdown>);
+assert.doesNotMatch(malformedPhysicsHtml, /\${1,3}/, "깨진 달러 구분자가 화면에 남으면 안 됩니다.");
+assert.doesNotMatch(malformedPhysicsHtml, /katex-error/, "복구한 물리 단위식은 KaTeX 오류 없이 렌더링되어야 합니다.");
+assert.ok((malformedPhysicsHtml.match(/class="katex"/g) ?? []).length >= 6, "물리량 기호와 네 개의 단위식이 수식으로 렌더링되어야 합니다.");
+assert.match(malformedPhysicsHtml, /쿨롱 상수/);
+assert.match(malformedPhysicsHtml, /두 입자의 전하량/);
 console.log(`Markdown 렌더링 검증 완료: 굵게 문법 ${strongCases.length}개 입력 × 2개 렌더러`);
 
 const hintMarkdown = `## 문제
