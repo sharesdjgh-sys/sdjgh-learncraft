@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { LearningUnit } from "../src/types";
 import { buildVocabulary, sanitizeVocabularyTerms, unitHasTerm, vocabularyExplanationSchema, vocabularyTermKey, VOCABULARY_GUIDE } from "../src/features/vocabulary/content";
 import * as content from "../src/features/vocabulary/content";
+import * as etymology from "../src/features/vocabulary/etymology";
 import * as imageIntent from "../src/lib/explicit-image-request";
 import { learningUnits } from "../src/data/curriculum";
 
@@ -20,7 +21,7 @@ function loadModule(path: string, modules: Record<string, unknown>) {
   return exports;
 }
 const repository = loadModule("src/features/vocabulary/repository.ts", {
-  "server-only": {}, "node:crypto": crypto, "drizzle-orm": orm, "@/db": { db: null }, "@/db/schema": {}, "./content": content,
+  "server-only": {}, "node:crypto": crypto, "drizzle-orm": orm, "@/db": { db: null }, "@/db/schema": {}, "./content": content, "./etymology": etymology,
 }) as typeof import("../src/features/vocabulary/repository");
 const { vocabularyCacheKey, claimExplanation, finishExplanation, readExplanation } = repository;
 
@@ -182,6 +183,16 @@ async function main() {
   failQuestion = true;
   const failed = await tutor.POST(question()); await assert.rejects(failed.text());
   assert.equal(reserved, 2); assert.equal(completed, 1); assert.equal(refunded, 1);
+  const card = etymology.koreanEtymologySchema.parse({ wordType: "한자어", original: "凝結", parts: [{ text: "凝", sound: "응", gloss: "엉길" }, { text: "結", sound: "결", gloss: "맺을" }], summary: { originalMeaning: "엉기어 맺힘", meaningShift: "기체가 액체로 바뀌는 현상을 가리키게 됨" }, story: null, today: { meaning: "수증기가 물방울로 바뀌는 현상", examples: ["차가운 컵 표면에 물방울이 응결했다."] }, points: [], relatedWords: [], classroomHook: "컵에 맺힌 물은 어디서 왔을까요?", teacherScript: "공기 속 수증기가 엉겨 맺힌 거예요.", confidence: "certain", confidenceNote: "표준국어대사전 원어 표기와 일치합니다." });
+  const etymologyKey = repository.etymologyCacheKey("school-a", "응결", unit);
+  assert.notEqual(etymologyKey, repository.etymologyCacheKey("school-a", "응결"), "Etymology cache separates textbook context from free lookups");
+  assert.notEqual(etymologyKey, vocabularyCacheKey("school-a", unit, "응결"), "Etymology cards never collide with student vocabulary cards");
+  const etymologyOwner = await claimExplanation(etymologyKey, "school-a");
+  assert(etymologyOwner); await finishExplanation(etymologyKey, etymologyOwner, card);
+  assert.deepEqual(await repository.readEtymology(etymologyKey), card);
+  await repository.discardCached(etymologyKey);
+  assert.equal(await repository.readEtymology(etymologyKey), null, "Regeneration discards the cached etymology card");
+  console.log("PASS korean etymology: schema, cache key isolation, save, reuse and regeneration discard");
   console.log("PASS vocabulary: ordering, deduplication, membership, context isolation/invalidation, generation lock, ownership, cache reuse and failed retry");
   console.log("PASS vocabulary tutor: term validation, paid direct questions, free contextual follow-ups, no tools, successful accounting and failure refund");
 }

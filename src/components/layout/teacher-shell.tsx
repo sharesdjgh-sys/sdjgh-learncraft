@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenText, DraftingCompass, GraduationCap } from "lucide-react";
+import { BookA, BookOpenText, DraftingCompass, GraduationCap } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
 
 // 과목별 교사 지원 도구가 늘어나면 이 목록에 추가합니다.
 const links: readonly ConsoleLink[] = [
+  { href: "/teacher/korean-vocabulary", label: "국어 어휘", icon: BookA },
   { href: "/teacher/math-figures", label: "수학 도형", icon: DraftingCompass },
 ];
 
