@@ -15,7 +15,8 @@ export type AreaNote = { id: string; kind: "area"; points: LonLat[]; label: stri
 export type MeasureNote = { id: string; kind: "measure"; points: LonLat[]; color: number; size: number };
 export type Annotation = TextNote | MarkerNote | PathNote | AreaNote | MeasureNote;
 
-export type CountryStyle = { fill?: number; name?: string; hideName?: boolean; at?: LonLat };
+/** 나라(시대 지도에서는 'h:원래 이름' 열쇠의 옛 나라)마다 선생님이 바꾼 모양입니다. */
+export type CountryStyle = { fill?: number; name?: string; hideName?: boolean; hideShape?: boolean; at?: LonLat };
 export type MapView = { center: LonLat; scale: number };
 export type MapOptions = {
   theme: MapTheme;
@@ -33,6 +34,8 @@ export type MapDoc = {
   title: string;
   projection: ProjectionKind;
   meridian: number;
+  /** 시대 지도(history.ts의 id)입니다. null이면 오늘날의 국경을 보여 줘요. */
+  era: string | null;
   view: MapView;
   countries: Record<string, CountryStyle>;
   legend: Record<string, string>;
@@ -265,7 +268,8 @@ const docSchema = z.object({
   projection: z.enum(["mercator", "naturalEarth", "globe"]).catch("mercator"),
   meridian: z.number().min(-180).max(180).catch(0),
   view: z.object({ center: lonLat, scale: z.number().min(0).max(MAX_SCALE) }),
-  countries: z.record(z.string().max(80), z.object({ fill: colorIndex.optional(), name: text(60).optional(), hideName: z.boolean().optional(), at: lonLat.optional() })).catch({}),
+  era: z.string().max(20).nullable().catch(null),
+  countries: z.record(z.string().max(120), z.object({ fill: colorIndex.optional(), name: text(60).optional(), hideName: z.boolean().optional(), hideShape: z.boolean().optional(), at: lonLat.optional() })).catch({}),
   legend: z.record(z.string().max(4), text(40)).catch({}),
   annotations: z.array(annotationSchema).max(500),
   options: z.object({

@@ -1,10 +1,10 @@
 "use client";
 
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { geoGraticule, geoInterpolate, geoPath } from "d3-geo";
-import { feature } from "topojson-client";
+import { geoContains, geoGraticule, geoInterpolate, geoPath } from "d3-geo";
+import { feature, mesh } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
-import type { Feature, Geometry } from "geojson";
+import type { Feature, Geometry, MultiLineString } from "geojson";
 import { Check, LoaderCircle, X } from "lucide-react";
 import { countryKoreanName } from "@/lib/social-map/country-names";
 import {
@@ -12,24 +12,41 @@ import {
   relativeLon, specialParallels, splitAtSeam, starPoints, tickLabel,
   type Annotation, type LonLat, type MapDoc, type MarkerSymbol, type Tool,
 } from "@/lib/social-map/model";
-import { baseProjection, fixWinding, globeProjection, labelAnchor, makeMapper, panView, zoomView, type Mapper } from "@/lib/social-map/projection";
+import { historyPeriod, type HistoryProperties } from "@/lib/social-map/history";
+import { BASE_SCALE, baseProjection, fixWinding, globeProjection, labelAnchor, makeMapper, panView, zoomView, type Mapper } from "@/lib/social-map/projection";
 
 type Point = [number, number];
 type CountryFeature = Feature<Geometry, { name: string }>;
 type Resolution = "50m" | "10m";
 export type ToolStyle = { color: number; symbol: MarkerSymbol; dashed: boolean; curved: boolean; width: number };
-export type Selection = { type: "note"; id: string } | { type: "country"; name: string } | null;
+/** 나라를 고르면 name은 저장 열쇠(시대 지도의 옛 나라는 'h:원래 이름'), label은 화면에 보이는 이름입니다. */
+export type Selection = { type: "note"; id: string } | { type: "country"; name: string; label: string } | null;
 type Draft = { kind: "arrow" | "line" | "area" | "measure"; points: LonLat[] };
 
 const datasets: Partial<Record<Resolution, Promise<CountryFeature[]>>> = {};
+/** 나라끼리 맞닿지 않은 테두리(= 해안선)만 모은 선입니다. 시대 지도에서 오늘날의 국경 없이 해안선만 그릴 때 써요. */
+const coastlines = new Map<Resolution, MultiLineString>();
 function loadDataset(resolution: Resolution) {
   datasets[resolution] ??= fetch(`/maps/countries-${resolution}.json`).then(async response => {
     if (!response.ok) throw new Error("지도 자료를 불러오지 못했어요.");
     const topology = await response.json() as Topology<{ countries: GeometryCollection<{ name: string }> }>;
+    coastlines.set(resolution, mesh(topology, topology.objects.countries, (a, b) => a === b));
     return (feature(topology, topology.objects.countries).features as CountryFeature[]).map(fixWinding);
   }).catch(error => { delete datasets[resolution]; throw error; });
   return datasets[resolution];
 }
+
+type EraFeature = Feature<Geometry, HistoryProperties>;
+const eras: Record<string, Promise<EraFeature[]> | undefined> = {};
+function loadEra(id: string) {
+  eras[id] ??= fetch(`/maps/history/${id}.json`).then(async response => {
+    if (!response.ok) throw new Error("시대 지도를 불러오지 못했어요.");
+    const topology = await response.json() as Topology<{ p: GeometryCollection<HistoryProperties> }>;
+    return (feature(topology, topology.objects.p).features as EraFeature[]).map(fixWinding);
+  }).catch(error => { delete eras[id]; throw error; });
+  return eras[id];
+}
+const eraKey = (item: EraFeature) => `h:${item.properties.n}`;
 
 export const mapThemes = {
   color: { page: "#eef1f4", sea: "#cfe5f2", land: "#f5f1e6", border: "#8d959c", coast: "#6f8da0", text: "#30353d", seaText: "#3a6f9e", grid: "#8fb4cb", special: "#c9414f" },
@@ -40,6 +57,21 @@ export const MAP_FONT = "Pretendard, 'Pretendard Variable', 'Malgun Gothic', 'Ap
 const graticuleStep = (scale: number) => scale < 500 ? 30 : scale < 1300 ? 10 : scale < 3500 ? 5 : scale < 9000 ? 2 : 1;
 const inView = (point: Point | null, margin = 0): point is Point => Boolean(point) && point![0] >= -margin && point![0] <= MAP_WIDTH + margin && point![1] >= -margin && point![1] <= MAP_HEIGHT + margin;
 const textWidth = (text: string, size: number) => [...text].reduce((sum, char) => sum + (/[ㄱ-힝]/.test(char) ? 1 : char === " " ? 0.33 : 0.58), 0) * size;
+
+/** 화면에 보이는 꼭짓점들의 평균 자리입니다. 그 자리가 나라 안쪽일 때만 씁니다. */
+function visiblePart(shape: EraFeature, mapper: Mapper): Point | null {
+  const geometry = shape.geometry;
+  const polygons = geometry.type === "MultiPolygon" ? geometry.coordinates : geometry.type === "Polygon" ? [geometry.coordinates] : [];
+  const inside: Point[] = [];
+  for (const polygon of polygons) for (const vertex of polygon[0]) {
+    const screen = mapper.project(vertex as LonLat);
+    if (screen && screen[0] > 80 && screen[0] < MAP_WIDTH - 80 && screen[1] > 80 && screen[1] < MAP_HEIGHT - 80) inside.push(screen);
+  }
+  if (inside.length < 3) return null;
+  const center: Point = [inside.reduce((sum, p) => sum + p[0], 0) / inside.length, inside.reduce((sum, p) => sum + p[1], 0) / inside.length];
+  const lonLat = mapper.invert(center);
+  return lonLat && geoContains(shape, lonLat) ? center : null;
+}
 
 /** 선 모양의 경위도 점들을 화면 좌표 조각들로 바꿉니다(가장자리·지구본 뒤쪽에서 끊어요). */
 function projectLine(points: LonLat[], mapper: Mapper, meridian: number): Point[][] {
@@ -58,8 +90,10 @@ function projectLine(points: LonLat[], mapper: Mapper, meridian: number): Point[
 const greatCircle = (a: LonLat, b: LonLat) => { const at = geoInterpolate(a, b); return Array.from({ length: 49 }, (_, i) => at(i / 48) as LonLat); };
 
 /** 나라 모양 레이어입니다. 확대·이동할 때 다시 그리지 않도록 따로 묶어 둡니다. */
-const CountryLayer = memo(function CountryLayer({ items, countries, theme, borders }: { items: { name: string; d: string }[]; countries: MapDoc["countries"]; theme: MapDoc["options"]["theme"]; borders: boolean }) {
+const CountryLayer = memo(function CountryLayer({ items, countries, theme, borders, plain }: { items: { name: string; d: string }[]; countries: MapDoc["countries"]; theme: MapDoc["options"]["theme"]; borders: boolean; plain: boolean }) {
   const colors = mapThemes[theme];
+  // 시대 지도를 볼 때는 오늘날의 나라를 땅 바탕으로만 깔아요.
+  if (plain) return <g pointerEvents="none">{items.map(item => <path key={item.name} d={item.d} fill={colors.land} />)}</g>;
   return <g>
     {!borders && items.map(item => <path key={`c${item.name}`} d={item.d} fill="none" stroke={colors.coast} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />)}
     {items.map(item => {
@@ -67,6 +101,29 @@ const CountryLayer = memo(function CountryLayer({ items, countries, theme, borde
       const color = fill === undefined ? colors.land : palette[fill].fill;
       return <path key={item.name} data-country={item.name} d={item.d} fill={color} stroke={borders ? colors.border : color} strokeWidth={borders ? 0.75 : 1} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
     })}
+  </g>;
+});
+
+/** 시대 지도의 옛 나라들입니다. 원래 자료의 해안선은 거칠어서 오늘날의 땅 모양(landD)으로 잘라 그려요. */
+const EraLayer = memo(function EraLayer({ items, countries, borders, landD, coastD, clipId, coast, bleed }: { items: { key: string; d: string; color: string }[]; countries: MapDoc["countries"]; borders: boolean; landD: string; coastD: string; clipId: string; coast: string; bleed: number }) {
+  return <g>
+    <defs><clipPath id={clipId}><path d={landD} /></clipPath></defs>
+    <g clipPath={`url(#${clipId})`}>
+      {/* 원래 자료의 거친 해안선 때문에 생기는 바닷가 빈틈을 메우려고 색을 바깥으로 조금 번지게 먼저 칠해요. */}
+      <g pointerEvents="none">{items.map((item, index) => {
+        const style = countries[item.key];
+        if (style?.hideShape) return null;
+        const fill = style?.fill === undefined ? item.color : palette[style.fill].fill;
+        return <path key={index} d={item.d} fill={fill} stroke={fill} strokeWidth={bleed} strokeLinejoin="round" />;
+      })}</g>
+      {items.map((item, index) => {
+        const style = countries[item.key];
+        if (style?.hideShape) return null;
+        const fill = style?.fill === undefined ? item.color : palette[style.fill].fill;
+        return <path key={index} data-country={item.key} d={item.d} fill={fill} stroke={borders ? "#8a7a66" : fill} strokeWidth={borders ? 0.9 : 0.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
+      })}
+    </g>
+    <path d={coastD} fill="none" stroke={coast} strokeWidth={0.9} vectorEffect="non-scaling-stroke" pointerEvents="none" />
   </g>;
 });
 
@@ -114,6 +171,32 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
   const features = detailed ? data["10m"] : data["50m"];
   const anchors = useMemo(() => new Map((data["50m"] ?? []).map(item => [item.properties.name, labelAnchor(item)])), [data]);
 
+  const [eraData, setEraData] = useState<{ id: string; features: EraFeature[] } | null>(null);
+  const [eraFailed, setEraFailed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!doc.era) return;
+    let cancelled = false;
+    const id = doc.era;
+    void loadEra(id).then(features => { if (!cancelled) setEraData({ id, features }); }).catch(() => { if (!cancelled) setEraFailed(id); });
+    return () => { cancelled = true; };
+  }, [doc.era]);
+  const era = doc.era && eraData?.id === doc.era ? eraData.features : null;
+  const period = historyPeriod(doc.era);
+  // 이름을 놓을 자리: 시대 지도면 옛 나라(같은 이름이 여러 조각이면 가장 큰 조각), 아니면 오늘날의 나라입니다.
+  const labelSource = useMemo(() => {
+    // translated: 한국어로 옮긴 이름입니다. 시대 지도에서 영어 이름은 '모두' 보기에서만 보여요.
+    const source = new Map<string, { anchor: ReturnType<typeof labelAnchor>; text: string; translated: boolean; rank: number; shape?: EraFeature }>();
+    if (era) {
+      for (const item of era) {
+        const anchor = labelAnchor(item);
+        const key = eraKey(item);
+        if ((source.get(key)?.anchor.area ?? -1) < anchor.area) source.set(key, { anchor, text: item.properties.k, translated: /[\uAC00-\uD7A3]/.test(item.properties.k), rank: item.properties.p ?? 1, shape: item });
+      }
+    } else for (const [name, anchor] of anchors) source.set(name, { anchor, text: countryKoreanName(name), translated: true, rank: 1 });
+    return source;
+  }, [era, anchors]);
+  const nameOf = (key: string) => docRef.current.countries[key]?.name || labelSource.get(key)?.text || countryKoreanName(key);
+
   const base = useMemo(() => kind === "globe" ? undefined : baseProjection(kind, meridian), [kind, meridian]);
   const mapper = useMemo(() => makeMapper(kind, meridian, view, base), [kind, meridian, view, base]);
 
@@ -137,6 +220,27 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
     return { path, items: features.map(item => ({ name: item.properties.name, d: path(item) ?? "" })).filter(item => item.d) };
   }, [kind, features, view]);
 
+  const eraFlat = useMemo(() => {
+    if (!base || !era) return null;
+    const path = geoPath(base);
+    return era.map(item => ({ key: eraKey(item), d: path(item) ?? "", color: item.properties.c }));
+  }, [base, era]);
+  const eraGlobe = useMemo(() => {
+    if (kind !== "globe" || !era) return null;
+    const path = geoPath(globeProjection(view));
+    return era.map(item => ({ key: eraKey(item), d: path(item) ?? "", color: item.properties.c })).filter(item => item.d);
+  }, [kind, era, view]);
+  const landD = useMemo(() => era ? (flat ? flatItems : globe?.items ?? []).map(item => item.d).join("") : "", [era, flat, flatItems, globe]);
+  const coastLine = era ? coastlines.get(detailed ? "10m" : "50m") : undefined;
+  const coastD = useMemo(() => {
+    if (!coastLine) return "";
+    if (flat) return flat.path(coastLine) ?? "";
+    return kind === "globe" ? geoPath(globeProjection(view))(coastLine) ?? "" : "";
+  }, [coastLine, flat, kind, view]);
+  // 번짐 폭은 실제 거리로 약 26km(양쪽 13km)입니다. 평면 지도는 기준 배율 단위, 지구본은 화면 px로 줘요.
+  const bleedKm = 26;
+  const flatBleed = bleedKm / 6371 * BASE_SCALE;
+
   const step = graticuleStep(view.scale);
   const flatGraticule = useMemo(() => flat && (options.graticule || options.coordLabels) ? flat.path(geoGraticule().step([step, step]).extent([[-180, -80.001], [180, 80.001]])()) ?? "" : "", [flat, step, options.graticule, options.coordLabels]);
   const specialPaths = useMemo(() => {
@@ -151,32 +255,37 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
   /* ───── 글자 배치 ───── */
   const countryLabels = useMemo(() => {
     const mode = options.countryNames;
-    if ((mode === "none" && !quiz) || anchors.size === 0) return [];
+    if ((mode === "none" && !quiz) || labelSource.size === 0) return [];
     const placed: number[][] = [];
     const hits = (box: number[]) => placed.some(other => box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]);
-    const candidates = [...anchors.entries()].map(([name, anchor]) => ({ name, anchor, style: doc.countries[name] }))
+    const candidates = [...labelSource.entries()].map(([name, { anchor, text, translated, rank, shape }]) => ({ name, anchor, base: text, translated, rank, shape, style: doc.countries[name] }))
+      .filter(({ style, translated }) => !style?.hideShape && (translated || mode === "all" || Boolean(style?.name)))
       .filter(({ name, style }) => quiz ? revealed.has(`country:${name}`) : !style?.hideName && (mode !== "filled" || style?.fill !== undefined || style?.name))
       .map(item => ({ ...item, forced: quiz || Boolean(item.style?.name || item.style?.at || item.style?.fill !== undefined) }))
-      .sort((a, b) => Number(b.forced) - Number(a.forced) || b.anchor.area - a.anchor.area);
+      .sort((a, b) => Number(b.forced) - Number(a.forced) || Number(b.translated) - Number(a.translated) || b.rank - a.rank || b.anchor.area - a.anchor.area);
     const result: { name: string; text: string; x: number; y: number; size: number; moved: boolean }[] = [];
-    for (const { name, anchor, style, forced } of candidates) {
+    for (const { name, anchor, base: baseText, style, forced, rank, shape } of candidates) {
       const at = style?.at ?? anchor.at;
-      const point = mapper.project(at);
+      let point = mapper.project(at);
+      // 큰 옛 나라의 이름 자리가 화면 밖이면, 화면 안에 보이는 부분의 가운데에 이름을 놓아요.
+      if (!inView(point, 40) && shape && !style?.at && Math.sqrt(anchor.area) * view.scale > 250) point = visiblePart(shape, mapper);
       if (!inView(point, 40)) continue;
       const stretch = kind === "mercator" ? 1 / Math.max(0.2, Math.cos(at[1] * Math.PI / 180)) : 1;
       const extent = Math.sqrt(anchor.area) * view.scale * stretch;
-      const text = style?.name || countryKoreanName(name);
+      const text = style?.name || baseText;
       // 땅이 크게 보일수록 이름도 커져요(13~30px).
       const size = Math.min(30, 13 + extent * 0.02) * ts;
       const width = textWidth(text, size);
-      if (!forced && mode !== "all" && extent < width * 0.8) continue;
+      // 시대 지도의 나라·문명(rank ≥ 1)은 교과서 지도처럼 영역보다 이름이 길어도 보여 줘요.
+      const fits = era && rank >= 1 ? extent >= 12 : extent >= width * 0.8;
+      if (!forced && mode !== "all" && !fits) continue;
       const box = [point[0] - width / 2 - 2, point[1] - size * 0.62, point[0] + width / 2 + 2, point[1] + size * 0.62];
       if (!forced && hits(box)) continue;
       placed.push(box);
       result.push({ name, text, x: point[0], y: point[1], size, moved: Boolean(style?.at) });
     }
     return result;
-  }, [anchors, doc.countries, options.countryNames, quiz, revealed, mapper, kind, view.scale, ts]);
+  }, [labelSource, doc.countries, options.countryNames, quiz, revealed, mapper, kind, view.scale, ts, era]);
 
   const places = useMemo(() => !options.placeNames ? [] : placeNames.filter(place => view.scale >= place.minScale && view.scale < (place.maxScale ?? Infinity))
     .map(place => ({ place, point: mapper.project(place.at) })).filter((item): item is { place: typeof placeNames[number]; point: Point } => inView(item.point, 60))
@@ -305,7 +414,7 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
         onSelect({ type: "note", id: target.noteId });
       } else if (target.country || target.label) {
         const name = (target.label ?? target.country)!;
-        if (quiz) onReveal(`country:${name}`); else onSelect({ type: "country", name });
+        if (quiz) onReveal(`country:${name}`); else onSelect({ type: "country", name, label: nameOf(name) });
       } else onSelect(null);
       return;
     }
@@ -526,7 +635,7 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
   const legendHeight = legendItems.length * legendSize * 1.6 + 22;
   const titleSize = 30 * ts;
   const cursor = tool === "move" ? "cursor-grab active:cursor-grabbing" : tool === "paint" ? "cursor-pointer" : "cursor-crosshair";
-  const hoverName = hover?.country ? (doc.countries[hover.country]?.name || countryKoreanName(hover.country)) : "";
+  const hoverName = hover?.country ? (doc.countries[hover.country]?.name || labelSource.get(hover.country)?.text || countryKoreanName(hover.country)) : "";
   const drawingHint = draft ? (draft.kind === "measure" ? "끝 지점을 누르면 거리를 재요" : draft.kind === "area" ? `꼭짓점 ${draft.points.length}개 · 첫 점을 다시 누르거나 두 번 눌러 영역을 닫아요` : `점 ${draft.points.length}개 · 두 번 누르거나 Enter로 끝내요`) : "";
 
   return <div className="relative h-full w-full" style={{ background: kind === "mercator" ? colors.sea : colors.page }}>
@@ -542,13 +651,15 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
       {flat && <g transform={`translate(${tx} ${ty}) scale(${k})`}>
         {flat.sphere && <path d={flat.sphere} fill={colors.sea} />}
         {options.graticule && <path d={flatGraticule} fill="none" stroke={colors.grid} strokeWidth={0.7} strokeOpacity={0.8} vectorEffect="non-scaling-stroke" />}
-        <CountryLayer items={flatItems} countries={doc.countries} theme={options.theme} borders={options.borders} />
+        <CountryLayer items={flatItems} countries={doc.countries} theme={options.theme} borders={options.borders} plain={Boolean(era)} />
+        {eraFlat && <EraLayer items={eraFlat} countries={doc.countries} borders={options.borders} landD={landD} coastD={coastD} clipId="era-land-flat" coast={colors.coast} bleed={flatBleed} />}
         {specialPaths.map(item => <path key={item.name} d={item.d} fill="none" stroke={colors.special} strokeWidth={1.6} strokeDasharray={item.name === "적도" || item.name === "본초 자오선" ? undefined : "7 5"} vectorEffect="non-scaling-stroke" />)}
         {flat.sphere && <path d={flat.sphere} fill="none" stroke={colors.border} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
       </g>}
       {globe && <g>
         {options.graticule && <path d={globe.path(geoGraticule().step([step, step])()) ?? ""} fill="none" stroke={colors.grid} strokeWidth={0.7} strokeOpacity={0.8} />}
-        <CountryLayer items={globe.items} countries={doc.countries} theme={options.theme} borders={options.borders} />
+        <CountryLayer items={globe.items} countries={doc.countries} theme={options.theme} borders={options.borders} plain={Boolean(era)} />
+        {eraGlobe && <EraLayer items={eraGlobe} countries={doc.countries} borders={options.borders} landD={landD} coastD={coastD} clipId="era-land-globe" coast={colors.coast} bleed={bleedKm / 6371 * view.scale} />}
         {specialPaths.map(item => <path key={item.name} d={item.d} fill="none" stroke={colors.special} strokeWidth={1.6} strokeDasharray={item.name === "적도" || item.name === "본초 자오선" ? undefined : "7 5"} />)}
         <circle cx={MAP_WIDTH / 2} cy={MAP_HEIGHT / 2} r={view.scale} fill="none" stroke={colors.border} strokeWidth={1} />
       </g>}
@@ -567,6 +678,10 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
       <g>{doc.annotations.filter(note => note.kind !== "area").map(renderNote)}</g>
       {draftPreview}
 
+      {period && <g pointerEvents="none" transform={`translate(24 ${doc.title ? 22 + titleSize + 40 : 22})`}>
+        <rect width={textWidth(period.label, 19 * ts) + 36} height={19 * ts + 18} rx={10} fill="#4b3a8f" fillOpacity={0.92} />
+        <text x={18} y={(19 * ts + 18) / 2} fontSize={19 * ts} fontWeight={800} dominantBaseline="central" fill="#fff">{period.label}</text>
+      </g>}
       {doc.title && <g pointerEvents="none">
         <rect x={24} y={22} width={textWidth(doc.title, titleSize) + 44} height={titleSize + 28} rx={12} fill="#fff" fillOpacity={0.92} stroke="#d6d9de" />
         <text x={46} y={22 + (titleSize + 28) / 2} fontSize={titleSize} fontWeight={800} dominantBaseline="central" fill="#23262d">{doc.title}</text>
@@ -583,12 +698,13 @@ export function SocialMapCanvas({ doc, update, record, tool, toolStyle, selectio
         <path d={`M0,0 V8 H${scaleBar.px.toFixed(1)} V0`} fill="none" stroke="#2b2f36" strokeWidth={2} />
         <text x={scaleBar.px / 2} y={-10} fontSize={13} fontWeight={700} textAnchor="middle" fill="#2b2f36">{scaleBar.km.toLocaleString("ko-KR")}km{kind === "mercator" ? " (지도 가운데 기준)" : ""}</text>
       </g>}
-      <text x={MAP_WIDTH - 14} y={MAP_HEIGHT - 10} fontSize={11.5} textAnchor="end" fill="#6b7280" pointerEvents="none">바탕 지도: Natural Earth · 현대의 일반화된 경계</text>
+      <text x={MAP_WIDTH - 14} y={MAP_HEIGHT - 10} fontSize={11.5} textAnchor="end" fill="#6b7280" pointerEvents="none">{period ? "역사 경계: historical-basemaps(A. Ourednik, GPL-3.0)·한반도 보정, 대략적인 경계 · 바탕 지도: Natural Earth" : "바탕 지도: Natural Earth · 현대의 일반화된 경계"}</text>
     </svg>
 
     {!features && <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm font-semibold text-ink-3">
       <span className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-[var(--lift-1)]">{failed ? "지도 자료를 불러오지 못했어요. 새로 고침해 주세요." : <><LoaderCircle size={16} className="animate-spin" /> 지도를 불러오는 중…</>}</span>
     </div>}
+    {doc.era && !era && features && <span className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-3 shadow-[var(--lift-1)]">{eraFailed === doc.era ? "시대 지도를 불러오지 못했어요." : <><LoaderCircle size={13} className="animate-spin" /> 시대 지도를 불러오는 중</>}</span>}
     {wantsDetail && !data["10m"] && features && <span className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-3 shadow-[var(--lift-1)]"><LoaderCircle size={13} className="animate-spin" /> 자세한 해안선을 불러오는 중</span>}
     {draft && <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#2b2740]/92 py-1.5 pl-4 pr-1.5 text-xs font-semibold text-white shadow-[0_10px_30px_rgba(20,16,40,.3)]">
       <span className="whitespace-nowrap">{drawingHint}</span>

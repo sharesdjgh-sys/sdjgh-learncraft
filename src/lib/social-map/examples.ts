@@ -5,7 +5,7 @@ import { fitView } from "./projection";
 export function blankDoc(presetId = "east-asia"): MapDoc {
   const preset = presets.find(item => item.id === presetId) ?? presets[0];
   return {
-    version: 1, title: "", projection: preset.projection, meridian: preset.meridian, view: fitView(preset.projection, preset.meridian, preset.bounds),
+    version: 1, title: "", projection: preset.projection, meridian: preset.meridian, era: null, view: fitView(preset.projection, preset.meridian, preset.bounds),
     countries: {}, legend: {}, annotations: [], options: { ...defaultOptions },
   };
 }
@@ -19,7 +19,7 @@ const arrow = (points: LonLat[], label: string, color: number, curved = true, da
 
 function doc(title: string, projection: ProjectionKind, meridian: number, bounds: [LonLat, LonLat], parts: Partial<MapDoc>): MapDoc {
   return {
-    version: 1, title, projection, meridian, view: fitView(projection, meridian, bounds),
+    version: 1, title, projection, meridian, era: null, view: fitView(projection, meridian, bounds),
     countries: {}, legend: {}, annotations: [], ...parts, options: { ...defaultOptions, ...parts.options },
   };
 }
@@ -52,6 +52,21 @@ export const mapExamples: MapExample[] = [
         marker([135.45, 34.66], "오사카", 8, "dot"),
         marker([139.76, 35.68], "에도", 8, "star", 18),
       ],
+    }),
+  },
+  {
+    name: "5세기 고구려의 전성기 (시대 지도)", subject: "한국사",
+    build: () => ({
+      ...doc("삼국의 항쟁과 고구려의 남진", "mercator", 128, [[118.5, 32.5], [134, 47]], {
+        annotations: [
+          marker([125.75, 39.03], "평양 (427년 천도)", 0, "star", 18),
+          marker([126.19, 41.13], "국내성", 0, "dot"),
+          marker([127.12, 36.46], "웅진 (475년 천도)", 1, "star", 18),
+          marker([129.22, 35.84], "금성", 4, "star", 18),
+          arrow([[125.75, 39.03], [126.6, 38.2], [127.05, 37.55]], "장수왕의 남진 (475년 한성 함락)", 0, true),
+        ],
+      }),
+      era: "500",
     }),
   },
   {

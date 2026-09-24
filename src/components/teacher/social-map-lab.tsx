@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
-  ChevronDown, CircleQuestionMark, ClipboardCopy, Download, Eye, EyeOff, FileDown, FilePlus2, Hand, LoaderCircle,
+  ChevronDown, ChevronLeft, ChevronRight, CircleQuestionMark, ClipboardCopy, Download, Eye, EyeOff, FileDown, FilePlus2, Hand, LoaderCircle,
   LocateFixed, MapIcon, MapPin, Maximize, Minimize2, MousePointer2, MoveUpRight, PaintBucket, Pentagon, Printer, Redo2, Ruler, ShieldCheck,
   Spline, Trash2, Type, Undo2, Upload, X, ZoomIn, ZoomOut,
 } from "lucide-react";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { countryKoreanName } from "@/lib/social-map/country-names";
 import { blankDoc, mapExamples } from "@/lib/social-map/examples";
+import { HISTORY_SOURCE, historyGroups, historyPeriod, historyPeriods } from "@/lib/social-map/history";
 import {
   distanceKm, formatDistance, MAP_HEIGHT, MAP_WIDTH, palette, parseMapDoc, presets, projectionHelp, projectionNames,
   type Annotation, type CountryNameMode, type MapDoc, type MapOptions, type MarkerSymbol, type ProjectionKind, type Tool,
@@ -76,7 +77,7 @@ async function mapToPng(svg: SVGSVGElement, ratio = 2) {
 function Card({ title, help, children, action }: { title: string; help?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return <section className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
     <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="flex items-center gap-1 text-sm font-extrabold text-ink">{title}{help && <HelpTip label={title} text={help} />}</h2>
+      <h2 className="flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-extrabold text-ink">{title}{help && <HelpTip label={title} text={help} />}</h2>
       {action}
     </div>
     {children}
@@ -213,6 +214,16 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
       ? fitView("naturalEarth", meridian, [[-180, -58], [180, 82]]) : clampView(projection, current.view);
     update({ ...current, projection, meridian, view }, false);
   };
+  const chooseEra = (era: string | null) => {
+    update({ ...docRef.current, era });
+    setSelection(null);
+    setRevealed(new Set());
+  };
+  const eraIndex = historyPeriods.findIndex(item => item.id === doc.era);
+  const stepEra = (delta: number) => {
+    const next = eraIndex < 0 ? (delta > 0 ? 0 : historyPeriods.length - 1) : eraIndex + delta;
+    chooseEra(next < 0 || next >= historyPeriods.length ? null : historyPeriods[next].id);
+  };
   const zoomBy = (factor: number) => { const current = docRef.current; update({ ...current, view: zoomView(current.projection, current.meridian, current.view, factor) }, false); };
   const goHome = () => update({ ...docRef.current, view: homeView }, false);
   const toggleFullscreen = () => {
@@ -236,6 +247,9 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
 
   const selectedNote = selection?.type === "note" ? doc.annotations.find(note => note.id === selection.id) ?? null : null;
   const selectedCountry = selection?.type === "country" ? selection.name : null;
+  const selectedLabel = selection?.type === "country" ? selection.label : "";
+  const eraCountry = Boolean(selectedCountry?.startsWith("h:"));
+  const period = historyPeriod(doc.era);
   const patchNote = (id: string, patch: Partial<Annotation>, rec = true) => update({ ...docRef.current, annotations: docRef.current.annotations.map(note => note.id === id ? { ...note, ...patch } as Annotation : note) }, rec);
   const deleteNote = (id: string) => { update({ ...docRef.current, annotations: docRef.current.annotations.filter(note => note.id !== id) }); setSelection(null); };
   const patchCountry = (name: string, patch: MapDoc["countries"][string], rec = true) => update({ ...docRef.current, countries: { ...docRef.current.countries, [name]: { ...docRef.current.countries[name], ...patch } } }, rec);
@@ -317,7 +331,7 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
       <div className="scrollbar-subtle space-y-4 xl:sticky xl:top-24 xl:-m-1 xl:h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:p-1">
         <Card title="지도 정보" action={<div className="flex gap-1.5">
           <span className="relative">
-            <select aria-label="수업 예시 불러오기" value="" onChange={event => { const example = mapExamples[Number(event.target.value)]; if (example) loadDoc(example.build()); }} className="min-h-9 appearance-none rounded-lg border border-line bg-surface py-1.5 pl-2.5 pr-8 text-xs font-semibold text-ink-3 hover:border-brand/30">
+            <select aria-label="수업 예시 불러오기" value="" onChange={event => { const example = mapExamples[Number(event.target.value)]; if (example) loadDoc(example.build()); }} className="min-h-9 w-32 appearance-none truncate rounded-lg border border-line bg-surface py-1.5 pl-2.5 pr-8 text-xs font-semibold text-ink-3 hover:border-brand/30">
               <option value="" disabled>수업 예시</option>
               {(["한국사", "지리", "세계사"] as const).map(subject => <optgroup key={subject} label={subject}>
                 {mapExamples.map((example, index) => example.subject === subject && <option key={example.name} value={index}>{example.name}</option>)}
@@ -325,7 +339,7 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
             </select>
             <ChevronDown size={13} aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-4" />
           </span>
-          <Button variant={confirmClear ? "danger" : "ghost"} size="sm" onClick={clearMap}><FilePlus2 size={14} /> {confirmClear ? "한 번 더 누르면 지워요" : "새 지도"}</Button>
+          <Button variant={confirmClear ? "danger" : "ghost"} size="sm" className="whitespace-nowrap" onClick={clearMap}><FilePlus2 size={14} /> {confirmClear ? "한 번 더 누르면 지워요" : "새 지도"}</Button>
         </div>}>
           <label className="block"><span className="mb-1.5 block text-xs font-semibold text-ink-4">지도 제목 (지도 위 왼쪽에 보여요)</span>
             <input value={doc.title} maxLength={80} onFocus={beginEdit} onBlur={endEdit} onChange={event => update({ ...docRef.current, title: event.target.value }, false)} placeholder="예: 삼국의 항쟁과 발전" className={inputClass} />
@@ -344,6 +358,27 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
               {presets.filter(preset => preset.group === group).map(preset => <button key={preset.id} type="button" onClick={() => choosePreset(preset.id)} className="min-h-8 rounded-lg border border-line bg-surface-2 px-2.5 text-xs font-bold text-ink-2 transition-colors hover:border-brand/30 hover:bg-brand-page hover:text-brand-dark">{preset.name}</button>)}
             </div>
           </div>)}
+        </Card>
+
+        <Card title="시대 지도" help="고른 시기의 나라 경계를 보여 줘요. 옛 나라를 누르면(선택·이동 도구) 이름·색을 바꾸거나 영역을 숨길 수 있어요. 오늘날의 해안선 위에 그린 대략적인 모습이에요.">
+          <div className="flex items-center gap-1.5">
+            <button type="button" aria-label="이전 시기" title="이전 시기" onClick={() => stepEra(-1)} className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface-2 text-ink-3 hover:border-brand/30 hover:text-brand-dark"><ChevronLeft size={16} /></button>
+            <span className="relative min-w-0 flex-1">
+              <select aria-label="시대 지도 고르기" value={doc.era ?? ""} onChange={event => chooseEra(event.target.value || null)} className="min-h-10 w-full appearance-none truncate rounded-xl border border-line bg-surface-2 py-2 pl-3 pr-9 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-brand">
+                <option value="">오늘날의 국경</option>
+                {historyGroups.map(group => <optgroup key={group} label={group}>
+                  {historyPeriods.filter(item => item.group === group).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </optgroup>)}
+              </select>
+              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-4" />
+            </span>
+            <button type="button" aria-label="다음 시기" title="다음 시기" onClick={() => stepEra(1)} className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface-2 text-ink-3 hover:border-brand/30 hover:text-brand-dark"><ChevronRight size={16} /></button>
+          </div>
+          {period && <div className="mt-2 space-y-1.5 break-keep text-xs leading-5">
+            <p className="font-semibold text-ink-2">{period.note}</p>
+            {Object.entries(doc.countries).some(([key, style]) => key.startsWith("h:") && style.hideShape) && <button type="button" onClick={() => update({ ...docRef.current, countries: Object.fromEntries(Object.entries(docRef.current.countries).map(([key, style]) => [key, key.startsWith("h:") ? { ...style, hideShape: undefined } : style])) })} className="font-bold text-brand-dark underline-offset-2 hover:underline">숨긴 영역 되살리기</button>}
+            <p className="text-ink-4">경계는 공개 자료 <a className="underline underline-offset-2 hover:text-brand-dark" href={HISTORY_SOURCE.url} target="_blank" rel="noreferrer">historical-basemaps</a>({HISTORY_SOURCE.license})를 바탕으로 한 대략적인 모습이에요.{period.koreaRedrawn && " 한반도·만주 영역은 교과서 지도를 참고해 다시 그렸어요."} 수업 전에 교과서 지도와 한 번 견주어 보세요.</p>
+          </div>}
         </Card>
 
         <Card title="지도 모양">
@@ -450,13 +485,13 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
 
           {(selectedNote || selectedCountry) && <div className="absolute right-3 top-3 w-[min(300px,calc(100%-24px))] rounded-2xl border border-line bg-white/97 p-3 shadow-[0_14px_40px_rgba(30,26,60,.18)] backdrop-blur print:hidden">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-sm font-extrabold text-ink">{selectedNote ? { text: "글자", marker: "지점", arrow: "화살표", line: "선", area: "영역", measure: "거리" }[selectedNote.kind] : countryKoreanName(selectedCountry!)}</p>
+              <p className="text-sm font-extrabold text-ink">{selectedNote ? { text: "글자", marker: "지점", arrow: "화살표", line: "선", area: "영역", measure: "거리" }[selectedNote.kind] : selectedLabel}</p>
               <button type="button" aria-label="닫기" onClick={() => setSelection(null)} className="grid size-7 place-items-center rounded-lg text-ink-4 hover:bg-surface-2 hover:text-ink"><X size={15} /></button>
             </div>
             {selectedNote && <NoteEditor key={selectedNote.id} note={selectedNote} autoFocus={focusId === selectedNote.id} patch={(patch, rec) => patchNote(selectedNote.id, patch, rec)} beginEdit={beginEdit} endEdit={endEdit} onDelete={() => deleteNote(selectedNote.id)} />}
             {selectedCountry && <div className="space-y-3">
               <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-4">지도에 쓸 이름 (비우면 기본 이름)</span>
-                <input value={doc.countries[selectedCountry]?.name ?? ""} maxLength={60} placeholder={countryKoreanName(selectedCountry)} onFocus={beginEdit} onBlur={endEdit} onChange={event => patchCountry(selectedCountry, { name: event.target.value || undefined }, false)} className={cn(inputClass, "min-h-9")} />
+                <input value={doc.countries[selectedCountry]?.name ?? ""} maxLength={60} placeholder={eraCountry ? selectedLabel : countryKoreanName(selectedCountry)} onFocus={beginEdit} onBlur={endEdit} onChange={event => patchCountry(selectedCountry, { name: event.target.value || undefined }, false)} className={cn(inputClass, "min-h-9")} />
               </label>
               <div>
                 <p className="mb-1 text-xs font-semibold text-ink-4">색칠</p>
@@ -464,9 +499,10 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <Button variant="secondary" size="sm" onClick={() => patchCountry(selectedCountry, { hideName: !doc.countries[selectedCountry]?.hideName })}>{doc.countries[selectedCountry]?.hideName ? <><Eye size={14} /> 이름 보이기</> : <><EyeOff size={14} /> 이름 숨기기</>}</Button>
+                {eraCountry && <Button variant="secondary" size="sm" onClick={() => { patchCountry(selectedCountry, { hideShape: !doc.countries[selectedCountry]?.hideShape }); setSelection(null); }}><EyeOff size={14} /> 영역 숨기기</Button>}
                 {doc.countries[selectedCountry]?.at && <Button variant="ghost" size="sm" onClick={() => patchCountry(selectedCountry, { at: undefined })}>이름 자리 되돌리기</Button>}
               </div>
-              <p className="break-keep text-[.7rem] leading-4 text-ink-4">나라 이름 글자를 끌면 자리를 옮길 수 있어요.</p>
+              <p className="break-keep text-[.7rem] leading-4 text-ink-4">나라 이름 글자를 끌면 자리를 옮길 수 있어요.{eraCountry && " 숨긴 영역은 ‘숨긴 영역 되살리기’로 다시 보여요."}</p>
             </div>}
           </div>}
           {message && <p role="status" className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-[#2b2740] px-4 py-2 text-xs font-semibold text-white shadow-lg print:hidden">{message}</p>}

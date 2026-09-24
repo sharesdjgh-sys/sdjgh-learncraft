@@ -5,7 +5,8 @@ import type { GeometryCollection, Topology } from "topojson-specification";
 import { koreanCountryNames } from "../src/lib/social-map/country-names";
 import { blankDoc, mapExamples } from "../src/lib/social-map/examples";
 import { distanceKm, formatDistance, formatLat, formatLon, MAP_HEIGHT, MAP_WIDTH, parseMapDoc, presets, splitAtSeam, tickLabel, type LonLat } from "../src/lib/social-map/model";
-import { geoArea } from "d3-geo";
+import { geoArea, geoContains } from "d3-geo";
+import { historyPeriods } from "../src/lib/social-map/history";
 import { fitView, fixWinding, labelAnchor, makeMapper, panView, zoomView } from "../src/lib/social-map/projection";
 
 const near = (actual: number, expected: number, tolerance: number, message?: string) => assert.ok(Math.abs(actual - expected) <= tolerance, `${message ?? ""} ${actual} ≠ ${expected}±${tolerance}`);
@@ -97,5 +98,49 @@ assert.equal(parseMapDoc({ version: 2 }), null, "모르는 형식은 거절");
 assert.equal(parseMapDoc({ ...blank, annotations: [{ id: "a", kind: "marker", at: [37, 200], label: "", symbol: "dot", color: 0, size: 17 }] }), null, "범위를 벗어난 위도 거절");
 const repaired = parseMapDoc({ ...blank, options: { textScale: 9999 } })!;
 assert.equal(repaired.options.textScale, 100, "잘못된 설정은 기본값으로");
+
+// 시대 지도: 모든 시기 자료가 있고, 지구 전체를 덮는 조각이 없고, 한국사 영역이 제대로 들어 있어야 합니다.
+const eraFeatures = (id: string) => {
+  const topology = JSON.parse(readFileSync(`public/maps/history/${id}.json`, "utf8")) as Topology<{ p: GeometryCollection<{ n: string; k: string; c: string; p: number }> }>;
+  return feature(topology, topology.objects.p).features;
+};
+const owner = (id: string, point: LonLat) => eraFeatures(id).filter(item => geoContains(item, point)).map(item => item.properties.k);
+for (const period of historyPeriods) {
+  const items = eraFeatures(period.id);
+  assert.ok(items.length > 10, `${period.id} 자료`);
+  assert.deepEqual(items.filter(item => geoArea(item) > 2 * Math.PI).map(item => item.properties.n), [], `${period.id} 고리 방향`);
+  assert.ok(items.every(item => /^#[0-9a-f]{6}$/.test(item.properties.c)), `${period.id} 색`);
+}
+const seoul2: LonLat = [126.98, 37.57], pyongyang: LonLat = [125.75, 39.03], gyeongju: LonLat = [129.22, 35.84], gongju: LonLat = [127.12, 36.46];
+const liaodong: LonLat = [123.2, 41.3], ulleung: LonLat = [130.87, 37.5], dokdo: LonLat = [131.869, 37.242];
+assert.deepEqual(owner("bc200", pyongyang), ["고조선"]);
+assert.deepEqual(owner("100", pyongyang), ["낙랑군 (한 군현)"]);
+assert.deepEqual(owner("400", seoul2), ["백제"], "4세기 한강 유역은 백제");
+assert.deepEqual(owner("500", seoul2), ["고구려"], "5세기 한강 유역은 고구려");
+assert.deepEqual(owner("500", liaodong), ["고구려"], "5세기 요동은 고구려(원래 자료는 북위)");
+assert.deepEqual(owner("500", gongju), ["백제"]);
+assert.deepEqual(owner("600", seoul2), ["신라"], "6세기 한강 유역은 신라");
+assert.deepEqual(owner("800", pyongyang), ["발해"], "대동강 북쪽은 발해");
+assert.deepEqual(owner("800", gyeongju), ["신라"]);
+assert.deepEqual(owner("900", gongju), ["후백제"]);
+assert.deepEqual(owner("1100", pyongyang), ["고려"]);
+assert.deepEqual(owner("1279", pyongyang), ["동녕부 (원)"]);
+assert.deepEqual(owner("1279", seoul2), ["고려"]);
+assert.deepEqual(owner("1279", [126.55, 33.38]), ["탐라총관부 (원)"]);
+assert.deepEqual(owner("1492", [129.95, 42.9]), ["조선"], "6진(온성)까지 조선");
+assert.deepEqual(owner("1900", seoul2), ["대한 제국"]);
+assert.deepEqual(owner("1914", seoul2), ["한국 (일제 강점기)"]);
+assert.deepEqual(owner("1945", seoul2), ["38도선 이남 (미군 주둔)"]);
+// 울릉도·독도는 우산국(512년 신라 복속) 이후 신라·고려·조선의 영역으로 그립니다.
+for (const [id, name] of [["500", "우산국"], ["600", "신라"], ["800", "신라"], ["900", "신라"], ["1100", "고려"], ["1279", "고려"], ["1492", "조선"], ["1880", "조선"]]) {
+  assert.deepEqual(owner(id, ulleung), [name], `${id} 울릉도`);
+  assert.deepEqual(owner(id, dokdo), [name], `${id} 독도`);
+}
+// 황허 문명·이집트 문명 이름
+assert.ok(eraFeatures("bc2000").some(item => item.properties.k === "하(夏)"));
+assert.ok(eraFeatures("bc1500").some(item => item.properties.k === "상(商)"));
+assert.ok(eraFeatures("bc3000").some(item => item.properties.k === "이집트"));
+assert.equal(parseMapDoc({ ...blank, era: "500" })?.era, "500");
+assert.equal(parseMapDoc({ ...blank, era: undefined })?.era, null, "예전 초안은 오늘날의 국경으로");
 
 console.log("social map checks passed");
