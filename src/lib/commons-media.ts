@@ -38,14 +38,14 @@ export function commonsImages(payload: unknown): CommonsImage[] {
 
 let retryAfter = 0;
 const cache = new Map<string, { until: number; images: Promise<CommonsImage[]> }>();
-async function requestImages(params: Record<string, string>): Promise<CommonsImage[]> {
-  const key = JSON.stringify(params);
+async function requestImages(params: Record<string, string>, width = 900): Promise<CommonsImage[]> {
+  const key = JSON.stringify([params, width]);
   const existing = cache.get(key);
   if (existing && existing.until > Date.now()) return existing.images;
   if (Date.now() < retryAfter) throw new Error("이미지 서비스의 요청 제한으로 잠시 쉬고 있어요.");
   const url = new URL("https://commons.wikimedia.org/w/api.php");
   url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", prop: "imageinfo",
-    iiprop: "url|mime|extmetadata", iiurlwidth: "900", redirects: "1", iiextmetadatalanguage: "en", ...params }).toString();
+    iiprop: "url|mime|extmetadata", iiurlwidth: String(width), redirects: "1", iiextmetadatalanguage: "en", ...params }).toString();
   const images = (async () => {
     const response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; Wikimedia Commons)" }, signal: AbortSignal.timeout(8000) });
     if (response.status === 429) {
@@ -63,11 +63,20 @@ async function requestImages(params: Record<string, string>): Promise<CommonsIma
   try { return await images; } catch (error) { cache.delete(key); throw error; }
 }
 
-export async function searchCommonsImages(query: string) {
-  return requestImages({ generator: "search", gsrsearch: query.trim().slice(0, 180), gsrnamespace: "6", gsrlimit: "8" });
+const fileNamePattern = /^File:[^\r\n<>|]{1,235}$/;
+export const isCommonsFileName = (file: string) => fileNamePattern.test(file);
+
+export async function searchCommonsImages(query: string, options: { limit?: number; width?: number } = {}) {
+  return requestImages({ generator: "search", gsrsearch: query.trim().slice(0, 180), gsrnamespace: "6", gsrlimit: String(options.limit ?? 8) }, options.width);
 }
 export async function getCommonsImage(file: string) {
-  if (!/^File:[^\r\n<>|]{1,235}$/.test(file)) return null;
+  if (!isCommonsFileName(file)) return null;
   const images = await requestImages({ titles: file });
   return images[0] ?? null;
+}
+/** 여러 파일을 한 번에 불러옵니다(최대 50개). 이용 조건을 확인하지 못한 파일은 빠집니다. */
+export async function getCommonsImagesByFile(files: string[], width = 900) {
+  const valid = [...new Set(files.filter(isCommonsFileName))].sort().slice(0, 50);
+  if (!valid.length) return [];
+  return requestImages({ titles: valid.join("|") }, width);
 }

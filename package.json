@@ -6,6 +6,7 @@
     "test:vocabulary": "tsx scripts/verify-vocabulary.ts",
     "test:music-score": "tsx scripts/verify-music-score.ts",
     "test:social-map": "tsx scripts/verify-social-map.ts",
+    "test:art-works": "tsx scripts/verify-art-works.ts",
     "maps:history": "tsx scripts/build-historical-maps.ts",
     "dev": "next dev",
     "build": "next build",

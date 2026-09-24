@@ -192,7 +192,7 @@ export function KoreanVocabularyLab() {
   const selectClass = "min-h-11 w-full appearance-none rounded-xl border border-line bg-surface-2 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50";
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><BookA size={16} /> 교사 지원실 · 국어</p>
