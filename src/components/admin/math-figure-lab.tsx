@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import NextImage from "next/image";
 import katex from "katex";
-import { AlertCircle, CheckCircle2, ChevronDown, Download, DraftingCompass, FileCode2, ImageIcon, LoaderCircle, Move, Plus, Ruler, ShieldCheck, Sigma, Sparkles, Trash2, Undo2, UploadCloud } from "lucide-react";
+import { AlertCircle, CheckCircle2, ListChecks, ChevronDown, Download, DraftingCompass, FileCode2, ImageIcon, LoaderCircle, Move, Plus, Ruler, ShieldCheck, Sigma, Sparkles, Trash2, Undo2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { mathFigureSpecSchema, normalizeMathFigureNote, removeMathFigureShape, resizeMathFigureLine, type MathFigureShape, type MathFigureSpec } from "@/lib/math-figure-lab";
@@ -12,12 +12,16 @@ import { angleBinding, resizeAngle } from "@/lib/math-figure-angle";
 import { hemisphereBinding, isHemisphereAngle, resizeHemisphereSection } from "@/lib/math-figure-hemisphere";
 import { enforceFigureConstraints } from "@/lib/math-figure-constraints";
 import { MathFigureCalculation, MathFigureConstraints } from "./math-figure-calculation";
+import { MathProblemReviewPanel } from "./math-problem-review";
+import { mathProblemReviewSchema, type MathProblemReview } from "@/lib/math-figure-review";
 import { rightMedianBinding, resizeRightMedian } from "@/lib/math-figure-reference-edit";
 import { figureCurveControl, figureFacePaths } from "@/lib/math-figure-face";
 import { isVisibleFigureLabel, setFigureLabelFontSize } from "@/lib/math-figure-labels";
 
 // Retain the implemented generator, but keep the teacher workflow focused on reference images.
 const SHOW_CALCULATION_TOOLS = false;
+// 시험지용 흑백 도형: 면은 색 없이 흰색으로만 채워 뒤쪽 선을 가립니다.
+const surfaceFill = (fill: string) => fill === "none" ? "none" : "#ffffff";
 
 type Mode = "clean" | "variation";
 type EditorTab = "labels" | "strokes";
@@ -164,24 +168,24 @@ export function MathFigureSvg({ spec, svgRef, selectedIndex = null, angleFixed =
         if (shape.fill !== "none") {
           const face = figureFacePaths(shape, spec.shapes, point, scale);
           return <g key={index}>
-            <path data-figure-face="true" d={face.fillPath} fill={shape.fill} stroke="none" pointerEvents="none" />
+            <path data-figure-face="true" d={face.fillPath} fill={surfaceFill(shape.fill)} stroke="none" pointerEvents="none" />
             {face.outlinePaths.map((d, edge) => <path key={edge} d={d} {...common} fill="none" />)}
             {selectedIndex === index ? <path data-editor-selection="true" d={face.fillPath} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}
             {onSelect ? <path data-editor-hit="true" role="button" tabIndex={0} aria-label="다각형 외곽선 선택" d={face.fillPath} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}
           </g>;
         }
         const polygonPoints = points(shape.points);
-        return <g key={index}>{selectedIndex === index ? <polygon data-editor-selection="true" points={polygonPoints} fill="none" stroke="#6847e8" strokeWidth="9" strokeLinejoin="round" opacity=".18" /> : null}<polygon points={polygonPoints} {...common} fill={shape.fill} />{onSelect ? <polygon data-editor-hit="true" role="button" tabIndex={0} aria-label="다각형 외곽선 선택" points={polygonPoints} fill="none" stroke="transparent" strokeWidth="18" strokeLinejoin="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
+        return <g key={index}>{selectedIndex === index ? <polygon data-editor-selection="true" points={polygonPoints} fill="none" stroke="#6847e8" strokeWidth="9" strokeLinejoin="round" opacity=".18" /> : null}<polygon points={polygonPoints} {...common} fill={surfaceFill(shape.fill)} />{onSelect ? <polygon data-editor-hit="true" role="button" tabIndex={0} aria-label="다각형 외곽선 선택" points={polygonPoints} fill="none" stroke="transparent" strokeWidth="18" strokeLinejoin="round" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
       }
       case "circle": {
         const center = point(shape.center);
         const radius = shape.radius * scale;
-        return <g key={index}>{selectedIndex === index ? <circle data-editor-selection="true" cx={center.x} cy={center.y} r={radius} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}<circle cx={center.x} cy={center.y} r={radius} {...common} fill={shape.fill} />{onSelect ? <circle data-editor-hit="true" role="button" tabIndex={0} aria-label="원 선택" cx={center.x} cy={center.y} r={radius} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
+        return <g key={index}>{selectedIndex === index ? <circle data-editor-selection="true" cx={center.x} cy={center.y} r={radius} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}<circle cx={center.x} cy={center.y} r={radius} {...common} fill={surfaceFill(shape.fill)} />{onSelect ? <circle data-editor-hit="true" role="button" tabIndex={0} aria-label="원 선택" cx={center.x} cy={center.y} r={radius} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
       }
       case "ellipse": {
         const center = point(shape.center);
         const transform = `rotate(${-shape.rotation} ${center.x} ${center.y})`;
-        return <g key={index}>{selectedIndex === index ? <ellipse data-editor-selection="true" cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}<ellipse cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} {...common} fill={shape.fill} />{onSelect ? <ellipse data-editor-hit="true" role="button" tabIndex={0} aria-label="타원 선택" cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
+        return <g key={index}>{selectedIndex === index ? <ellipse data-editor-selection="true" cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} fill="none" stroke="#6847e8" strokeWidth="9" opacity=".18" /> : null}<ellipse cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} {...common} fill={surfaceFill(shape.fill)} />{onSelect ? <ellipse data-editor-hit="true" role="button" tabIndex={0} aria-label="타원 선택" cx={center.x} cy={center.y} rx={shape.radiusX * scale} ry={shape.radiusY * scale} transform={transform} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" style={{ cursor: "pointer" }} onClick={() => onSelect(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(index); }} /> : null}</g>;
       }
       case "ellipticArc": {
         const radians = shape.rotation * Math.PI / 180;
@@ -470,12 +474,16 @@ const mathInputSnippets = [
 ] as const;
 
 
-export function MathFigureLab() {
+export function MathFigureLab({ audience = "admin" }: { audience?: "admin" | "teacher" }) {
   const [sourcePanel, setSourcePanel] = useState<"image" | "calculation">("image");
   const [mode, setMode] = useState<Mode>("clean");
   const [file, setFile] = useState<File | null>(null);
   const [editableMeasurements, setEditableMeasurements] = useState<EditableMeasurement[] | null>(null);
   const [measurementDrafts, setMeasurementDrafts] = useState<Record<number, number>>({});
+  const [problemText, setProblemText] = useState("");
+  const [review, setReview] = useState<{ result: MathProblemReview; measurements: EditableMeasurement[] | null; draftKey: string } | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const reviewPanelRef = useRef<HTMLDivElement>(null);
   const [allLabelFontSize, setAllLabelFontSize] = useState(22);
   const [spec, setSpec] = useState<MathFigureSpec | null>(null);
   const [history, setHistory] = useState<MathFigureSpec[]>([]);
@@ -497,9 +505,13 @@ export function MathFigureLab() {
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const canAnalyze = Boolean(file && !loading);
+  const reviewResult = review?.result;
   useEffect(() => {
-    setMeasurementDrafts(Object.fromEntries((editableMeasurements ?? []).map((measurement, index) => [index, measurement.value])));
-  }, [editableMeasurements]);
+    // 결과는 오른쪽 위(모바일은 아래)에 나타나므로 검토가 끝나면 답변 위치로 이동합니다.
+    if (reviewResult) reviewPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [reviewResult]);
+  const draftValues = (editableMeasurements ?? []).map((measurement, index) => ({ ...measurement, nextValue: measurementDrafts[index] ?? measurement.value }));
+  const draftKey = JSON.stringify(draftValues.map((measurement) => measurement.nextValue));
   const hasMeasurementChanges = editableMeasurements?.some((measurement, index) => Math.abs((measurementDrafts[index] ?? measurement.value) - measurement.value) > 0.000001) ?? false;
   const editableLabels = useMemo(() => spec?.shapes.map((shape, index) => ({ shape, index })).filter((item): item is { shape: EditableShape; index: number } => item.shape.type === "point" || item.shape.type === "text" || item.shape.type === "dimension") ?? [], [spec]);
   const segments = useMemo(() => {
@@ -572,6 +584,30 @@ export function MathFigureLab() {
     if (!spec) return;
     const next = setFigureLabelFontSize(spec, allLabelFontSize);
     if (next !== spec) commitSpec(next);
+  }
+
+  async function reviewProblem() {
+    if (!file || editableMeasurements === null || reviewing) return;
+    setReviewing(true);
+    setRequestError("");
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      form.set("measurements", JSON.stringify(draftValues));
+      form.set("problemText", problemText);
+      const response = await fetch("/api/admin/math-figures/review", { method: "POST", body: form });
+      const data = await response.json().catch(() => null) as { review?: unknown; error?: string } | null;
+      if (!response.ok || !data?.review) throw new Error(data?.error || "문제를 검토하지 못했습니다.");
+      setReview({ result: mathProblemReviewSchema.parse(data.review), measurements: editableMeasurements, draftKey });
+    } catch (error) {
+      setRequestError(error instanceof Error && error.name !== "ZodError" ? error.message : "문제를 검토하지 못했습니다.");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  function applyRecommendation(values: MathProblemReview["recommendations"][number]["values"]) {
+    setMeasurementDrafts((current) => ({ ...current, ...Object.fromEntries(values.filter((item) => editableMeasurements?.[item.index]).map((item) => [item.index, item.value])) }));
   }
 
   async function renderVariation() {
@@ -700,6 +736,8 @@ export function MathFigureLab() {
     setRequestError("");
     setSpec(null);
     setEditableMeasurements(null);
+    setReview(null);
+    setProblemText("");
     setHistory([]);
     setSelectedIndex(null);
     if (!next) { setFile(null); return; }
@@ -725,6 +763,8 @@ export function MathFigureLab() {
       if (mode === "variation") {
         if (!data?.measurements) throw new Error(data?.error || "변경 가능한 수치를 찾지 못했습니다.");
         setEditableMeasurements(data.measurements);
+        setMeasurementDrafts({});
+        setReview(null);
         setSpec(null);
         setHistory([]);
         setSelectedIndex(null);
@@ -850,11 +890,11 @@ export function MathFigureLab() {
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> 관리자 전용 실험 기능</p>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> {audience === "teacher" ? "교사 지원실 · 수학" : "관리자 전용 실험 기능"}</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수학 그림 문제 제작 AI</h1>
           <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3">교재 도형을 벡터로 복원하고, 미리보기를 보면서 필요한 표시를 바로 다듬습니다.</p>
         </div>
-        <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 관리자에게만 표시됨</span>
+        <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> {audience === "teacher" ? "교사·관리자에게만 표시됨" : "관리자에게만 표시됨"}</span>
       </header>
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
@@ -862,7 +902,7 @@ export function MathFigureLab() {
           {SHOW_CALCULATION_TOOLS && <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-3 p-1" role="tablist" aria-label="도형 입력 방식">{([{value:"image",label:"이미지에서 복원"},{value:"calculation",label:"수식·수치로 생성"}] as const).map(item => <button key={item.value} type="button" role="tab" aria-selected={sourcePanel === item.value} onClick={() => setSourcePanel(item.value)} className={cn("min-h-10 rounded-lg text-xs font-bold",sourcePanel === item.value ? "bg-white text-brand shadow-sm" : "text-ink-4")}>{item.label}</button>)}</div>}
           <div className={cn("rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-2)]",SHOW_CALCULATION_TOOLS && sourcePanel !== "image" && "hidden")}>
             <div className="flex rounded-[12px] bg-surface-3 p-1" role="tablist" aria-label="도형 처리 방식">
-              {([{ value: "clean", label: "깔끔하게 복원" }, { value: "variation", label: "수치·조건 변형" }] as const).map((item) => <button key={item.value} role="tab" aria-selected={mode === item.value} onClick={() => { setMode(item.value); setSpec(null); setEditableMeasurements(null); setHistory([]); setSelectedIndex(null); }} className={cn("min-h-10 flex-1 rounded-[9px] px-3 text-[.82rem] font-bold transition", mode === item.value ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item.label}</button>)}
+              {([{ value: "clean", label: "깔끔하게 복원" }, { value: "variation", label: "수치·조건 변형" }] as const).map((item) => <button key={item.value} role="tab" aria-selected={mode === item.value} onClick={() => { setMode(item.value); setSpec(null); setEditableMeasurements(null); setReview(null); setHistory([]); setSelectedIndex(null); }} className={cn("min-h-10 flex-1 rounded-[9px] px-3 text-[.82rem] font-bold transition", mode === item.value ? "bg-white text-brand-dark shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item.label}</button>)}
             </div>
 
             <button type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); chooseFile(event.dataTransfer.files[0] ?? null); }} className="mt-4 flex min-h-40 w-full flex-col items-center justify-center rounded-[15px] border border-dashed border-brand/30 bg-brand-page/50 p-4 text-center transition-all duration-300 ease-out hover:border-brand/55 hover:bg-brand-page active:scale-[.99]">
@@ -875,6 +915,12 @@ export function MathFigureLab() {
             {mode === "variation" && editableMeasurements !== null ? <div className="mt-4 rounded-[13px] border border-brand/15 bg-brand-page/45 p-3.5">
               <div className="flex items-center gap-2"><Ruler size={15} className="text-brand" /><h2 className="text-[.82rem] font-extrabold">변경 가능한 수치</h2></div>
               {editableMeasurements.length ? <><div className="mt-3 space-y-2.5">{editableMeasurements.map((measurement, index) => <div key={`${measurement.kind}-${measurement.label}-${index}`} className="flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-2.5"><span className="min-w-0 truncate text-[.76rem] font-bold text-ink-3">{measurement.label}</span><NumberSpinner value={Number((measurementDrafts[index] ?? measurement.value).toFixed(4))} min={0.1} max={measurement.kind === "angle" ? 359.9 : 1000} step={measurement.kind === "angle" ? 1 : 0.1} suffix={measurement.kind === "angle" ? "°" : undefined} onChange={(value) => setMeasurementDrafts((current) => ({ ...current, [index]: value }))} /></div>)}</div><Button onClick={renderVariation} disabled={!hasMeasurementChanges || loading} size="sm" className="mt-3 w-full">{loading ? <LoaderCircle size={15} className="animate-spin" /> : <Sparkles size={15} />}{loading ? "도형을 만드는 중..." : "변경한 수치로 도형 만들기"}</Button></> : <p className="mt-3 text-[.74rem] leading-5 text-ink-4">변경 가능한 각도나 길이 수치를 찾지 못했습니다. 원본에 수치와 치수 표시가 선명하게 보이는지 확인해 주세요.</p>}
+              <div className="mt-4 border-t border-brand/10 pt-3.5">
+                <label htmlFor="math-problem-text" className="flex items-center gap-2 text-[.8rem] font-extrabold"><ListChecks size={15} className="text-brand" /> 문제 성립 검토</label>
+                <p className="mt-1 break-keep text-[.72rem] leading-5 text-ink-4">현재 수치로 문제를 풀어 성립 여부를 확인하고, 답이 깔끔하게 떨어지는 수치를 추천합니다.</p>
+                <textarea id="math-problem-text" value={problemText} onChange={(event) => setProblemText(event.target.value.slice(0, 2000))} rows={3} placeholder="문제 문장 (선택) · 예: x의 값을 구하시오." className="mt-2 w-full resize-y rounded-[10px] border border-line bg-white px-3 py-2 text-[.78rem] leading-5 outline-none focus:border-brand/50" />
+                <Button onClick={reviewProblem} disabled={reviewing || loading} variant="secondary" size="sm" className="mt-2 w-full">{reviewing ? <LoaderCircle size={15} className="animate-spin" /> : <ListChecks size={15} />}{reviewing ? "문제를 풀어 보는 중..." : "성립 확인 · 추천 수치 받기"}</Button>
+              </div>
             </div> : null}
             <p className="mt-3 text-[.75rem] leading-5 text-ink-5">이미지는 분석 요청에만 사용되며 서버나 데이터베이스에 저장하지 않습니다.</p>
           </div>
@@ -885,6 +931,7 @@ export function MathFigureLab() {
 
         <div className="min-w-0">
           {requestError && <div role="alert" className="mb-5 flex items-start gap-2 rounded-[13px] border border-danger/20 bg-[var(--danger-page)] p-4 text-[.84rem] text-danger"><AlertCircle size={17} className="mt-0.5 shrink-0" />{requestError}</div>}
+          {review && <div ref={reviewPanelRef} className="scroll-mt-20"><MathProblemReviewPanel review={review.result} measurements={editableMeasurements === null ? null : review.measurements} stale={editableMeasurements !== null && review.draftKey !== draftKey} onApply={applyRecommendation} onClose={() => setReview(null)} /></div>}
           {!spec ? <div className="grid min-h-[520px] place-items-center rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)]"><div className="max-w-sm px-6 text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-surface-3 text-ink-5"><ImageIcon size={25} /></span><h2 className="mt-5 text-lg font-extrabold">{editableMeasurements !== null ? "수치를 변경한 뒤 도형을 만드세요" : "결과가 여기에 표시됩니다"}</h2><p className="mt-2 break-keep text-[.84rem] leading-6 text-ink-4">{editableMeasurements !== null ? "왼쪽에서 원하는 숫자만 바꾸고 도형 만들기를 누르면 최종 결과가 한 번 생성됩니다." : "왼쪽에서 이미지를 선택하고 복원 방식을 실행해 원본과 벡터 결과를 비교해 보세요."}</p></div></div> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)]">
             <section className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-2)] lg:sticky lg:top-5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3"><div className="min-w-0"><div className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" /><h2 className="truncate text-[.9rem] font-extrabold">{spec.title}</h2></div></div><div className="flex flex-wrap gap-1.5"><Button variant="ghost" size="sm" onClick={undo} disabled={!history.length}><Undo2 size={14} /> 취소</Button><Button variant="secondary" size="sm" onClick={downloadSvg}><FileCode2 size={14} /> SVG</Button><Button variant="secondary" size="sm" onClick={downloadPng}><Download size={14} /> PNG</Button></div></div>

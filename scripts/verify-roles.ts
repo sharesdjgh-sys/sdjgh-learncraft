@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
-import { canUseLearning, homeForRole } from "../src/lib/roles";
+import { canUseLearning, canUseTeacherTools, homeForRole } from "../src/lib/roles";
 import type { SessionUser, UserRole } from "../src/types";
 
 async function main() {
@@ -10,11 +10,12 @@ async function main() {
   const modules: Record<string, unknown> = {
     "server-only": {}, "node:crypto": {},
     "next/headers": { cookies: async () => ({ get: () => role ? { value: "signed-session" } : undefined }) },
-    "next/server": {},
+    "next/server": { after: () => undefined },
+    "next/cache": { revalidateTag: () => undefined, unstable_cache: <T,>(fn: T) => fn },
     "jose": { jwtVerify: async () => ({ payload: { user: { id: "test-user", schoolId: "test-school", schoolName: "School", role } } }) },
     "drizzle-orm": {}, "@/data/student-accounts": { sampleStudentAccounts: [] },
     "@/db": { db: null }, "@/db/schema": {}, "@/lib/env": { env: {} },
-    "@/lib/password": {}, "@/lib/roles": { canUseLearning },
+    "@/lib/password": {}, "@/lib/roles": { canUseLearning, canUseTeacherTools },
   };
   const exported: Record<string, () => Promise<SessionUser | null>> = {};
   const compiled = ts.transpileModule(readFileSync("src/lib/auth.ts", "utf8"), {
@@ -26,6 +27,7 @@ async function main() {
     assert.equal(Boolean(await exported.requireAdmin()), role === "ADMIN");
     assert.equal(Boolean(await exported.requireStudent()), role === "STUDENT");
     assert.equal(Boolean(await exported.requireLearner()), role === "STUDENT" || role === "TEACHER");
+    assert.equal(Boolean(await exported.requireTeacherTools()), role === "TEACHER" || role === "ADMIN");
   }
   assert.equal(homeForRole("STUDENT"), "/learn");
   assert.equal(homeForRole("TEACHER"), "/learn");

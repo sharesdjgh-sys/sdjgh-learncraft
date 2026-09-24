@@ -61,7 +61,7 @@ import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import { makeAnswerPdfFileName } from "@/lib/tutor-pdf-file-name";
-import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
+import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage, UserRole } from "@/types";
 
 const showMarkdownCopyButton = process.env.NODE_ENV === "development";
 
@@ -562,6 +562,7 @@ type LearningWorkspaceProps = {
   studentId: string;
   studentName: string;
   schoolName: string;
+  role?: UserRole;
 };
 
 export function LearningWorkspace(props: Omit<LearningWorkspaceProps, "units">) {
@@ -591,7 +592,7 @@ export function LearningWorkspace(props: Omit<LearningWorkspaceProps, "units">) 
   if (units === null) {
     return (
       <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-        <StudentTopNavigation user={{ name: props.studentName, schoolName: props.schoolName }} />
+        <StudentTopNavigation user={{ name: props.studentName, schoolName: props.schoolName, role: props.role }} />
         <main className="min-h-0 flex-1 overflow-y-auto bg-surface px-4 pb-24 sm:px-7">
           <div className="mx-auto max-w-[72rem] py-5">
             <CurriculumLoadStatus error={error} onRetry={() => { setError(false); setAttempt((value) => value + 1); }} />
@@ -615,10 +616,10 @@ function CurriculumLoadStatus({ error, onRetry }: { error: boolean; onRetry: () 
   );
 }
 
-function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorkspaceProps, "studentName" | "schoolName">) {
+function EmptyLearningWorkspace({ studentName, schoolName, role }: Pick<LearningWorkspaceProps, "studentName" | "schoolName" | "role">) {
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-      <StudentTopNavigation user={{ name: studentName, schoolName }} />
+      <StudentTopNavigation user={{ name: studentName, schoolName, role }} />
       <main className="grid min-h-0 flex-1 place-items-center bg-surface px-5">
         <div className="max-w-md rounded-[18px] border border-line bg-surface p-7 text-center shadow-[var(--lift-2)]">
           <span className="mx-auto grid size-12 place-items-center rounded-[14px] bg-brand-soft text-brand"><AlertCircle size={23} /></span>
@@ -630,7 +631,7 @@ function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorksp
   );
 }
 
-function LearningWorkspaceContent({ units, initialGrade, studentId, studentName, schoolName, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
+function LearningWorkspaceContent({ units, initialGrade, studentId, studentName, schoolName, role, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
   const availableGrades = availableGradesFor(units);
   const requestedInitialGrade = supportedGrade(initialGrade);
   const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
@@ -1457,7 +1458,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
 
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-      <StudentTopNavigation user={{ name: studentName, schoolName }} />
+      <StudentTopNavigation user={{ name: studentName, schoolName, role }} />
       <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
       <aside className="hidden min-h-0 flex-col border-r border-line bg-surface/55 min-[1024px]:flex">
         <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-5 [scrollbar-gutter:stable]">
