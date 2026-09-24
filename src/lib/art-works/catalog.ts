@@ -2,6 +2,10 @@
 // file은 Wikimedia Commons 파일 이름이며 이용 조건(퍼블릭 도메인·CC)을 scripts/verify-art-works.ts --online으로 확인합니다.
 // 작가 사후 70년이 지나지 않아 저작권이 남은 작품은 file 없이 설명만 두고 copyright를 표시합니다.
 
+import { moreWorks } from "./more-works";
+
+export { termDetails, type TermDetail } from "./term-details";
+
 export type ArtWork = {
   id: string;
   title: string;
@@ -93,10 +97,10 @@ export const artMovements: ArtMovement[] = [
     summary: "'다시 태어남'이라는 뜻으로, 그리스·로마 문화를 되살려 인간을 중심에 두고 과학적인 눈으로 세상을 그렸습니다.",
     features: ["선 원근법으로 깊이 있는 공간 표현", "해부학에 바탕을 둔 사실적인 인체", "안정된 삼각형 구도와 조화", "유화와 스푸마토 기법"],
     works: [
-      { id: "arnolfini", title: "아르놀피니 부부의 초상", original: "Arnolfini Portrait", artist: "얀 반 에이크", year: "1434년", place: "런던 내셔널 갤러리", medium: "패널에 유채", file: "File:The Arnolfini portrait (1434).jpg", point: "유화 물감으로 금속·털·유리의 질감을 세밀하게 그린 북유럽 르네상스의 대표작입니다.", terms: ["oil-painting", "texture"] },
+      { id: "arnolfini", title: "아르놀피니 부부의 초상", original: "Arnolfini Portrait", artist: "얀 반 에이크", year: "1434년", place: "런던 내셔널 갤러리", medium: "패널에 유채", file: "File:The Arnolfini portrait (1434).jpg", point: "유화 물감으로 금속·털·유리의 질감을 세밀하게 그린 북유럽 르네상스의 대표작입니다.", terms: ["oil-painting", "texture", "portrait"] },
       { id: "birth-of-venus", title: "비너스의 탄생", original: "La nascita di Venere", artist: "산드로 보티첼리", year: "1484~1486년경", place: "피렌체 우피치 미술관", medium: "캔버스에 템페라", file: "File:Sandro Botticelli - La nascita di Venere - Google Art Project - edited.jpg", point: "그리스 신화를 우아한 선으로 되살려 르네상스 인문주의를 보여 줍니다.", terms: ["tempera", "line"] },
       { id: "last-supper", title: "최후의 만찬", original: "L'Ultima Cena", artist: "레오나르도 다빈치", year: "1495~1498년", place: "밀라노 산타 마리아 델레 그라치에 성당", medium: "벽에 템페라와 유채", file: "File:The Last Supper - Leonardo Da Vinci - High Resolution 32x16.jpg", point: "모든 선이 예수의 머리로 모이는 선 원근법 구도의 대표 예입니다.", terms: ["linear-perspective", "vanishing-point", "emphasis"] },
-      { id: "mona-lisa", title: "모나리자", original: "Mona Lisa", artist: "레오나르도 다빈치", year: "1503~1519년경", place: "파리 루브르 박물관", medium: "패널에 유채", file: "File:Mona Lisa.jpg", point: "윤곽을 안개처럼 부드럽게 흐리는 스푸마토와 대기 원근법을 보여 줍니다.", terms: ["sfumato", "atmospheric-perspective", "composition"] },
+      { id: "mona-lisa", title: "모나리자", original: "Mona Lisa", artist: "레오나르도 다빈치", year: "1503~1519년경", place: "파리 루브르 박물관", medium: "패널에 유채", file: "File:Mona Lisa.jpg", point: "윤곽을 안개처럼 부드럽게 흐리는 스푸마토와 대기 원근법을 보여 줍니다.", terms: ["sfumato", "atmospheric-perspective", "composition", "portrait"] },
       { id: "david", title: "다비드", original: "David", artist: "미켈란젤로 부오나로티", year: "1501~1504년", place: "피렌체 아카데미아 미술관", medium: "대리석", file: "File:'David' by Michelangelo Fir JBU004.jpg", point: "싸움 직전의 긴장된 순간을 콘트라포스토 자세와 정확한 해부학으로 표현했습니다.", terms: ["contrapposto", "proportion"] },
       { id: "creation-of-adam", title: "아담의 창조", original: "Creazione di Adamo", artist: "미켈란젤로 부오나로티", year: "1511~1512년경", place: "바티칸 시스티나 예배당 천장", medium: "프레스코", file: "File:Michelangelo - Creation of Adam (cropped).jpg", point: "닿을 듯 말 듯한 두 손가락에 시선을 모아 극적인 순간을 강조했습니다.", terms: ["fresco", "emphasis"] },
       { id: "school-of-athens", title: "아테네 학당", original: "Scuola di Atene", artist: "라파엘로 산치오", year: "1509~1511년", place: "바티칸 서명의 방", medium: "프레스코", file: "File:\"The School of Athens\" by Raffaello Sanzio da Urbino.jpg", point: "고대 철학자들을 선 원근법의 웅장한 건축 공간 속에 균형 있게 배치했습니다.", terms: ["linear-perspective", "balance", "symmetry"] },
@@ -110,7 +114,7 @@ export const artMovements: ArtMovement[] = [
       { id: "calling-of-matthew", title: "성 마태오의 소명", artist: "카라바조", year: "1599~1600년", place: "로마 산 루이지 데이 프란체시 성당", medium: "캔버스에 유채", file: "File:Caravaggio — The Calling of Saint Matthew.jpg", point: "어둠 속을 가르는 한 줄기 빛으로 극적인 순간을 강조한 테네브리즘의 대표작입니다.", terms: ["chiaroscuro", "contrast", "emphasis"] },
       { id: "night-watch", title: "야경", original: "De Nachtwacht", artist: "렘브란트 판 레인", year: "1642년", place: "암스테르담 국립미술관", medium: "캔버스에 유채", file: "File:La ronda de noche, por Rembrandt van Rijn.jpg", point: "단체 초상화를 빛과 움직임이 살아 있는 이야기 장면으로 바꾸었습니다.", terms: ["chiaroscuro", "movement"] },
       { id: "las-meninas", title: "시녀들", original: "Las Meninas", artist: "디에고 벨라스케스", year: "1656년", place: "마드리드 프라도 미술관", medium: "캔버스에 유채", file: "File:Las Meninas, by Diego Velázquez, from Prado in Google Earth.jpg", point: "화가 자신과 거울 속 왕 부부까지 담아 '누가 누구를 보는가'를 묻는 복잡한 구성입니다.", terms: ["composition", "space"] },
-      { id: "pearl-earring", title: "진주 귀고리를 한 소녀", artist: "요하네스 페르메이르", year: "1665년경", place: "헤이그 마우리츠하위스 미술관", medium: "캔버스에 유채", file: "File:1665 Girl with a Pearl Earring.jpg", point: "어두운 배경 속 빛을 받은 얼굴과 진주가 돋보이는 트로니(인물 습작)입니다.", terms: ["contrast", "chiaroscuro"] },
+      { id: "pearl-earring", title: "진주 귀고리를 한 소녀", artist: "요하네스 페르메이르", year: "1665년경", place: "헤이그 마우리츠하위스 미술관", medium: "캔버스에 유채", file: "File:1665 Girl with a Pearl Earring.jpg", point: "어두운 배경 속 빛을 받은 얼굴과 진주가 돋보이는 트로니(인물 습작)입니다.", terms: ["contrast", "chiaroscuro", "portrait"] },
     ],
   },
   {
@@ -139,8 +143,8 @@ export const artMovements: ArtMovement[] = [
       { id: "third-of-may", title: "1808년 5월 3일", original: "El tres de mayo de 1808", artist: "프란시스코 고야", year: "1814년", place: "마드리드 프라도 미술관", medium: "캔버스에 유채", file: "File:El Tres de Mayo, by Francisco de Goya, from Prado thin black margin.jpg", point: "전쟁의 폭력을 고발한 그림으로, 빛을 받은 흰 옷의 남자에게 시선이 모입니다.", terms: ["contrast", "emphasis"] },
       { id: "raft-of-medusa", title: "메두사호의 뗏목", artist: "테오도르 제리코", year: "1818~1819년", place: "파리 루브르 박물관", medium: "캔버스에 유채", file: "File:JEAN LOUIS THÉODORE GÉRICAULT - La Balsa de la Medusa (Museo del Louvre, 1818-19).jpg", point: "실제 난파 사건을 피라미드 구도로 쌓아 절망과 희망을 극적으로 그렸습니다.", terms: ["composition", "movement"] },
       { id: "liberty", title: "민중을 이끄는 자유의 여신", artist: "외젠 들라크루아", year: "1830년", place: "파리 루브르 박물관", medium: "캔버스에 유채", file: "File:La Liberté guidant le peuple - Eugène Delacroix - Musée du Louvre Peintures RF 129 - après restauration 2024.jpg", point: "1830년 7월 혁명을 강렬한 색과 삼각형 구도로 표현한 낭만주의 대표작입니다.", terms: ["hue", "composition", "emphasis"] },
-      { id: "wanderer", title: "안개 바다 위의 방랑자", artist: "카스파르 다비트 프리드리히", year: "1818년경", place: "함부르크 미술관", medium: "캔버스에 유채", file: "File:Caspar David Friedrich - Wanderer above the Sea of Fog.jpeg", point: "뒷모습의 인물로 거대한 자연 앞에서 느끼는 숭고함을 함께 느끼게 합니다.", terms: ["atmospheric-perspective", "space"] },
-      { id: "temeraire", title: "전함 테메레르", original: "The Fighting Temeraire", artist: "윌리엄 터너", year: "1839년", place: "런던 내셔널 갤러리", medium: "캔버스에 유채", file: "File:The Fighting Temeraire, JMW Turner, National Gallery.jpg", point: "해 질 녘 빛과 대기를 색으로 녹여 인상주의에 영향을 준 작품입니다.", terms: ["hue", "atmospheric-perspective"] },
+      { id: "wanderer", title: "안개 바다 위의 방랑자", artist: "카스파르 다비트 프리드리히", year: "1818년경", place: "함부르크 미술관", medium: "캔버스에 유채", file: "File:Caspar David Friedrich - Wanderer above the Sea of Fog.jpeg", point: "뒷모습의 인물로 거대한 자연 앞에서 느끼는 숭고함을 함께 느끼게 합니다.", terms: ["atmospheric-perspective", "space", "landscape"] },
+      { id: "temeraire", title: "전함 테메레르", original: "The Fighting Temeraire", artist: "윌리엄 터너", year: "1839년", place: "런던 내셔널 갤러리", medium: "캔버스에 유채", file: "File:The Fighting Temeraire, JMW Turner, National Gallery.jpg", point: "해 질 녘 빛과 대기를 색으로 녹여 인상주의에 영향을 준 작품입니다.", terms: ["hue", "atmospheric-perspective", "landscape"] },
     ],
   },
   {
@@ -160,7 +164,7 @@ export const artMovements: ArtMovement[] = [
     works: [
       { id: "fifer", title: "피리 부는 소년", original: "Le Fifre", artist: "에두아르 마네", year: "1866년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Manet, Edouard - Young Flautist, or The Fifer, 1866 (2).jpg", point: "배경을 없애고 평평한 색면으로 그려 인상주의 화가들에게 큰 영향을 주었습니다.", terms: ["plane", "hue"] },
       { id: "impression-sunrise", title: "인상, 해돋이", original: "Impression, soleil levant", artist: "클로드 모네", year: "1872년", place: "파리 마르모탕 모네 미술관", medium: "캔버스에 유채", file: "File:Monet - Impression, Sunrise.jpg", point: "'인상주의'라는 이름이 나온 작품으로, 안개 낀 항구의 순간을 빠른 붓질로 그렸습니다.", terms: ["complementary", "brushstroke"] },
-      { id: "poppies", title: "개양귀비 들판", original: "Les Coquelicots", artist: "클로드 모네", year: "1873년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Claude Monet - Poppy Field - Google Art Project.jpg", point: "초록 들판 속 붉은 점들로 보색 대비와 야외의 밝은 빛을 보여 줍니다.", terms: ["complementary", "point"] },
+      { id: "poppies", title: "개양귀비 들판", original: "Les Coquelicots", artist: "클로드 모네", year: "1873년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Claude Monet - Poppy Field - Google Art Project.jpg", point: "초록 들판 속 붉은 점들로 보색 대비와 야외의 밝은 빛을 보여 줍니다.", terms: ["complementary", "point", "landscape"] },
       { id: "rouen", title: "루앙 대성당 연작", original: "La cathédrale de Rouen", artist: "클로드 모네", year: "1892~1894년(사진은 1893년 작)", medium: "캔버스에 유채", file: "File:RouenCathedral Monet 1894.jpg", point: "같은 성당을 시간과 날씨를 바꿔 30점 넘게 그려 빛에 따라 색이 달라짐을 보여 주었습니다.", terms: ["value", "series"] },
       { id: "water-lilies", title: "수련 연작", original: "Nymphéas", artist: "클로드 모네", year: "1897~1926년(사진은 1922년 작)", medium: "캔버스에 유채", file: "File:Claude Monet - Water Lilies - Google Art Project.jpg", point: "지베르니 정원의 연못을 수없이 그리며 형태보다 빛과 색 자체에 다가갔습니다.", terms: ["series", "brushstroke"] },
       { id: "moulin", title: "물랭 드 라 갈레트의 무도회", artist: "피에르 오귀스트 르누아르", year: "1876년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Renoir, Pierre-Auguste - Dance at Le Moulin de la Galette, 1876.jpg", point: "나뭇잎 사이로 떨어지는 햇빛 얼룩으로 즐거운 도시의 여가를 그렸습니다.", terms: ["value", "rhythm"] },
@@ -175,10 +179,10 @@ export const artMovements: ArtMovement[] = [
     features: ["쇠라: 색점을 찍어 눈에서 섞이게 하는 점묘법", "세잔: 자연을 원통·구·원뿔로 보는 구조", "고흐: 소용돌이치는 붓질과 감정의 색", "고갱: 평면적인 색면과 상징"],
     works: [
       { id: "grande-jatte", title: "그랑드 자트섬의 일요일 오후", artist: "조르주 쇠라", year: "1884~1886년", place: "시카고 미술관", medium: "캔버스에 유채", file: "File:A Sunday on La Grande Jatte, Georges Seurat, 1884.jpg", point: "수많은 색점을 찍어 멀리서 보면 섞여 보이게 한 점묘법의 대표작입니다.", terms: ["pointillism", "point", "complementary"] },
-      { id: "sainte-victoire", title: "생트빅투아르산", artist: "폴 세잔", year: "1890년경", medium: "캔버스에 유채", file: "File:Paul Cézanne - Montagne Saint-victoire - Google Art Project.jpg", point: "고향의 산을 수십 번 그리며 자연을 단순한 형태와 색면으로 쌓아 입체주의의 길을 열었습니다.", terms: ["form", "plane"] },
-      { id: "card-players", title: "카드놀이 하는 사람들", artist: "폴 세잔", year: "1894~1895년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Les Joueurs de cartes, par Paul Cézanne.jpg", point: "두 인물을 좌우로 마주 놓아 단단하고 안정된 구조를 만들었습니다.", terms: ["balance", "symmetry"] },
+      { id: "sainte-victoire", title: "생트빅투아르산", artist: "폴 세잔", year: "1890년경", medium: "캔버스에 유채", file: "File:Paul Cézanne - Montagne Saint-victoire - Google Art Project.jpg", point: "고향의 산을 수십 번 그리며 자연을 단순한 형태와 색면으로 쌓아 입체주의의 길을 열었습니다.", terms: ["form", "plane", "landscape"] },
+      { id: "card-players", title: "카드놀이 하는 사람들", artist: "폴 세잔", year: "1894~1895년", place: "파리 오르세 미술관", medium: "캔버스에 유채", file: "File:Les Joueurs de cartes, par Paul Cézanne.jpg", point: "두 인물을 좌우로 마주 놓아 단단하고 안정된 구조를 만들었습니다.", terms: ["balance", "symmetry", "genre-painting"] },
       { id: "starry-night", title: "별이 빛나는 밤", original: "De sterrennacht", artist: "빈센트 반 고흐", year: "1889년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", file: "File:Van Gogh - Starry Night - Google Art Project.jpg", point: "소용돌이치는 붓질과 강렬한 색으로 눈에 보이는 풍경보다 마음속 감정을 표현했습니다.", terms: ["brushstroke", "impasto", "rhythm"] },
-      { id: "sunflowers", title: "해바라기", original: "Zonnebloemen", artist: "빈센트 반 고흐", year: "1888년", place: "런던 내셔널 갤러리", medium: "캔버스에 유채", file: "File:Vincent Willem van Gogh 127.jpg", point: "노랑의 여러 단계만으로 화면을 채워 색의 힘을 보여 준 정물화입니다.", terms: ["hue", "impasto"] },
+      { id: "sunflowers", title: "해바라기", original: "Zonnebloemen", artist: "빈센트 반 고흐", year: "1888년", place: "런던 내셔널 갤러리", medium: "캔버스에 유채", file: "File:Vincent Willem van Gogh 127.jpg", point: "노랑의 여러 단계만으로 화면을 채워 색의 힘을 보여 준 정물화입니다.", terms: ["hue", "impasto", "still-life"] },
       { id: "cafe-terrace", title: "밤의 카페 테라스", artist: "빈센트 반 고흐", year: "1888년", place: "오테를로 크뢸러뮐러 미술관", medium: "캔버스에 유채", file: "File:Van Gogh - Terrace of a Café at Night (Place du Forum) 1888.jpg", point: "검은색 없이 파랑과 노랑의 보색 대비로 밤 풍경을 그렸습니다.", terms: ["complementary", "linear-perspective"] },
       { id: "bedroom", title: "아를의 침실", artist: "빈센트 반 고흐", year: "1888년", place: "암스테르담 반 고흐 미술관", medium: "캔버스에 유채", file: "File:Vincent van Gogh - De slaapkamer - Google Art Project.jpg", point: "일부러 기울인 원근과 평평한 색으로 '휴식'의 느낌을 표현하려 했습니다.", terms: ["linear-perspective", "plane"] },
       { id: "gauguin-where", title: "우리는 어디서 왔는가? 우리는 무엇인가? 우리는 어디로 가는가?", artist: "폴 고갱", year: "1897~1898년", place: "보스턴 미술관", medium: "캔버스에 유채", file: "File:Gauguin - Where Do We Come From? What Are We? Where Are We Going? (1897-98).jpg", point: "오른쪽에서 왼쪽으로 삶의 탄생부터 죽음까지를 평면적인 색과 상징으로 풀어냈습니다.", terms: ["symbol", "plane"] },
@@ -199,7 +203,7 @@ export const artMovements: ArtMovement[] = [
     summary: "\"야수들 같다\"는 비평에서 이름이 나왔습니다. 대상의 실제 색과 상관없이 순수하고 강렬한 원색으로 화가의 감정을 표현했습니다.",
     features: ["대상 고유의 색에서 벗어난 자유로운 색", "튜브에서 짠 듯한 순수하고 강한 원색", "단순한 형태와 거친 붓질"],
     works: [
-      { id: "woman-with-hat", title: "모자를 쓴 여인", original: "La Femme au chapeau", artist: "앙리 마티스", year: "1905년", place: "샌프란시스코 현대미술관", medium: "캔버스에 유채", file: "File:Matisse-Woman-with-a-Hat.jpg", point: "얼굴에 초록과 보라를 칠해 '야수주의'라는 이름이 붙게 한 문제작입니다.", terms: ["hue", "saturation"] },
+      { id: "woman-with-hat", title: "모자를 쓴 여인", original: "La Femme au chapeau", artist: "앙리 마티스", year: "1905년", place: "샌프란시스코 현대미술관", medium: "캔버스에 유채", file: "File:Matisse-Woman-with-a-Hat.jpg", point: "얼굴에 초록과 보라를 칠해 '야수주의'라는 이름이 붙게 한 문제작입니다.", terms: ["hue", "saturation", "portrait"] },
       { id: "dance", title: "춤 II", original: "La Danse", artist: "앙리 마티스", year: "1910년", place: "상트페테르부르크 에르미타주 미술관", medium: "캔버스에 유채", file: "File:Matissedance.jpg", point: "빨강·파랑·초록 세 색과 둥글게 이어진 몸으로 춤의 리듬을 단순하게 표현했습니다.", terms: ["rhythm", "movement", "simplification"] },
       { id: "charing-cross", title: "채링 크로스 다리", artist: "앙드레 드랭", year: "1906년", medium: "캔버스에 유채", file: "File:Derain CharingCrossBridge.png", point: "런던의 회색 풍경을 원색의 색면과 짧은 붓질로 바꾸어 그렸습니다.", terms: ["saturation", "complementary"] },
     ],
@@ -211,7 +215,7 @@ export const artMovements: ArtMovement[] = [
     works: [
       { id: "demoiselles", title: "아비뇽의 여인들", original: "Les Demoiselles d'Avignon", artist: "파블로 피카소", year: "1907년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", copyright: true, point: "아프리카 조각의 영향을 받아 인체를 날카로운 면으로 쪼갠, 입체주의의 출발점이 된 작품입니다.", terms: ["multiple-viewpoints", "plane"] },
       { id: "guernica", title: "게르니카", artist: "파블로 피카소", year: "1937년", place: "마드리드 레이나 소피아 미술관", medium: "캔버스에 유채", copyright: true, point: "스페인 내전의 폭격을 흑백과 쪼개진 형태로 고발한 반전 미술의 대표작입니다.", terms: ["multiple-viewpoints", "value"] },
-      { id: "gris-picasso", title: "피카소의 초상", artist: "후안 그리스", year: "1912년", place: "시카고 미술관", medium: "캔버스에 유채", file: "File:Juan Gris - Portrait of Pablo Picasso - Google Art Project.jpg", point: "인물을 격자 모양의 면으로 나누어 입체주의의 원리를 또렷하게 보여 줍니다.", terms: ["multiple-viewpoints", "plane"] },
+      { id: "gris-picasso", title: "피카소의 초상", artist: "후안 그리스", year: "1912년", place: "시카고 미술관", medium: "캔버스에 유채", file: "File:Juan Gris - Portrait of Pablo Picasso - Google Art Project.jpg", point: "인물을 격자 모양의 면으로 나누어 입체주의의 원리를 또렷하게 보여 줍니다.", terms: ["multiple-viewpoints", "plane", "portrait"] },
     ],
   },
   {
@@ -267,7 +271,7 @@ export const artMovements: ArtMovement[] = [
     works: [
       { id: "mongyu", title: "몽유도원도", artist: "안견", year: "1447년", place: "일본 덴리대학 중앙도서관", medium: "비단에 수묵 담채", file: "File:Ahn Gyeon-Mongyu dowondo.jpg", point: "안평 대군의 꿈을 현실 세계에서 꿈속 도원으로 이어지는 흐름으로 그린 조선 전기 산수화입니다.", terms: ["yeobaek", "three-distances"] },
       { id: "geumgang", title: "금강전도", artist: "정선", year: "1734년", place: "리움미술관", medium: "종이에 수묵 담채", file: "File:Jeong Seon-Geumgangjeondo.jpg", point: "금강산 일만 이천 봉을 한눈에 담아 둥근 구도로 표현한 진경산수화입니다.", terms: ["jingyeong", "cun"] },
-      { id: "inwang", title: "인왕제색도", artist: "정선", year: "1751년", place: "국립중앙박물관", medium: "종이에 수묵", file: "File:Inwangjesaekdo.jpg", point: "비 갠 뒤 인왕산의 바위를 짙은 먹으로 쓸어내려 힘차게 표현했습니다.", terms: ["jingyeong", "ink-wash"] },
+      { id: "inwang", title: "인왕제색도", artist: "정선", year: "1751년", place: "국립중앙박물관", medium: "종이에 수묵", file: "File:Inwangjesaekdo.jpg", point: "비 갠 뒤 인왕산의 바위를 짙은 먹으로 쓸어내려 힘차게 표현했습니다.", terms: ["jingyeong", "ink-wash", "landscape"] },
       { id: "ssireum", title: "씨름", artist: "김홍도", year: "18세기 후반", place: "국립중앙박물관(단원 풍속도첩)", medium: "종이에 수묵 담채", file: "File:Danwon Ssireum.jpg", point: "둥글게 둘러앉은 구경꾼과 가운데 씨름꾼으로 시선을 모은 풍속화입니다.", terms: ["genre-painting", "composition", "emphasis"] },
       { id: "seodang", title: "서당", artist: "김홍도", year: "18세기 후반", place: "국립중앙박물관(단원 풍속도첩)", medium: "종이에 수묵 담채", file: "File:Danwon Seodang.jpg", point: "혼나는 아이와 웃는 친구들의 표정으로 서당의 한 장면을 재치 있게 담았습니다.", terms: ["genre-painting", "yeobaek"] },
       { id: "dano", title: "단오풍정", artist: "신윤복", year: "18세기 후반~19세기 초", place: "간송미술관(혜원전신첩)", medium: "종이에 채색", file: "File:Hyewon-Danopungjeong.jpg", point: "고운 색과 섬세한 선으로 단옷날 여인들의 모습을 그린 풍속화입니다.", terms: ["genre-painting", "hue"] },
@@ -275,6 +279,12 @@ export const artMovements: ArtMovement[] = [
       { id: "moon-jar", title: "백자 달항아리", artist: "작자 미상", year: "18세기 조선", place: "뉴욕 메트로폴리탄 미술관(사진 속 소장품)", medium: "백자", file: "File:백자 달항아리 조선-白磁壺 朝鮮-Moon Jar MET DP231897.jpg", point: "위아래를 따로 빚어 붙여 살짝 비대칭인 둥근 형태가 넉넉한 아름다움을 줍니다.", terms: ["form", "asymmetry"] },
       { id: "chaekgeori", title: "책거리", artist: "작자 미상", year: "19세기 조선", medium: "종이에 채색(병풍)", file: "File:Chaekgeori (Scholar's Accoutrements), late 1800s, Korea.jpg", point: "책과 문방구를 쌓아 학문에 대한 바람을 담은 민화로, 역원근법이 쓰였습니다.", terms: ["minhwa", "reverse-perspective"] },
     ],
+  },
+  {
+    id: "korean-modern", name: "한국 근현대 미술", english: "Modern & Contemporary Korean Art", period: "20세기~", group: "한국 미술",
+    summary: "개항 뒤 서양화가 들어오면서 전통 회화를 새롭게 바꾸려는 시도와 서양화 도입이 함께 이루어졌고, 전쟁과 분단을 거쳐 추상 미술과 단색화, 설치 미술로 이어졌습니다.",
+    features: ["전통 화풍에 근대의 사실적 시선을 더함", "서양화의 도입과 첫 세대 서양화가", "전쟁 뒤 삶과 민족 정서를 담은 작품", "추상·단색화·설치로 이어진 현대 미술"],
+    works: [],
   },
 ];
 
@@ -326,6 +336,9 @@ export const artTerms: ArtTerm[] = [
   { id: "marbling", term: "마블링", english: "Marbling", category: "표현 기법", definition: "물 위에 기름 성분의 물감을 떨어뜨려 생긴 무늬를 종이에 옮기는 기법입니다." },
   { id: "dripping", term: "드리핑", english: "Dripping", category: "표현 기법", definition: "물감을 붓으로 칠하지 않고 흘리거나 뿌려 표현하는 기법입니다. 잭슨 폴록이 대표적입니다." },
   { id: "scratch", term: "스크래치", english: "Scratch", category: "표현 기법", definition: "크레파스 등을 여러 겹 칠한 뒤 뾰족한 도구로 긁어 아래 색이 드러나게 하는 기법입니다." },
+  { id: "grattage", term: "그라타주", english: "Grattage", category: "표현 기법", definition: "물감을 두껍게 칠한 화면을 긁거나 벗겨 내어 아래 질감과 무늬가 드러나게 하는 기법입니다. 막스 에른스트가 프로타주를 유화에 응용했습니다." },
+  { id: "anamorphosis", term: "왜상", english: "Anamorphosis", category: "표현 기법", definition: "정면에서는 일그러져 보이지만 특정한 각도나 거울로 보면 제 모양이 드러나게 그린 그림입니다. 홀바인의 〈대사들〉 속 해골이 유명합니다." },
+  { id: "relief", term: "부조", english: "Relief", category: "표현 기법", definition: "평평한 바탕에서 형상이 도드라지게 새긴 조각입니다. 조금 도드라지면 얕은 부조, 많이 도드라지면 높은 부조라고 합니다." },
   // 재료·매체
   { id: "fresco", term: "프레스코", english: "Fresco", category: "재료·매체", definition: "덜 마른 회반죽 벽에 물에 갠 안료로 그려 벽과 함께 굳게 하는 벽화 기법입니다." },
   { id: "tempera", term: "템페라", english: "Tempera", category: "재료·매체", definition: "안료를 달걀노른자 같은 접착제에 섞어 쓰는 물감입니다. 빨리 마르고 맑은 색을 냅니다." },
@@ -335,6 +348,8 @@ export const artTerms: ArtTerm[] = [
   { id: "woodcut", term: "목판화", english: "Woodcut", category: "재료·매체", definition: "나무판을 새기고 튀어나온 부분에 잉크를 묻혀 찍는 볼록 판화입니다. 일본의 우키요에가 대표적입니다." },
   { id: "silkscreen", term: "실크스크린", english: "Silkscreen", category: "재료·매체", definition: "망사 틀의 뚫린 부분으로 잉크를 밀어 찍는 공판화입니다. 같은 이미지를 여러 장 찍을 수 있어 팝 아트에서 즐겨 썼습니다." },
   { id: "inlay", term: "상감", english: "Inlay (Sanggam)", category: "재료·매체", definition: "그릇 표면에 무늬를 파고 그 자리에 다른 색의 흙을 메워 구워 내는 기법입니다. 고려청자의 대표 기법입니다." },
+  { id: "engraving", term: "동판화(오목 판화)", english: "Engraving / Etching", category: "재료·매체", definition: "금속판을 새기거나 산으로 부식시켜 파인 홈에 잉크를 채워 찍는 오목 판화입니다. 가는 선을 섬세하게 표현할 수 있어 뒤러와 렘브란트, 고야가 즐겨 썼습니다." },
+  { id: "lithograph", term: "석판화", english: "Lithograph", category: "재료·매체", definition: "물과 기름이 섞이지 않는 성질을 이용해 평평한 돌판에 그린 그림을 찍는 평판화입니다. 19세기 말 포스터 인쇄에 널리 쓰였습니다." },
   // 한국·동양화
   { id: "yeobaek", term: "여백", english: "Void / Empty Space", category: "한국·동양화", definition: "일부러 비워 둔 화면입니다. 그리지 않은 부분이 하늘·물·안개가 되고 보는 사람의 상상을 불러옵니다." },
   { id: "ink-wash", term: "수묵화·먹의 농담", english: "Ink Wash", category: "한국·동양화", definition: "먹의 짙고 옅음(농담)과 번짐만으로 대상을 표현하는 그림입니다. 옅은 색을 더하면 수묵 담채화라고 합니다." },
@@ -349,6 +364,9 @@ export const artTerms: ArtTerm[] = [
   { id: "symbol", term: "상징", english: "Symbol", category: "감상·비평", definition: "눈에 보이는 사물로 보이지 않는 생각이나 가치를 나타내는 것입니다. 예: 소나무는 변치 않는 절개." },
   { id: "series", term: "연작", english: "Series", category: "감상·비평", definition: "같은 주제나 대상을 여러 점으로 이어서 그린 작품 묶음입니다." },
   { id: "japonisme", term: "자포니슴", english: "Japonisme", category: "감상·비평", definition: "19세기 후반 유럽에 일본 미술, 특히 우키요에가 유행해 인상주의 화가들의 구도와 색에 영향을 준 현상입니다." },
+  { id: "portrait", term: "초상화·자화상", english: "Portrait / Self-portrait", category: "감상·비평", definition: "특정한 인물의 얼굴과 모습을 그린 그림이 초상화이고, 화가가 자기 자신을 그린 것이 자화상입니다. 겉모습과 함께 성격과 신분, 내면을 담습니다." },
+  { id: "still-life", term: "정물화", english: "Still Life", category: "감상·비평", definition: "꽃, 과일, 그릇처럼 움직이지 않는 사물을 배치해 그린 그림입니다. 17세기 네덜란드에서 크게 발달했고, 세잔은 정물로 형태와 구조를 탐구했습니다." },
+  { id: "landscape", term: "풍경화·산수화", english: "Landscape", category: "감상·비평", definition: "자연이나 도시의 경치를 주제로 한 그림입니다. 동양에서는 산과 물을 그린 산수화가 가장 높은 격의 그림으로 여겨졌습니다." },
   // 현대 미술
   { id: "hot-abstraction", term: "뜨거운 추상", english: "Lyrical Abstraction", category: "현대 미술", definition: "칸딘스키처럼 자유로운 선과 색으로 감정과 내면을 표현하는 서정적인 추상입니다." },
   { id: "cold-abstraction", term: "차가운 추상", english: "Geometric Abstraction", category: "현대 미술", definition: "몬드리안처럼 수직·수평선과 기하학적 도형으로 질서와 균형을 표현하는 추상입니다." },
@@ -359,7 +377,12 @@ export const artTerms: ArtTerm[] = [
   { id: "pop-art", term: "팝 아트", english: "Pop Art", category: "현대 미술", definition: "광고, 만화, 상품 같은 대중문화 이미지를 미술의 소재와 방법으로 삼은 미술입니다. 1950~60년대 영국과 미국에서 시작되었습니다." },
   { id: "installation", term: "설치 미술", english: "Installation Art", category: "현대 미술", definition: "여러 사물과 공간 전체를 작품으로 구성해 관람자가 그 안에서 경험하게 하는 미술입니다." },
   { id: "video-art", term: "비디오 아트", english: "Video Art", category: "현대 미술", definition: "텔레비전과 영상 기술을 표현 매체로 쓰는 미술입니다. 백남준이 개척했습니다." },
+  { id: "land-art", term: "대지 미술", english: "Land Art", category: "현대 미술", definition: "자연의 땅, 돌, 물을 재료로 삼아 야외의 넓은 장소에 만드는 미술입니다. 시간이 지나며 변하거나 사라지는 것도 작품의 일부입니다." },
+  { id: "dansaekhwa", term: "단색화", english: "Dansaekhwa", category: "현대 미술", definition: "1970년대 한국에서 한두 가지 색으로 칠하고 긋고 스미게 하는 행위를 반복해 만든 추상 미술입니다. 박서보, 정상화, 하종현 등이 대표 작가입니다." },
 ];
+
+// 대표 작품 뒤에 더 고를 수 있는 작품을 덧붙입니다.
+for (const movement of artMovements) movement.works.push(...(moreWorks[movement.id] ?? []));
 
 export const artWorks = artMovements.flatMap(movement => movement.works.map(work => ({ ...work, movementId: movement.id })));
 export type CatalogWork = (typeof artWorks)[number];

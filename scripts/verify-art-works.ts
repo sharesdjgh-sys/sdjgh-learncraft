@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { artGroups, artMovements, artTerms, artWorks, termCategories, worksForTerm } from "../src/lib/art-works/catalog";
+import { artGroups, artMovements, artTerms, artWorks, termCategories, termDetails, worksForTerm } from "../src/lib/art-works/catalog";
 import { appreciationSteps, termPrompt, workExplanationSchema, workPrompt } from "../src/lib/art-works/explanation";
 import { commonsImages, isCommonsFileName } from "../src/lib/commons-media";
 
@@ -20,8 +20,12 @@ for (const work of artWorks) {
 unique(artWorks.flatMap(work => work.file ? [work.file] : []), "같은 이미지를 두 작품에 씀");
 for (const movement of artMovements) {
   assert.ok(artGroups.includes(movement.group), `${movement.id} 묶음`);
-  assert.ok(movement.works.length >= 2, `${movement.id} 작품 수`);
+  assert.ok(movement.works.length >= 6, `${movement.id} 작품 수`);
 }
+// 모든 용어에 자세한 설명이 있고, 함께 볼 용어가 실제로 있어야 합니다.
+assert.deepEqual(artTerms.filter(term => !termDetails[term.id]).map(term => term.id), [], "용어 설명 누락");
+assert.deepEqual(Object.keys(termDetails).filter(id => !termIds.has(id)), [], "없는 용어의 설명");
+for (const [id, detail] of Object.entries(termDetails)) assert.deepEqual(detail.related.filter(other => !termIds.has(other) || other === id), [], `${id} 함께 볼 용어`);
 for (const group of artGroups) assert.ok(artMovements.some(movement => movement.group === group), `${group} 사조 없음`);
 for (const category of termCategories) assert.ok(artTerms.some(term => term.category === category), `${category} 용어 없음`);
 assert.ok(worksForTerm("linear-perspective").some(work => work.id === "last-supper"), "용어별 작품 예시");
@@ -51,7 +55,12 @@ async function verifyOnline() {
     const chunk = files.slice(index, index + 20);
     const url = new URL("https://commons.wikimedia.org/w/api.php");
     url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "1280", iiextmetadatalanguage: "en", titles: chunk.join("|") }).toString();
-    const response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; catalog check)" } });
+    let response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; catalog check)" } });
+    // 요청 제한에 걸리면 잠시 기다렸다가 다시 묻습니다.
+    for (let attempt = 1; response.status === 429 && attempt <= 5; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 20_000));
+      response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; catalog check)" } });
+    }
     assert.ok(response.ok, `Commons 응답 ${response.status}`);
     const found = new Set(commonsImages(await response.json()).map(image => image.file));
     missing.push(...chunk.filter(file => !found.has(file)));

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Columns2, Copy, Library, Lightbulb, LoaderCircle, Lock, Palette, Presentation, Printer, Search, ShieldCheck, Sparkles, Tags, Trash2, X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, BookOpenText, BookmarkCheck, Brush, BookmarkPlus, Columns2, Copy, Library, Lightbulb, LoaderCircle, Lock, Palette, Presentation, Printer, Search, ShieldCheck, Sparkles, Tags, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CommonsImage } from "@/lib/commons-media";
-import { artGroups, artMovements, artTerms, findWork, termCategories, worksForTerm, type ArtTerm, type CatalogWork, type TermCategory } from "@/lib/art-works/catalog";
+import { artGroups, artMovements, artTerms, artWorks, findTerm, findWork, termCategories, termDetails, worksForTerm, type ArtTerm, type CatalogWork, type TermCategory } from "@/lib/art-works/catalog";
 import type { TermExplanation } from "@/lib/art-works/explanation";
 import { ArtImage, ArtWorkDialog, catalogItem, collectionStore, commonsItem, copyText, creditText, endpoint, ExplanationPanel, readJson, rememberImages, TermExplanationCard, toggleCollection, useArtImages, useCollection, useExplanation, type ArtItem } from "./art-works-shared";
 import { ArtSlideshow, ArtWorksheet } from "./art-works-show";
@@ -54,20 +54,30 @@ function WorkCard({ item, image, onOpen }: { item: ArtItem; image: CommonsImage 
 
 function MovementsPanel({ onOpen }: { onOpen: (opened: Opened) => void }) {
   const [movementId, setMovementId] = useState(artMovements[0].id);
+  const [query, setQuery] = useState("");
   const movement = artMovements.find(item => item.id === movementId) ?? artMovements[0];
-  const getImage = useArtImages(movement.works.map(work => work.file));
+  const needle = query.trim().toLowerCase();
+  // 찾는 말이 있으면 모든 사조에서 제목·원제·작가·연도로 작품을 찾습니다.
+  const found = needle ? artWorks.filter(work => `${work.title} ${work.original ?? ""} ${work.artist} ${work.year}`.toLowerCase().includes(needle)) : null;
+  const shown = found ?? movement.works.map(work => findWork(work.id)!);
+  const getImage = useArtImages(shown.slice(0, 48).map(work => work.file));
   return (
     <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
       <nav aria-label="시대와 사조" className="rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)] lg:sticky lg:top-24">
-        <div className="scrollbar-subtle flex gap-4 overflow-x-auto lg:block lg:max-h-[calc(100vh-150px)] lg:space-y-3 lg:overflow-y-auto">
+        <label className="mb-3 flex min-h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/10">
+          <Search size={15} className="text-ink-4" aria-hidden="true" />
+          <input value={query} onChange={event => setQuery(event.target.value)} maxLength={40} placeholder="작품·작가 찾기 (예: 고흐)" aria-label="작품이나 작가 이름 찾기" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4" />
+          {query && <button type="button" onClick={() => setQuery("")} aria-label="지우기" className="text-ink-4 hover:text-ink-2"><X size={15} /></button>}
+        </label>
+        <div className="scrollbar-subtle flex gap-4 overflow-x-auto lg:block lg:max-h-[calc(100vh-210px)] lg:space-y-3 lg:overflow-y-auto">
           {artGroups.map(group => (
             <div key={group} className="shrink-0">
               <p className="px-2 pb-1 text-[.7rem] font-extrabold uppercase tracking-wide text-ink-4">{group}</p>
               <div className="flex gap-1 lg:flex-col">
                 {artMovements.filter(item => item.group === group).map(item => (
-                  <button key={item.id} type="button" aria-pressed={item.id === movement.id} onClick={() => setMovementId(item.id)}
-                    className={cn("flex min-h-10 shrink-0 flex-col items-start justify-center rounded-xl px-3 py-1.5 text-left transition-colors", item.id === movement.id ? "bg-brand-soft text-brand-dark" : "text-ink-2 hover:bg-surface-2")}>
-                    <span className="whitespace-nowrap text-[.86rem] font-bold">{item.name}</span>
+                  <button key={item.id} type="button" aria-pressed={!found && item.id === movement.id} onClick={() => { setMovementId(item.id); setQuery(""); }}
+                    className={cn("flex min-h-10 shrink-0 flex-col items-start justify-center rounded-xl px-3 py-1.5 text-left transition-colors", !found && item.id === movement.id ? "bg-brand-soft text-brand-dark" : "text-ink-2 hover:bg-surface-2")}>
+                    <span className="whitespace-nowrap text-[.86rem] font-bold">{item.name} <span className="text-[.7rem] font-semibold text-ink-4">{item.works.length}</span></span>
                     <span className="hidden text-[.7rem] text-ink-4 lg:block">{item.period}</span>
                   </button>
                 ))}
@@ -77,60 +87,95 @@ function MovementsPanel({ onOpen }: { onOpen: (opened: Opened) => void }) {
         </div>
       </nav>
       <div className="min-w-0">
-        <header className="rounded-[18px] border border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] p-5 shadow-[var(--lift-1)] sm:p-6">
-          <p className="text-[.78rem] font-bold text-brand">{movement.group} · {movement.period}</p>
-          <h2 className="mt-1 text-[1.6rem] font-extrabold tracking-[-0.03em] text-ink">{movement.name} <span className="text-[.95rem] font-semibold text-ink-4">{movement.english}</span></h2>
-          <p className="mt-2 max-w-4xl break-keep text-[.92rem] leading-7 text-ink-2">{movement.summary}</p>
-          <ul className="mt-3 flex flex-wrap gap-1.5">
-            {movement.features.map(feature => <li key={feature} className="rounded-full border border-brand/15 bg-surface px-3 py-1 text-[.8rem] font-semibold text-ink-2">{feature}</li>)}
-          </ul>
-        </header>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {movement.works.map(work => {
-            const catalogWork = findWork(work.id)!;
-            const item = catalogItem(catalogWork);
-            return <WorkCard key={work.id} item={item} image={getImage(work.file)} onOpen={() => onOpen({ item, work: catalogWork })} />;
+        {found ? (
+          <header className="rounded-[18px] border border-line bg-surface p-5 shadow-[var(--lift-1)]">
+            <h2 className="text-[1.3rem] font-extrabold text-ink">‘{query.trim()}’ 찾은 작품 {found.length}점</h2>
+            <p className="mt-1 text-[.84rem] text-ink-3">{found.length ? "여러 사조에 걸쳐 찾았어요. 사조를 누르면 다시 사조별로 볼 수 있어요." : "정리된 작품에 없어요. ‘작품 찾기’ 탭에서 Wikimedia Commons 전체를 찾아보세요."}</p>
+          </header>
+        ) : (
+          <header className="rounded-[18px] border border-line bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] p-5 shadow-[var(--lift-1)] sm:p-6">
+            <p className="text-[.78rem] font-bold text-brand">{movement.group} · {movement.period} · 작품 {movement.works.length}점</p>
+            <h2 className="mt-1 text-[1.6rem] font-extrabold tracking-[-0.03em] text-ink">{movement.name} <span className="text-[.95rem] font-semibold text-ink-4">{movement.english}</span></h2>
+            <p className="mt-2 max-w-4xl break-keep text-[.92rem] leading-7 text-ink-2">{movement.summary}</p>
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {movement.features.map(feature => <li key={feature} className="rounded-full border border-brand/15 bg-surface px-3 py-1 text-[.8rem] font-semibold text-ink-2">{feature}</li>)}
+            </ul>
+          </header>
+        )}
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {shown.slice(0, 48).map(work => {
+            const item = catalogItem(work);
+            return <WorkCard key={work.id} item={item} image={getImage(work.file)} onOpen={() => onOpen({ item, work })} />;
           })}
         </div>
+        {shown.length > 48 && <p className="mt-3 text-center text-[.8rem] text-ink-4">앞의 48점만 보여 줘요. 찾는 말을 더 자세히 적어 보세요.</p>}
       </div>
     </div>
   );
 }
 
-function TermCard({ term, focused, onOpenWork }: { term: ArtTerm; focused: boolean; onOpenWork: (work: CatalogWork) => void }) {
-  const [open, setOpen] = useState(false);
-  const explanation = useExplanation<TermExplanation>(`t:${term.id}`, { kind: "term", term: term.term, termId: term.id });
-  const works = worksForTerm(term.id).slice(0, 6);
-  const expanded = open || Boolean(explanation.value);
+function TermSection({ icon: Icon, title, children }: { icon: typeof Palette; title: string; children: React.ReactNode }) {
   return (
-    <article id={`art-term-${term.id}`} className={cn("scroll-mt-28 rounded-2xl border bg-surface p-4 shadow-[var(--lift-1)] transition-colors", focused ? "border-brand/50 ring-2 ring-brand/15" : "border-line")}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="text-[1.05rem] font-extrabold text-ink">{term.term}{term.english && <span className="ml-2 text-[.8rem] font-semibold text-ink-4">{term.english}</span>}</h3>
-        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[.7rem] font-bold text-ink-3">{term.category}</span>
-      </div>
-      <p className="mt-1.5 break-keep text-[.9rem] leading-7 text-ink-2">{term.definition}</p>
-      {term.tip && <p className="mt-2 flex gap-1.5 rounded-xl bg-[#fffaf0] px-3 py-2 text-[.82rem] leading-6 text-[#806426]"><Lightbulb size={14} className="mt-1 shrink-0" /> {term.tip}</p>}
-      {works.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-[.74rem] font-bold text-ink-4">작품 예시</span>
-          {works.map(work => <button key={work.id} type="button" onClick={() => onOpenWork(work)} className="min-h-8 rounded-lg border border-line bg-surface-2 px-2.5 text-[.78rem] font-semibold text-ink-2 hover:border-brand/30 hover:bg-brand-page hover:text-brand-dark">{work.title}</button>)}
-        </div>
+    <section className="border-t border-line px-5 py-4 sm:px-6">
+      <h3 className="flex items-center gap-2 text-[.8rem] font-extrabold text-ink-3"><Icon size={15} className="text-brand" aria-hidden="true" /> {title}</h3>
+      <div className="mt-2 break-keep text-[.93rem] leading-7 text-ink-2">{children}</div>
+    </section>
+  );
+}
+
+function TermDetailView({ term, onSelect, onOpenWork }: { term: ArtTerm; onSelect: (id: string) => void; onOpenWork: (work: CatalogWork) => void }) {
+  const detail = termDetails[term.id];
+  const allWorks = worksForTerm(term.id);
+  const works = allWorks.slice(0, 8);
+  const items = works.map(catalogItem);
+  const getImage = useArtImages(items.map(item => item.file));
+  const explanation = useExplanation<TermExplanation>(`t:${term.id}`, { kind: "term", term: term.term, termId: term.id });
+  return (
+    <article className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-1)]">
+      <header className="bg-[linear-gradient(135deg,var(--brand-page),var(--surface))] px-5 py-5 sm:px-6">
+        <span className="rounded-full bg-brand px-2.5 py-1 text-[.72rem] font-bold text-white">{term.category}</span>
+        <h2 className="mt-3 text-[1.9rem] font-extrabold tracking-[-0.03em] text-ink">{term.term}{term.english && <span className="ml-3 text-[1rem] font-semibold text-ink-4">{term.english}</span>}</h2>
+        <p className="mt-2 max-w-4xl break-keep text-[1rem] font-semibold leading-8 text-ink-2">{term.definition}</p>
+      </header>
+      {detail && <TermSection icon={BookOpenText} title="자세히 알아보기"><p>{detail.detail}</p></TermSection>}
+      {term.tip && <TermSection icon={Lightbulb} title="수업 팁"><p>{term.tip}</p></TermSection>}
+      {detail && <TermSection icon={Brush} title="수업 활동 아이디어"><p>{detail.activity}</p></TermSection>}
+      {items.length > 0 && (
+        <TermSection icon={Palette} title={`작품에서 찾아보기 (${allWorks.length}점${allWorks.length > works.length ? ` 가운데 ${works.length}점` : ""})`}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {items.map((item, index) => (
+              <button key={item.key} type="button" onClick={() => onOpenWork(works[index])} className="group overflow-hidden rounded-xl border border-line bg-surface text-left transition hover:border-brand/30 hover:shadow-[var(--lift-1)]">
+                <ArtImage item={item} image={getImage(item.file)} className="aspect-[4/3] w-full" />
+                <span className="block px-2.5 py-2"><span className="line-clamp-1 text-[.82rem] font-bold text-ink group-hover:text-brand-dark">{item.title}</span><span className="line-clamp-1 text-[.72rem] text-ink-4">{item.artist}</span></span>
+              </button>
+            ))}
+          </div>
+        </TermSection>
       )}
-      <div className="mt-3">
-        {expanded ? <ExplanationPanel state={explanation} label="AI로 자세히 풀이" render={value => <TermExplanationCard value={value} />} />
-          : <Button variant="ghost" size="sm" onClick={() => { setOpen(true); void explanation.generate(); }}><Sparkles size={14} /> AI로 자세히 풀이</Button>}
-      </div>
+      {detail && detail.related.length > 0 && (
+        <TermSection icon={Tags} title="함께 보면 좋은 용어">
+          <div className="flex flex-wrap gap-1.5">
+            {detail.related.map(id => findTerm(id)).filter(item => item !== undefined).map(item => (
+              <button key={item.id} type="button" onClick={() => onSelect(item.id)} title={item.definition} className="min-h-9 rounded-lg border border-line bg-surface-2 px-3 text-[.84rem] font-semibold text-ink-2 hover:border-brand/30 hover:bg-brand-page hover:text-brand-dark">{item.term}</button>
+            ))}
+          </div>
+        </TermSection>
+      )}
+      <section className="border-t border-line bg-surface-2 px-5 py-4 sm:px-6">
+        <h3 className="mb-3 flex items-center gap-2 text-[.8rem] font-extrabold text-ink-3"><Sparkles size={15} className="text-brand" /> AI로 더 자세히 (쉬운 풀이·작품 예시·체험 활동·헷갈리는 점)</h3>
+        <ExplanationPanel state={explanation} label="AI 풀이 만들기" render={value => <TermExplanationCard value={value} />} />
+      </section>
     </article>
   );
 }
 
-function FreeTermCard({ term }: { term: string }) {
+function FreeTermView({ term }: { term: string }) {
   const explanation = useExplanation<TermExplanation>(`t:${term.toLowerCase()}`, { kind: "term", term });
   return (
-    <article className="rounded-2xl border border-dashed border-brand/30 bg-brand-page p-4">
-      <h3 className="text-[1.05rem] font-extrabold text-ink">‘{term}’</h3>
-      <p className="mt-1 text-[.86rem] text-ink-3">정리된 용어에 없어요. AI에게 수업용 풀이를 부탁해 보세요.</p>
-      <div className="mt-3"><ExplanationPanel state={explanation} label="AI로 풀이하기" render={value => <TermExplanationCard value={value} />} /></div>
+    <article className="rounded-[18px] border border-dashed border-brand/30 bg-brand-page p-5 sm:p-6">
+      <h2 className="text-[1.6rem] font-extrabold text-ink">‘{term}’</h2>
+      <p className="mt-1 text-[.9rem] text-ink-3">정리된 용어에 없는 말이에요. AI에게 수업용 풀이를 부탁해 보세요.</p>
+      <div className="mt-4"><ExplanationPanel state={explanation} label="AI로 풀이하기" render={value => <TermExplanationCard value={value} />} /></div>
     </article>
   );
 }
@@ -138,31 +183,66 @@ function FreeTermCard({ term }: { term: string }) {
 function TermsPanel({ focusTerm, onOpenWork }: { focusTerm: string | null; onOpenWork: (work: CatalogWork) => void }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<TermCategory | "all">("all");
+  const [selected, setSelected] = useState<string>(focusTerm ?? artTerms[0].id);
+  const [freeTerm, setFreeTerm] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
   const needle = query.trim().toLowerCase();
   const list = artTerms.filter(term => (category === "all" || term.category === category)
     && (!needle || `${term.term} ${term.english ?? ""} ${term.definition}`.toLowerCase().includes(needle)));
   const exact = artTerms.some(term => term.term.toLowerCase() === needle || term.english?.toLowerCase() === needle);
+  const current = findTerm(selected) ?? artTerms[0];
+  const groups = termCategories.map(name => ({ name, terms: list.filter(term => term.category === name) })).filter(group => group.terms.length);
+  // 좁은 화면에서는 목록 아래에 있는 설명으로 옮겨 갑니다.
+  const showDetail = () => { if (window.innerWidth < 1024) requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: "start" })); };
+  function select(id: string) {
+    setFreeTerm(null);
+    setSelected(id);
+    showDetail();
+  }
   return (
-    <div>
-      <div className="flex flex-col gap-3 rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)] lg:flex-row lg:items-center">
-        <label className="flex min-h-11 flex-1 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/10">
-          <Search size={16} className="text-ink-4" aria-hidden="true" />
-          <input value={query} onChange={event => setQuery(event.target.value)} maxLength={40} placeholder="용어 찾기 (예: 명도, 원근법, 콜라주)" aria-label="미술 용어 찾기" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4" />
-          {query && <button type="button" onClick={() => setQuery("")} aria-label="지우기" className="text-ink-4 hover:text-ink-2"><X size={15} /></button>}
-        </label>
-        <div role="group" aria-label="용어 분류" className="scrollbar-subtle flex gap-1 overflow-x-auto">
-          {(["all", ...termCategories] as const).map(value => (
-            <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
-              className={cn("min-h-9 shrink-0 rounded-full px-3 text-[.8rem] font-bold transition-colors", category === value ? "bg-brand text-white" : "bg-surface-2 text-ink-3 hover:bg-brand-soft hover:text-brand-dark")}>{value === "all" ? "전체" : value}</button>
-          ))}
+    <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
+      <aside className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-1)] lg:sticky lg:top-24">
+        <div className="space-y-2.5 border-b border-line bg-surface-2 p-3">
+          <label className="flex min-h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/10">
+            <Search size={15} className="text-ink-4" aria-hidden="true" />
+            <input value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && list[0]) select(list[0].id); }} maxLength={40} placeholder="용어 찾기 (예: 명도, 원근법)" aria-label="미술 용어 찾기" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4" />
+            {query && <button type="button" onClick={() => setQuery("")} aria-label="지우기" className="text-ink-4 hover:text-ink-2"><X size={15} /></button>}
+          </label>
+          <div role="group" aria-label="용어 분류" className="flex flex-wrap gap-1">
+            {(["all", ...termCategories] as const).map(value => (
+              <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
+                className={cn("min-h-7 rounded-full px-2.5 text-[.74rem] font-bold transition-colors", category === value ? "bg-brand text-white" : "bg-surface text-ink-3 hover:bg-brand-soft hover:text-brand-dark")}>{value === "all" ? "전체" : value}</button>
+            ))}
+          </div>
         </div>
+        <nav aria-label="미술 용어 목록" className="scrollbar-subtle max-h-[45vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-260px)]">
+          {groups.map(group => (
+            <div key={group.name} className="mb-2">
+              <p className="px-2 pb-1 pt-1.5 text-[.7rem] font-extrabold text-ink-4">{group.name} <span className="font-semibold">{group.terms.length}</span></p>
+              {group.terms.map(term => {
+                const active = !freeTerm && term.id === current.id;
+                return (
+                  <button key={term.id} type="button" aria-current={active ? "true" : undefined} onClick={() => select(term.id)}
+                    className={cn("flex min-h-9 w-full items-baseline justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors", active ? "bg-brand-soft text-brand-dark" : "text-ink-2 hover:bg-surface-2")}>
+                    <span className="text-[.88rem] font-bold">{term.term}</span>
+                    {term.english && <span className="truncate text-[.7rem] text-ink-4">{term.english}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {needle && !exact && (
+            <button type="button" onClick={() => { setFreeTerm(query.trim()); showDetail(); }}
+              className={cn("mt-1 flex min-h-10 w-full items-center gap-2 rounded-lg border border-dashed border-brand/30 px-2.5 text-left text-[.84rem] font-bold text-brand-dark hover:bg-brand-page", freeTerm && "bg-brand-page")}>
+              <Sparkles size={14} /> ‘{query.trim()}’ AI로 풀이하기
+            </button>
+          )}
+          {!groups.length && !needle && <p className="p-3 text-center text-sm text-ink-4">이 분류에 정리된 용어가 없어요.</p>}
+        </nav>
+      </aside>
+      <div ref={detailRef} className="min-w-0 scroll-mt-24">
+        {freeTerm ? <FreeTermView key={freeTerm.toLowerCase()} term={freeTerm} /> : <TermDetailView key={current.id} term={current} onSelect={select} onOpenWork={onOpenWork} />}
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {list.map(term => <TermCard key={term.id} term={term} focused={focusTerm === term.id} onOpenWork={onOpenWork} />)}
-        {/* 정리된 용어와 똑같은 이름이 없으면 목록 뒤에 AI 풀이를 권합니다. */}
-        {needle && !exact && <div className="md:col-span-2"><FreeTermCard key={needle} term={query.trim()} /></div>}
-      </div>
-      {!list.length && !needle && <p className="mt-6 text-center text-sm text-ink-4">이 분류에 정리된 용어가 없어요.</p>}
     </div>
   );
 }
@@ -294,7 +374,6 @@ export function ArtWorksLab() {
     setOpened(null);
     setTab("terms");
     setFocusTerm(termId);
-    requestAnimationFrame(() => document.getElementById(`art-term-${termId}`)?.scrollIntoView({ block: "start" }));
   }
   function openItem(item: ArtItem) {
     const work = item.workId ? findWork(item.workId) : undefined;
@@ -324,7 +403,7 @@ export function ArtWorksLab() {
       {/* 탭마다 높이가 달라 스크롤바가 생겼다 사라지며 화면이 흔들리지 않도록 늘 화면보다 길게 둡니다. */}
       <section className="mt-5 min-h-screen" role="tabpanel">
         {tab === "movements" && <MovementsPanel onOpen={setOpened} />}
-        {tab === "terms" && <TermsPanel focusTerm={focusTerm} onOpenWork={openWork} />}
+        {tab === "terms" && <TermsPanel key={focusTerm ?? "all"} focusTerm={focusTerm} onOpenWork={openWork} />}
         {tab === "search" && <SearchPanel onOpen={setOpened} />}
         {tab === "collection" && <CollectionPanel onOpen={openItem} onShow={(pair, start = 0) => setShow({ pair, start })} />}
       </section>
