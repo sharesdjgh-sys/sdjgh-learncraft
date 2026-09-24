@@ -44,6 +44,8 @@ export async function renderScore(host: HTMLDivElement | HTMLCanvasElement, scor
   context.restore();
 
   const noteElements: SVGElement[] = [];
+  // 마디마다 차지하는 자리(SVG 좌표)입니다. 화면에서 마디를 눌렀을 때 어느 마디인지 찾는 데 씁니다.
+  const measureBoxes: { measure: number; x: number; y: number; width: number; height: number }[] = [];
   const staveNotes: InstanceType<typeof StaveNote>[] = [];
   const lineOf: number[] = [];
   const ties: { from: number; line: number }[] = [];
@@ -86,6 +88,14 @@ export async function renderScore(host: HTMLDivElement | HTMLCanvasElement, scor
         }
       }
       if (measureNumber === score.measures.length) stave.setEndBarType(Barline.type.END);
+      measureBoxes.push({ measure: measureNumber, x: stave.getX(), y: y - (hasChords ? 18 : 0), width, height: lineHeight });
+      // 문제가 있는 마디는 옅은 붉은 바탕을 깔아 눌러 볼 곳을 알려 줍니다.
+      if (errorMeasures.has(measureNumber)) {
+        context.save();
+        context.setFillStyle("rgba(194,65,12,.08)");
+        context.fillRect(stave.getX(), stave.getYForLine(0) - 16, width, stave.getBottomLineY() - stave.getYForLine(0) + 32);
+        context.restore();
+      }
       stave.setContext(context).draw();
       staffTop = stave.getYForLine(0);
       staffBottom = stave.getBottomLineY();
@@ -139,7 +149,7 @@ export async function renderScore(host: HTMLDivElement | HTMLCanvasElement, scor
     }
   }
 
-  if (canvas) return { svg: null, noteElements, height };
+  if (canvas) return { svg: null, noteElements, measureBoxes, height };
   // 음표 그룹은 그린 순서(줄 → 마디 → 음표)대로 SVG에 들어가므로 해석한 음표 순서와 같습니다.
   noteElements.push(...host.querySelectorAll<SVGElement>(".vf-stavenote"));
   const svg = host.querySelector("svg");
@@ -150,5 +160,5 @@ export async function renderScore(host: HTMLDivElement | HTMLCanvasElement, scor
   svg?.style.setProperty("width", "100%");
   svg?.style.setProperty("height", "auto");
   svg?.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  return { svg, noteElements, height };
+  return { svg, noteElements, measureBoxes, height };
 }

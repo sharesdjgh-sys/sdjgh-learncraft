@@ -2,15 +2,19 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
-import { AlertCircle, AlertTriangle, BookOpenCheck, CheckCircle2, ChevronDown, Delete, Download, FilePlus2, LoaderCircle, MoonStar, Music, PencilLine, Play, Printer, ShieldCheck, Square, Sun } from "lucide-react";
+import { AlertCircle, AlertTriangle, BookOpenCheck, CheckCircle2, ChevronDown, CircleQuestionMark, Delete, Download, FilePlus2, SlidersHorizontal, LoaderCircle, MoonStar, Music, PencilLine, Play, Printer, ShieldCheck, Square, Sun, Volume2, VolumeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { clefs, durationNames, measureCapacity, musicKeys, noteToken, parseScore, playbackEvents, solfegeNames, timeSignatures, type LabelMode, type ScoreNote, type ScoreSettings } from "@/lib/music-score/notation";
-import { renderScore } from "@/lib/music-score/render";
+import { clefs, durationNames, measureCapacity, musicKeys, noteToken, parseScore, playbackEvents, timeSignatures, type LabelMode, type ScoreNote, type ScoreSettings } from "@/lib/music-score/notation";
+import { renderScore, SCORE_WIDTH } from "@/lib/music-score/render";
 import { scoreExamples as examples } from "@/lib/music-score/examples";
 import { MusicScoreGuide } from "./music-score-guide";
+import { MusicPiano, type BlackKeySpelling } from "./music-piano";
 
 const draftKey = "learncraft_music_score_draft";
+const keySoundKey = "learncraft_music_score_key_sound";
+const viewOptionsKey = "learncraft_music_score_view_options";
+const labelNames: Record<LabelMode, string> = { solfege: "계이름", letter: "음이름", none: "글자 없음" };
 const defaultSettings: ScoreSettings = { title: "", composer: "", lyricist: "", clef: "treble", key: "C", time: "4/4", tempo: 90, lyrics: "", perLine: 4, labels: "solfege" };
 const durations = [1, 2, 4, 8, 16] as const;
 const zoomLevels = [80, 90, 100] as const;
@@ -70,8 +74,18 @@ const labelHelp: Record<LabelMode, string> = {
   letter: "음이름은 조와 상관없이 건반마다 정해진 이름이에요. 다·라·마·바·사·가·나가 영어 C·D·E·F·G·A·B에 해당해요. 악기 연주 수업에 알맞아요.",
   none: "음표 아래에 글자를 넣지 않아요. 악보 읽기 연습이나 시험지에 알맞아요.",
 };
-function ViewOption({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
-  return <div className="min-w-0"><p className="mb-1.5 text-xs font-bold text-ink-2">{label}</p>{children}<p className="mt-1.5 break-keep text-xs leading-5 text-ink-4">{help}</p></div>;
+function ViewOption({ label, help, alignRight = false, children }: { label: string; help: string; alignRight?: boolean; children: React.ReactNode }) {
+  // 설명은 ? 아이콘에 두어 악보 칸이 넓게 보이게 합니다. 마우스를 올리거나 키보드로 옮기면 보여요.
+  return <div className={cn("min-w-0", alignRight && "relative")}>
+    <div className="mb-1.5 flex items-center gap-1">
+      <p className="text-xs font-bold text-ink-2">{label}</p>
+      <span className={cn("group", !alignRight && "relative")}>
+        <button type="button" aria-label={`${label} 설명`} aria-describedby={`help-${label}`} className="grid size-5 place-items-center rounded-full text-ink-4 transition-colors hover:text-brand-dark focus-visible:text-brand-dark"><CircleQuestionMark size={13} /></button>
+        <span id={`help-${label}`} role="tooltip" className={cn("pointer-events-none absolute top-full z-30 mt-1 hidden w-72 break-keep rounded-lg bg-[#2b2740] px-3 py-2 text-xs leading-5 text-white shadow-[0_10px_30px_rgba(20,16,40,.3)] group-hover:block group-focus-within:block", alignRight ? "right-0" : "left-0")}>{help}</span>
+      </span>
+    </div>
+    {children}
+  </div>;
 }
 function Segmented<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
   return <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface-2 p-1">
@@ -91,7 +105,9 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
   const [duration, setDuration] = useState<ScoreNote["duration"]>(4);
   const [dotted, setDotted] = useState(false);
   const [shift, setShift] = useState(0);
-  const [alter, setAlter] = useState(0);
+  const [spelling, setSpelling] = useState<BlackKeySpelling>("sharp");
+  const [viewOptionsOpen, setViewOptionsOpen] = useState(() => { try { return window.localStorage.getItem(viewOptionsKey) !== "closed"; } catch { return true; } });
+  const [keySound, setKeySound] = useState(() => { try { return window.localStorage.getItem(keySoundKey) !== "off"; } catch { return true; } });
   const [chord, setChord] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [zoom, setZoom] = useState<number>(100);
@@ -104,18 +120,31 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
   const immersionRef = useRef(immersion);
   const previousNotes = useRef<string[]>([]);
   useEffect(() => { immersionRef.current = immersion; }, [immersion]);
-  const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [quickEditOpen, setQuickEditOpen] = useState(true);
   const [renderFailed, setRenderFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const textRef = useRef<HTMLTextAreaElement>(null);
+  const quickRef = useRef<HTMLTextAreaElement>(null);
+  // 입력창에 마지막으로 커서를 둔 자리입니다. 건반은 이 자리에 음표를 넣습니다.
+  const caret = useRef<number | null>(null);
+  const rememberCaret = (event: React.SyntheticEvent<HTMLTextAreaElement>) => { caret.current = event.currentTarget.selectionEnd; followCaret(); };
+  // 입력창을 쓰는 동안에만 커서 자리 음표를 표시하고 악보를 그쪽으로 따라가게 합니다.
+  const editing = useRef(false);
+  const cursorNote = useRef<SVGElement | null>(null);
+  const scorePaperRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const noteElements = useRef<(SVGElement | undefined)[]>([]);
+  const keyAudio = useRef<AudioContext | null>(null);
   const playback = useRef<{ context: AudioContext; frame: number; active: number } | null>(null);
 
   const parsed = useMemo(() => parseScore(text, settings), [text, settings]);
   const errorMeasures = useMemo(() => new Set(parsed.errors.flatMap(issue => issue.measure ? [issue.measure] : [])), [parsed]);
+  const issues = useMemo(() => [...parsed.errors.map(issue => ({ ...issue, error: true })), ...parsed.warnings.map(issue => ({ ...issue, error: false }))], [parsed]);
+  const measureBoxes = useRef<{ measure: number; x: number; y: number; width: number; height: number }[]>([]);
+  // 악보에서 누른 마디의 문제 설명 말풍선(악보 칸 안 좌표)과, 아래 요약 줄의 전체 목록 펼침 상태입니다.
+  const [issueTip, setIssueTip] = useState<{ measure: number; left: number; top: number } | null>(null);
+  const [issueListOpen, setIssueListOpen] = useState(false);
   const noteCount = parsed.measures.reduce((sum, measure) => sum + measure.notes.length, 0);
   const update = (patch: Partial<ScoreSettings>) => setSettings(current => ({ ...current, ...patch }));
 
@@ -130,7 +159,9 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
     renderScore(host, parsed, settings, errorMeasures).then(result => {
       if (cancelled) return;
       noteElements.current = result.noteElements;
+      measureBoxes.current = result.measureBoxes;
       setRenderFailed(false);
+      followCaret();
       // 몰입 중에 악보를 고치면 앞뒤로 같은 부분을 뺀 가운데, 곧 바뀐 음표만 금빛으로 잠깐 빛나게 합니다.
       const notes = parsed.measures.flatMap(measure => measure.notes.map(noteSignature));
       const before = previousNotes.current;
@@ -143,6 +174,8 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
       for (let i = start; i < notes.length - end; i += 1) result.noteElements[i]?.classList.add("score-changed");
     }).catch(() => { if (!cancelled) setRenderFailed(true); });
     return () => { cancelled = true; };
+    // followCaret은 이번 렌더의 text·settings를 읽으므로 parsed가 바뀔 때마다 새로 불립니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, settings, errorMeasures]);
 
   useEffect(() => {
@@ -176,15 +209,91 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
   }, [immersion]);
 
 
+  useEffect(() => () => { void keyAudio.current?.close(); }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(viewOptionsKey, viewOptionsOpen ? "open" : "closed"); } catch { /* 저장하지 못해도 이번 화면에서는 적용됩니다. */ }
+  }, [viewOptionsOpen]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(keySoundKey, keySound ? "on" : "off"); } catch { /* 저장하지 못해도 이번 화면에서는 적용됩니다. */ }
+  }, [keySound]);
+
   useEffect(() => () => {
     if (!playback.current) return;
     cancelAnimationFrame(playback.current.frame);
     void playback.current.context.close();
   }, []);
 
+  // 건반으로 고친 내용은 '계이름으로 바로 고치기' 창을 열어 보여 주고, 화면은 스크롤하지 않습니다.
+  /** 커서 바로 앞 음표를 보라색으로 표시하고, 악보 칸 밖에 있으면 그쪽으로 스크롤합니다. */
+  function followCaret() {
+    cursorNote.current?.classList.remove("score-cursor");
+    cursorNote.current = null;
+    const position = caret.current;
+    if (!editing.current || position === null) return;
+    const count = parseScore(text.slice(0, position), settings).measures.reduce((sum, measure) => sum + measure.notes.length, 0);
+    const note = noteElements.current[count - 1];
+    if (!note) return;
+    note.classList.add("score-cursor");
+    cursorNote.current = note;
+    const paper = scorePaperRef.current;
+    if (!paper || paper.scrollHeight <= paper.clientHeight) return;
+    const box = note.getBoundingClientRect();
+    const view = paper.getBoundingClientRect();
+    const margin = 48;
+    if (box.top < view.top + margin) paper.scrollBy({ top: box.top - view.top - margin, behavior: "smooth" });
+    else if (box.bottom > view.bottom - margin) paper.scrollBy({ top: box.bottom - view.bottom + margin, behavior: "smooth" });
+  }
+  /** 화면 좌표에 있는 마디 번호를 찾습니다. */
+  function measureAt(clientX: number, clientY: number) {
+    const svg = hostRef.current?.querySelector("svg");
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const scale = SCORE_WIDTH / rect.width;
+    const x = (clientX - rect.left) * scale;
+    const y = (clientY - rect.top) * scale;
+    return measureBoxes.current.find(box => x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height)?.measure ?? null;
+  }
+  function openIssueTip(event: React.MouseEvent<HTMLDivElement>) {
+    const measure = measureAt(event.clientX, event.clientY);
+    if (measure === null || !issues.some(issue => issue.measure === measure)) { setIssueTip(null); return; }
+    const paper = event.currentTarget.getBoundingClientRect();
+    // 말풍선(폭 288px)이 악보 칸 밖으로 나가지 않게 가로 자리를 맞춥니다.
+    const left = Math.min(Math.max(event.clientX - paper.left, 152), event.currentTarget.clientWidth - 152);
+    setIssueTip({ measure, left: left + event.currentTarget.scrollLeft, top: event.clientY - paper.top + event.currentTarget.scrollTop });
+  }
+  /** 입력창에서 해당 마디 글자를 골라 바로 고칠 수 있게 합니다. 마디는 '|'로 나뉜, 비어 있지 않은 조각의 순서입니다. */
+  function selectMeasure(measure: number) {
+    let count = 0;
+    let start = 0;
+    for (const piece of text.split("|")) {
+      const end = start + piece.length;
+      if (piece.trim() && ++count === measure) {
+        const from = start + piece.length - piece.trimStart().length;
+        const to = end - (piece.length - piece.trimEnd().length);
+        setIssueTip(null);
+        setQuickEditOpen(true);
+        editing.current = true;
+        caret.current = to;
+        requestAnimationFrame(() => { quickRef.current?.focus({ preventScroll: true }); quickRef.current?.setSelectionRange(from, to); });
+        return;
+      }
+      start = end + 1;
+    }
+  }
+  function showEdit(position: number) {
+    caret.current = position;
+    editing.current = true;
+    setQuickEditOpen(true);
+    requestAnimationFrame(() => {
+      const element = quickRef.current;
+      element?.focus({ preventScroll: true });
+      element?.setSelectionRange(position, position);
+    });
+  }
   function insert(token: string) {
-    const element = textRef.current;
-    const position = element ? element.selectionEnd : text.length;
+    const position = Math.min(caret.current ?? text.length, text.length);
     const before = text.slice(0, position);
     const after = text.slice(position);
     let piece = `${before && !/\s$/.test(before) ? " " : ""}${token}`;
@@ -197,11 +306,36 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
     piece += after && !/^\s/.test(after) ? " " : "";
     const value = before + piece + after;
     setText(value);
-    requestAnimationFrame(() => {
-      const cursor = before.length + piece.length;
-      element?.focus();
-      element?.setSelectionRange(cursor, cursor);
-    });
+    showEdit(before.length + piece.length);
+  }
+  // 건반을 누르면 조표를 반영한 실제 음높이로 짧게 소리를 냅니다.
+  function soundKey(token: string) {
+    const midi = playbackEvents(parseScore(token, settings), settings.tempo).sounds[0]?.midi;
+    if (midi === undefined) return;
+    keyAudio.current ??= new AudioContext();
+    const context = keyAudio.current;
+    if (context.state === "suspended") void context.resume();
+    const at = context.currentTime + 0.01;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(0.3, at + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + 1.2);
+    gain.connect(context.destination);
+    for (const [type, ratio, level] of [["triangle", 1, 1], ["sine", 2, 0.25]] as const) {
+      const oscillator = context.createOscillator();
+      const partial = context.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = 440 * 2 ** ((midi - 69) / 12) * ratio;
+      partial.gain.value = level;
+      oscillator.connect(partial).connect(gain);
+      oscillator.start(at);
+      oscillator.stop(at + 1.25);
+    }
+  }
+  function pressKey(key: { degree: number; alter: number; shift: number }) {
+    const token = noteToken({ ...key, duration, dotted });
+    if (keySound) soundKey(token);
+    insertNote(token);
   }
   // 코드 칸에 적은 코드는 다음에 넣는 음표 하나에만 붙이고 비웁니다.
   function insertNote(token: string) {
@@ -214,20 +348,20 @@ function MusicScoreEditor({ initial }: { initial: Draft }) {
 ${example}` : example;
     setText(next);
     setGuideOpen(false);
-    requestAnimationFrame(() => { textRef.current?.focus(); textRef.current?.setSelectionRange(next.length, next.length); });
+    showEdit(next.length);
   }
   function replaceWithExample(example: string, patch: Partial<ScoreSettings> = {}) {
     stop();
     setText(example);
+    caret.current = null;
     setSettings(current => ({ ...current, ...patch }));
     setGuideOpen(false);
   }
   function removeLast() {
-    const element = textRef.current;
-    const position = element ? element.selectionEnd : text.length;
+    const position = Math.min(caret.current ?? text.length, text.length);
     const before = text.slice(0, position).replace(/\S+\s*$/, "");
     setText(before + text.slice(position));
-    requestAnimationFrame(() => { element?.focus(); element?.setSelectionRange(before.length, before.length); });
+    showEdit(before.length);
   }
 
   function enterImmersion() {
@@ -335,18 +469,22 @@ ${example}` : example;
     stop();
     setSettings({ ...defaultSettings, labels: settings.labels, perLine: settings.perLine, ...example.settings });
     setText(example.text);
+    caret.current = null;
   }
   function clearScore() {
     if (!confirmClear) { setConfirmClear(true); setTimeout(() => setConfirmClear(false), 3000); return; }
     stop();
     setConfirmClear(false);
     setText("");
+    caret.current = null;
     setSettings(current => ({ ...defaultSettings, labels: current.labels, perLine: current.perLine }));
   }
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <style>{`.score-active path,.score-active text{fill:#5b3fd6!important;stroke:#5b3fd6}
+.score-cursor path,.score-cursor text{fill:#7c5cf0;stroke:#7c5cf0}
+.score-cursor{filter:drop-shadow(0 0 4px rgba(124,92,240,.45))}
 .score-stage{background:radial-gradient(ellipse 75% 65% at 50% 45%,rgba(40,32,70,.55),rgba(0,0,0,0) 70%),rgba(7,5,14,.93);backdrop-filter:blur(12px) saturate(.4);animation:score-lights-down 1s cubic-bezier(.4,0,.2,1) both}
 .score-stage::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 42% 70% at 50% -8%,rgba(255,236,200,.2),rgba(255,236,200,.05) 55%,rgba(0,0,0,0) 75%);animation:score-spotlight 1.4s .7s ease-out both}
 .score-stage[data-leaving]{animation:score-lights-up .7s cubic-bezier(.4,0,.2,1) both}
@@ -367,7 +505,7 @@ ${example}` : example;
 @keyframes score-spotlight{0%{opacity:0}35%{opacity:1}55%{opacity:.65}100%{opacity:1}}
 @keyframes score-spotlight-off{to{opacity:0}}
 @media (prefers-reduced-motion:reduce){.score-stage,.score-stage::before,.score-float,.score-changed,.score-changed path,.score-changed text{animation:none!important}.score-float{display:none}}
-@media print{body *:not(:has(#music-score-print)):not(#music-score-print):not(#music-score-print *){display:none!important}body *:has(#music-score-print),#music-score-print{display:block!important;position:static!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;max-width:none!important;background:#fff!important}#music-score-print>div{width:100%!important}#music-score-print svg{width:100%!important;min-width:0!important}@page{size:A4;margin:14mm}}`}</style>
+@media print{body *:not(:has(#music-score-print)):not(#music-score-print):not(#music-score-print *){display:none!important}body *:has(#music-score-print),#music-score-print{display:block!important;position:static!important;height:auto!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;max-width:none!important;background:#fff!important}#music-score-print>div{width:100%!important}#music-score-print svg{width:100%!important;min-width:0!important}@page{size:A4;margin:14mm}}`}</style>
       <MusicScoreGuide open={guideOpen} onClose={() => setGuideOpen(false)} hasScore={Boolean(text.trim())} onAppend={appendExample} onReplace={replaceWithExample} />
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
@@ -379,7 +517,7 @@ ${example}` : example;
       </header>
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
-        <div className="space-y-4">
+        <div className="scrollbar-subtle space-y-4 xl:sticky xl:top-24 xl:-m-1 xl:h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:p-1">
           <div className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-extrabold text-ink">악보 정보</h2>
@@ -417,24 +555,20 @@ ${example}` : example;
           </div>
 
           <div className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
-            <label htmlFor="score-text" className="text-sm font-extrabold text-ink">계이름으로 입력</label>
-            <textarea id="score-text" ref={textRef} value={text} onChange={event => setText(event.target.value)} rows={6} spellCheck={false}
-              placeholder="도4 레8 미8 파4 솔4 | 라2 솔2 |" className="mt-2 w-full resize-y rounded-xl border border-line bg-surface-2 px-3 py-2.5 font-mono text-[.95rem] leading-7 text-ink outline-none focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/10" />
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2">
-              <p className="font-mono text-xs text-ink-3">예: 도4 레8 미8 파4. 솔8 | 쉼4 높은도2. |</p>
-              <Button variant="secondary" size="sm" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><BookOpenCheck size={14} /> 입력 방법 배우기</Button>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-extrabold text-ink">건반으로 입력</h2>
+              <button type="button" aria-pressed={keySound} onClick={() => setKeySound(value => !value)}
+                className={cn("flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors", keySound ? "border-brand/20 bg-brand-page text-brand-dark" : "border-line bg-surface-2 text-ink-4 hover:text-ink-2")}>
+                {keySound ? <Volume2 size={14} /> : <VolumeOff size={14} />} 건반 소리 {keySound ? "켜짐" : "꺼짐"}
+              </button>
             </div>
-          </div>
-
-          <div className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
-            <h2 className="text-sm font-extrabold text-ink">건반으로 입력</h2>
-            <p className="mt-1 text-xs text-ink-4">커서 위치에 들어가요. 마디가 꽉 차면 마디 구분이 자동으로 붙어요.</p>
+            <p className="mt-1 text-xs text-ink-4">누르면 커서 위치에 들어가요{keySound ? "(소리도 나요)" : ""}. 마디가 꽉 차면 마디 구분이 자동으로 붙어요.</p>
             <div className="mt-3 space-y-2">
               <Segmented label="음표 길이" value={duration} onChange={value => { setDuration(value); if (value === 16) setDotted(false); }} options={durations.map(value => ({ value, label: durationNames[value] }))} />
               <div className="flex flex-wrap gap-2">
                 <Segmented label="점음표" value={dotted ? "dot" : "plain"} onChange={value => setDotted(value === "dot" && duration !== 16)} options={[{ value: "plain", label: "점 없음" }, { value: "dot", label: "점음표" }]} />
                 <Segmented label="음 높이" value={shift} onChange={setShift} options={[{ value: -1, label: "낮은" }, { value: 0, label: "가운데" }, { value: 1, label: "높은" }]} />
-                <Segmented label="올림·내림" value={alter} onChange={setAlter} options={[{ value: -1, label: "내림 b" }, { value: 0, label: "없음" }, { value: 1, label: "올림 #" }]} />
+                <Segmented label="검은 건반 표기" value={spelling} onChange={setSpelling} options={[{ value: "sharp", label: "검은 건반 # (도#)" }, { value: "flat", label: "검은 건반 b (레b)" }]} />
               </div>
             </div>
             <label className="mt-2 flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-1.5">
@@ -442,12 +576,7 @@ ${example}` : example;
               <input value={chord} maxLength={10} onChange={event => setChord(event.target.value.replace(/[\s[\]|]/g, ""))} placeholder="예: C, G7, Am (다음 음표 위에 표시)" className="min-h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4" />
               {chord && <button type="button" onClick={() => setChord("")} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-brand-dark">지우기</button>}
             </label>
-            <div className="mt-3 grid grid-cols-7 gap-1 rounded-xl bg-[#2d2a3e] p-1.5">
-              {solfegeNames.map((name, degree) => <button key={name} type="button" onClick={() => insertNote(noteToken({ degree, alter, shift, duration, dotted }))}
-                className="flex min-h-20 flex-col items-center justify-end rounded-b-lg rounded-t-sm bg-white pb-2 text-[.95rem] font-extrabold text-ink shadow-[inset_0_-4px_0_#e4e1ef] transition active:translate-y-px active:shadow-none hover:bg-brand-page">
-                {name}<span className="text-[.62rem] font-semibold text-ink-4">{alter > 0 ? "#" : alter < 0 ? "b" : ""}{shift > 0 ? "높은" : shift < 0 ? "낮은" : ""}</span>
-              </button>)}
-            </div>
+            <MusicPiano shift={shift} spelling={spelling} onPress={pressKey} />
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               <Button variant="secondary" size="sm" onClick={() => insertNote(noteToken({ rest: true, duration, dotted }))}>쉼표 넣기</Button>
               <Button variant="secondary" size="sm" onClick={() => insert("|")}>마디 나누기</Button>
@@ -463,14 +592,20 @@ ${example}` : example;
         </div>
 
         {/* sticky 칸은 자체 쌓임 맥락을 만들므로, 몰입 중에는 칸을 상단 메뉴보다 위로 올려 무대가 화면 전체를 덮게 합니다. 칸은 제자리 높이를 지켜 돌아올 자리를 남깁니다. */}
-        <div ref={scoreHomeRef} className={cn("min-w-0 xl:sticky xl:top-24", immersion !== "off" && "relative z-[60]")} style={immersion !== "off" ? { height: homeHeight } : undefined}>
+        <div ref={scoreHomeRef} className={cn("min-w-0 xl:sticky xl:top-24 xl:h-[calc(100dvh-7rem)]", immersion !== "off" && "relative z-[60]")} style={immersion !== "off" ? { height: homeHeight } : undefined}>
           {immersion !== "off" && <div data-leaving={immersion === "leaving" || undefined} data-playing={playing || undefined} style={{ "--beat": `${60 / settings.tempo}s` } as React.CSSProperties} className="score-stage fixed inset-0 z-50 overflow-hidden" aria-hidden="true">
             {floatingNotes.map((note, i) => <span key={i} className="score-float" style={{ left: `${note.left}%`, fontSize: note.size, animationDuration: `${note.duration}s`, animationDelay: `-${note.delay}s` }}>{note.glyph}</span>)}
           </div>}
-          <div ref={scoreCardRef} className={cn("space-y-3", immersion !== "off" && "score-on-stage scrollbar-subtle fixed z-[51] max-h-[calc(100dvh-48px)] overflow-y-auto rounded-[18px]")}>
-            <div className="rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
+          <div ref={scoreCardRef} className={cn("flex flex-col gap-3", immersion === "off" ? "xl:h-full" : "score-on-stage fixed z-[51] h-[calc(100dvh-48px)] rounded-[18px]")}>
+            <div className="scrollbar-subtle shrink-0 overflow-y-auto overflow-x-hidden rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)] xl:max-h-[55%]">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-extrabold text-ink">악보 보기 설정</h2>
+                <h2>
+                  <button type="button" aria-expanded={viewOptionsOpen} onClick={() => setViewOptionsOpen(open => !open)} className="flex items-center gap-2 text-sm font-extrabold text-ink transition-colors hover:text-brand-dark">
+                    <SlidersHorizontal size={15} className="text-ink-4" /> 악보 보기 설정
+                    <ChevronDown size={15} aria-hidden="true" className={cn("text-ink-4 transition-transform", viewOptionsOpen && "rotate-180")} />
+                    {!viewOptionsOpen && <span className="text-xs font-semibold text-ink-4">{labelNames[settings.labels]} · 한 줄 {settings.perLine}마디 · {zoom}%</span>}
+                  </button>
+                </h2>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {immersion === "off"
                     ? <Button variant="secondary" size="sm" onClick={enterImmersion} disabled={!noteCount} title="주변을 어둡게 하고 이 창만 무대에 띄워요"><MoonStar size={14} /> 악보 몰입</Button>
@@ -478,46 +613,66 @@ ${example}` : example;
                   {playing
                     ? <Button size="sm" onClick={stop}><Square size={14} /> 정지</Button>
                     : <Button size="sm" onClick={play} disabled={!noteCount}><Play size={14} /> 소리 듣기</Button>}
-                  <Button variant="secondary" size="sm" onClick={downloadPng} disabled={!noteCount || exporting}>{exporting ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />} PNG 저장</Button>
+                  <Button variant="secondary" size="sm" onClick={downloadPng} disabled={!noteCount || exporting} title="악보를 PNG 그림 파일로 저장해요">{exporting ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />} 악보 저장</Button>
                   <Button variant="secondary" size="sm" onClick={() => window.print()} disabled={!noteCount}><Printer size={14} /> 인쇄</Button>
                 </div>
               </div>
-              <div className="mt-3 grid gap-4 border-t border-line pt-3 lg:grid-cols-3">
+              {viewOptionsOpen && <div className="mt-3 grid gap-4 border-t border-line pt-3 lg:grid-cols-3">
                 <ViewOption label="음표 아래 글자" help={labelHelp[settings.labels]}>
                   <Segmented label="음표 아래 글자" value={settings.labels} onChange={(value: LabelMode) => update({ labels: value })} options={[{ value: "solfege", label: "계이름 (도레미)" }, { value: "letter", label: "음이름 (다라마)" }, { value: "none", label: "글자 없음" }]} />
                 </ViewOption>
                 <ViewOption label="한 줄에 넣을 마디 수" help={`악보 한 줄에 마디를 ${settings.perLine}개씩 놓아요. 적을수록 마디가 넓어져 음표 사이가 여유 있고, 많을수록 한 장에 더 많이 들어가요. 저학년은 2~3마디, 보통은 4마디가 알맞아요.`}>
                   <Segmented label="한 줄에 넣을 마디 수" value={settings.perLine} onChange={value => update({ perLine: value })} options={[2, 3, 4, 5, 6].map(value => ({ value, label: `${value}마디` }))} />
                 </ViewOption>
-                <ViewOption label="화면에서 보는 크기" help="지금 화면에서 보는 크기만 바뀌어요. 100%는 미리보기 칸 너비에 꽉 맞춘 크기이고, 줄이면 한 화면에 더 많은 줄이 보여요. 인쇄와 PNG 저장 크기에는 영향이 없어요.">
+                <ViewOption label="화면에서 보는 크기" alignRight help="지금 화면에서 보는 크기만 바뀌어요. 100%는 미리보기 칸 너비에 꽉 맞춘 크기이고, 줄이면 한 화면에 더 많은 줄이 보여요. 인쇄와 악보 저장 크기에는 영향이 없어요.">
                   <Segmented label="화면에서 보는 크기" value={zoom} onChange={setZoom} options={zoomLevels.map(value => ({ value, label: `${value}%` }))} />
                 </ViewOption>
-              </div>
+              </div>}
               <details open={quickEditOpen} onToggle={event => setQuickEditOpen(event.currentTarget.open)} className="group mt-3 border-t border-line pt-3">
                 <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-bold text-ink-2 hover:text-brand-dark [&::-webkit-details-marker]:hidden">
                   <PencilLine size={14} /> 계이름으로 바로 고치기
-                  <span className="font-semibold text-ink-4">왼쪽 입력창과 같은 내용이에요</span>
-                  <ChevronDown size={15} aria-hidden="true" className="ml-auto text-ink-4 transition-transform group-open:rotate-180" />
+                  <span className="min-w-0 truncate font-semibold text-ink-4">건반으로 넣은 음도 여기에 들어가요 · 예: <span className="font-mono">도4 레8 미8 파4. 솔8 | 쉼4 높은도2. |</span></span>
+                  <button type="button" onClick={event => { event.preventDefault(); setGuideOpen(true); }} aria-haspopup="dialog" className="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-semibold text-ink-3 hover:bg-brand-page hover:text-brand-dark"><BookOpenCheck size={13} /> 입력 방법 배우기</button>
+                  <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-ink-4 transition-transform group-open:rotate-180" />
                 </summary>
-                <textarea aria-label="계이름으로 바로 고치기" value={text} onChange={event => setText(event.target.value)} rows={4} spellCheck={false}
+                <textarea ref={quickRef} aria-label="계이름으로 바로 고치기" value={text} onChange={event => { setText(event.target.value); rememberCaret(event); }} onSelect={rememberCaret}
+                  onFocus={() => { editing.current = true; }} onBlur={() => { editing.current = false; followCaret(); }} rows={2} spellCheck={false}
                   placeholder="도4 레8 미8 파4 솔4 | 라2 솔2 |" className="mt-2 w-full resize-y rounded-xl border border-line bg-surface-2 px-3 py-2.5 font-mono text-[.95rem] leading-7 text-ink outline-none focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/10" />
-                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-                  <p className="break-keep text-xs leading-5 text-ink-4">고치면 바로 악보에 반영되고, 틀린 곳은 악보 아래에 안내돼요.</p>
-                  <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><BookOpenCheck size={14} /> 입력 방법 배우기</Button>
-                </div>
               </details>
             </div>
 
-            <div id="music-score-print" className="overflow-x-auto rounded-[18px] border border-line bg-white p-3 shadow-[var(--lift-2)] sm:p-5">
+            <div ref={scorePaperRef} id="music-score-print" onClick={openIssueTip} onMouseMove={event => { event.currentTarget.style.cursor = errorMeasures.size && issues.some(issue => issue.measure === measureAt(event.clientX, event.clientY)) ? "pointer" : ""; }}
+              className={cn("scrollbar-subtle relative overflow-x-auto rounded-[18px] border border-line bg-white p-3 shadow-[var(--lift-2)] sm:p-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto", immersion !== "off" && "min-h-0 flex-1 overflow-y-auto")}>
               <div ref={hostRef} role="img" aria-label={`${settings.title || "악보"} 미리보기, ${parsed.measures.length}마디`} style={{ width: `${zoom}%` }} className="mx-auto [&>svg]:block" />
-              {!noteCount && <div className="py-10 text-center text-sm text-ink-4"><p>왼쪽에 계이름을 적거나 건반을 눌러 악보를 시작하세요.</p><button type="button" onClick={() => setGuideOpen(true)} className="mt-2 font-bold text-brand-dark underline-offset-4 hover:underline">처음이라면 입력 방법 배우기 →</button></div>}
+              {issueTip && issues.some(issue => issue.measure === issueTip.measure) && <div role="dialog" aria-label={`${issueTip.measure}마디 문제`} onClick={event => event.stopPropagation()} style={{ left: issueTip.left, top: issueTip.top }}
+                className="absolute z-20 mt-3 w-72 -translate-x-1/2 print:hidden rounded-xl border border-[#f1d5cc] bg-white p-3 text-[.82rem] shadow-[0_14px_36px_rgba(60,30,20,.18)]">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="text-xs font-extrabold text-[#9a3412]">{issueTip.measure}마디</p>
+                  <button type="button" onClick={() => setIssueTip(null)} aria-label="닫기" className="text-xs font-semibold text-ink-4 hover:text-ink">닫기</button>
+                </div>
+                {issues.filter(issue => issue.measure === issueTip.measure).map(issue => <p key={issue.message} className={cn("flex items-start gap-1.5 py-0.5 leading-5", issue.error ? "text-[#c2410c]" : "text-[#806426]")}>{issue.error ? <AlertCircle size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}{issue.message}</p>)}
+                <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => selectMeasure(issueTip.measure)}><PencilLine size={14} /> 입력창에서 이 마디 고치기</Button>
+              </div>}
+              {!noteCount && <div className="py-10 text-center text-sm text-ink-4"><p>위 ‘계이름으로 바로 고치기’에 적거나 왼쪽 건반을 눌러 악보를 시작하세요.</p><button type="button" onClick={() => setGuideOpen(true)} className="mt-2 font-bold text-brand-dark underline-offset-4 hover:underline">처음이라면 입력 방법 배우기 →</button></div>}
             </div>
 
-            <div className="rounded-[18px] border border-line bg-surface px-4 py-3 text-[.82rem] shadow-[var(--lift-1)]" aria-live="polite">
+            <div className="shrink-0 rounded-[18px] border border-line bg-surface px-4 py-3 text-[.82rem] shadow-[var(--lift-1)]" aria-live="polite">
               {renderFailed && <p className="flex items-center gap-2 font-semibold text-danger"><AlertCircle size={15} /> 악보를 그리지 못했어요. 입력을 확인해 주세요.</p>}
-              {parsed.errors.map(issue => <p key={issue.message} className="flex items-start gap-2 py-0.5 text-[#c2410c]"><AlertCircle size={15} className="mt-0.5 shrink-0" /> {issue.message}</p>)}
-              {parsed.warnings.map(issue => <p key={issue.message} className="flex items-start gap-2 py-0.5 text-[#806426]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> {issue.message}</p>)}
-              {!parsed.errors.length && !renderFailed && <p className="flex items-center gap-2 font-semibold text-ok"><CheckCircle2 size={15} /> {parsed.measures.length}마디 · 음표 {noteCount}개 · 박자가 모두 맞아요.</p>}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {parsed.errors.length
+                  ? <p className="flex items-center gap-2 font-semibold text-[#c2410c]"><AlertCircle size={15} /> 고칠 곳 {parsed.errors.length}개 <span className="font-medium text-ink-4">· 악보에서 붉은 마디를 누르면 무엇이 문제인지 보여요</span></p>
+                  : !renderFailed && <p className="flex items-center gap-2 font-semibold text-ok"><CheckCircle2 size={15} /> {parsed.measures.length}마디 · 음표 {noteCount}개 · 박자가 모두 맞아요.{parsed.warnings.length > 0 && <span className="font-medium text-[#806426]">· 안내 {parsed.warnings.length}개</span>}</p>}
+                {issues.length > 0 && <button type="button" aria-expanded={issueListOpen} onClick={() => setIssueListOpen(open => !open)} className="flex items-center gap-1 text-xs font-semibold text-ink-3 hover:text-brand-dark">
+                  {issueListOpen ? "목록 닫기" : "모두 보기"}<ChevronDown size={14} className={cn("transition-transform", issueListOpen && "rotate-180")} />
+                </button>}
+              </div>
+              {issueListOpen && issues.length > 0 && <ul className="scrollbar-subtle mt-2 max-h-32 space-y-0.5 overflow-y-auto border-t border-line pt-2">
+                {issues.map(issue => <li key={issue.message}>
+                  <button type="button" onClick={() => issue.measure && selectMeasure(issue.measure)} className={cn("flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left hover:bg-surface-2", issue.error ? "text-[#c2410c]" : "text-[#806426]")}>
+                    {issue.error ? <AlertCircle size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}{issue.message}
+                  </button>
+                </li>)}
+              </ul>}
             </div>
           </div>
         </div>
