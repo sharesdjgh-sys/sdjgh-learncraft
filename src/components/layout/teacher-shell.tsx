@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookA, BookOpenText, DraftingCompass, GraduationCap } from "lucide-react";
+import { BookA, BookOpenText, DraftingCompass, GraduationCap, Music } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
@@ -10,6 +10,7 @@ import type { SessionUser } from "@/types";
 const links: readonly ConsoleLink[] = [
   { href: "/teacher/korean-vocabulary", label: "국어 어휘", icon: BookA },
   { href: "/teacher/math-figures", label: "수학 도형", icon: DraftingCompass },
+  { href: "/teacher/music-score", label: "음악 악보", icon: Music },
 ];
 
 async function clearLearnerState() {
