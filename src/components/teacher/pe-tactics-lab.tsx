@@ -14,6 +14,7 @@ import {
 } from "@/lib/pe-tactics/model";
 import { cn } from "@/lib/utils";
 import { TacticsCanvas, type Selection, type TacticsTool } from "./pe-tactics-canvas";
+import { SportGuidePanel } from "./pe-tactics-guide";
 import { frameGeometry, TacticsFrameSvg, TacticsSheetSvg } from "./pe-tactics-render";
 import { Card, Range, Segmented, Toggle } from "./tool-panel";
 
@@ -411,6 +412,8 @@ export function PeTacticsLab() {
         </div>
       </div>
       <p role="status" className="min-h-5 px-1 text-[.8rem] font-semibold text-brand-dark">{message}</p>
+      <SportGuidePanel court={doc.court} examples={courtExamples.filter((example) => example.court === doc.court)} onMessage={setMessage}
+        onLoadExample={(index) => { const example = tacticsExamples[index]; loadDoc(example.build(), `‘${example.name}’ 예시를 불러왔어요. ▶ 재생을 눌러 보세요.`); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
       <p className="px-1 text-[.72rem] leading-5 text-ink-5">단축키: 재생 Space · 단계 이동 ←→ · 되돌리기 Ctrl+Z · 지우기 Delete · 도구 V 1 2 B C T / R P D S X</p>
     </div>
 

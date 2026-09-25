@@ -141,7 +141,6 @@ function CourtLines({ court, half, c, lw }: { court: CourtKind; half: boolean; c
       {bg}
       <path d={`M${home[0]},${home[1]} ${arc(home[0], home[1], 28, -135, -45, false)} Z`} fill={c.dirt} stroke="none" />
       <path d={`M${home[0]},${home[1] - 3} L${home[0] + 10.3},${home[1] - 13.3} L${home[0]},${home[1] - 23.6} L${home[0] - 10.3},${home[1] - 13.3} Z`} fill={c.print ? "#ffffff" : c.stripe} />
-      <circle cx={35} cy={44.27} r={2.7} fill={c.dirt} stroke={c.print ? c.line : "none"} strokeWidth={lw} />
       <path d={`M${home[0] - reach * 0.7071},${home[1] - reach * 0.7071} L${home[0]},${home[1]} L${home[0] + reach * 0.7071},${home[1] - reach * 0.7071}`} {...stroke} />
       <path d={arc(home[0], home[1], reach, -135, -45)} {...stroke} strokeWidth={lw * 1.6} />
       <path d={`M35,31.54 L47.73,44.27 L35,57 L22.27,44.27 Z`} {...stroke} strokeWidth={lw * 0.8} />

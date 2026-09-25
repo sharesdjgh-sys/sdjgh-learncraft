@@ -116,8 +116,8 @@ export const tacticsExamples: { name: string; court: CourtKind; build: () => Tac
     .arrow("shot", "ball", [0, 9], 0.8).note("수비가 따라오기 전에 뒤쪽 공격수가 점프 슛!").done() },
   { name: "티볼 수비 위치와 1루 송구", court: "teeball", build: () => builder("teeball", "티볼 · 수비 위치")
     .formation("A", "teeball-field").player("B", "타자", [33.4, 57.4]).ball([35, 56.3])
-    .note("수비 9명의 자리: 투수(P)·포수(C)·1루수·2루수·유격수(SS)·3루수·외야수(LF·CF·RF)").next()
-    .arrow("shot", "ball", [27.6, 32.5], -1.5).arrow("run", "B:타자", [47.4, 44.6]).arrow("run", "A:SS", [27.8, 33.4])
+    .note("티볼은 투수가 없어요. 수비 10명: 포수(본루수 C)·1루수·2루수·3루수·유격수 2명(SS)·좌익수·중견수 2명(CF)·우익수").next()
+    .arrow("shot", "ball", [27.6, 32.5], -1.5).arrow("run", "B:타자", [47.4, 44.6]).arrow("run", "A:SS1", [27.8, 33.4])
     .note("타자가 친 공이 유격수 쪽으로! 타자는 1루로 달려요.").next()
     .arrow("pass", "ball", [46.3, 45]).note("유격수가 공을 잡아 1루로 던져 타자를 아웃시켜요.").done() },
   { name: "피구 외야 패스와 공격", court: "dodgeball", build: () => builder("dodgeball", "피구 · 외야와 함께 공격하기")

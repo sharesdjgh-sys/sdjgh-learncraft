@@ -283,7 +283,8 @@ export const formations: Formation[] = [
   { id: "handball-51", name: "5-1 수비", court: "handball", points: [[0.8, 10], ...[-70, -35, 0, 35, 70].map((angle): Point => [round(6.8 * Math.cos((angle * Math.PI) / 180)), round(10 + 6.8 * Math.sin((angle * Math.PI) / 180))]), [10, 10]] },
   { id: "handball-33", name: "공격 3-3", court: "handball", points: [[1.5, 1.2], [10.5, 4], [11.5, 10], [10.5, 16], [1.5, 18.8], [6.8, 10]] },
   { id: "dodgeball-8", name: "내야 7 + 외야 1", court: "dodgeball", points: [[3, 2.5], [3, 7.5], [5.5, 5], [7.5, 2], [7.5, 8], [8.5, 5], [5.5, 1.2], [21.5, 5]] },
-  { id: "teeball-field", name: "수비 위치 (9명)", court: "teeball", points: [[35, 45], [35, 59.2], [46, 45.5], [41, 36.5], [29, 36.5], [24, 45.5], [20, 27], [35, 20], [50, 27]], labels: ["P", "C", "1B", "2B", "SS", "3B", "LF", "CF", "RF"] },
+  // 티볼은 투수가 없고, 유격수와 중견수가 2명씩인 10명 수비예요.
+  { id: "teeball-field", name: "수비 위치 (10명)", court: "teeball", points: [[35, 59.3], [46.5, 45.5], [37.8, 34.3], [24, 45.5], [28.2, 37.2], [42.4, 38.6], [18, 27.5], [29.5, 20.5], [40.5, 20.5], [52, 27.5]], labels: ["C", "1B", "2B", "3B", "SS1", "SS2", "LF", "CF1", "CF2", "RF"] },
   { id: "floor-line", name: "한 줄", court: "floor", points: Array.from({ length: 8 }, (_, index): Point => [1.5 + index * 1.29, 4]) },
   { id: "floor-two", name: "두 줄 (엇갈리게)", court: "floor", points: Array.from({ length: 8 }, (_, index): Point => [2 + Math.floor(index / 2) * 2.4 + (index % 2) * 1.2, index % 2 ? 5 : 3]) },
   { id: "floor-circle", name: "원", court: "floor", points: circle(6, 4, 2.6, 8) },

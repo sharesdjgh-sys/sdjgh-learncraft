@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { nearestPairs, tacticsExamples } from "../src/lib/pe-tactics/examples";
+import { sportGuides } from "../src/lib/pe-tactics/guides";
 import {
   addFrame, addItem, applyFormation, arrowPoint, blankTactics, controlPoint, courtInfo, courtKinds, formations, formationsFor, hitRadius, interpolate, moveItem,
   parseTacticsDoc, positionsAfterArrows, removeFrame, removeItem, viewBox, type Point, type TacticsDoc,
@@ -111,4 +112,21 @@ for (const example of tacticsExamples) {
   assert.deepEqual(nearestPairs([[0, 0], [2, 0]], [[1, 0], [3.2, 0]]), [0, 1], "이동 거리 합이 가장 작은 짝");
 }
 
-console.log(`전술 보드 검증 완료: 경기장 ${courtKinds.length}종·단계와 화살표·대형 ${formations.length}개·예시 ${tacticsExamples.length}개`);
+/* 종목 안내: 모든 경기장에 규칙·지도 포인트·헷갈리는 점·안전·활동·용어가 있고, 안내문이 말하는 예시가 실제로 있습니다. */
+for (const court of courtKinds) {
+  const guide = sportGuides[court];
+  assert.ok(guide.summary && guide.basics.length >= 3, `${court}: 개요`);
+  assert.ok(guide.rules.length >= 5 && guide.tips.length >= 4 && guide.confusions.length >= 2 && guide.safety.length >= 3 && guide.activities.length >= 3 && guide.terms.length >= 3, `${court}: 안내 항목`);
+  const text = JSON.stringify(guide);
+  for (const quoted of text.matchAll(/‘([^’]+)’ 예시/g)) {
+    assert.ok(tacticsExamples.some((example) => example.court === court && (example.name.includes(quoted[1]) || example.build().title.includes(quoted[1]))), `${court}: 안내에 적은 ‘${quoted[1]}’ 예시가 있음`);
+  }
+}
+{
+  const teeball = formations.find((item) => item.id === "teeball-field")!;
+  assert.equal(teeball.points.length, 10, "티볼 수비는 10명");
+  assert.ok(!teeball.labels!.includes("P"), "티볼에는 투수가 없음");
+  assert.ok(sportGuides.teeball.basics.some((item) => item.value.includes("10명")), "티볼 안내도 10명");
+}
+
+console.log(`전술 보드 검증 완료: 경기장 ${courtKinds.length}종·단계와 화살표·대형 ${formations.length}개·예시 ${tacticsExamples.length}개·종목 안내 ${Object.keys(sportGuides).length}종`);
