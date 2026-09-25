@@ -497,7 +497,17 @@ function looksLikeMathExpression(value: string) {
   return trimmed.length > 0
     && !/(?:\*\*|__)/.test(trimmed)
     && !/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(trimmed)
+    && !looksLikeEnglishProse(trimmed)
     && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
+}
+
+/**
+ * English sentences (reading passages, example sentences) are not equations
+ * even when they contain "-", "/" or "<". Treat three consecutive words as
+ * prose unless the line carries TeX commands.
+ */
+function looksLikeEnglishProse(value: string) {
+  return !/\\[A-Za-z]+/.test(value) && /\b[A-Za-z]{2,}[,.;:!?'"’”)]*\s+[A-Za-z]{2,}[,.;:!?'"’”)]*\s+[A-Za-z]{2,}\b/.test(value);
 }
 
 function looksLikeOrderedPairList(value: string) {
@@ -544,52 +554,58 @@ function normalizeBrokenLineMath(value: string) {
       return line;
     }
 
-    let repaired = line;
-
-    repaired = repaired.replace(
-      /(^|\|)([\t ]*)([^|$\r\n]+?)\$([\t ]*)(?=\||$)/g,
-      (match, boundary: string, spacing: string, expression: string, trailingSpacing: string) => {
-        if (!looksLikeMathExpression(expression) && !looksLikeOrderedPairList(expression)) return match;
-        return `${boundary}${spacing}$${expression.trim()}$${trailingSpacing}`;
-      },
-    );
-
-    repaired = repaired.replace(
-      /^(\s*)([^$]+?)\$(?=[가-힣])/,
-      (match, indentation: string, expression: string) => (
-        looksLikeMathExpression(expression)
-          ? `${indentation}$${expression.trim()}$`
-          : match
-      ),
-    );
-
-    repaired = repaired.replace(
-      /^(.*[가-힣])((?:\\[A-Za-z]+)[^$]*?)\$(?=[가-힣])/,
-      (_, sentence: string, expression: string) => (
-        looksLikeMathExpression(expression)
-          ? `${sentence.trimEnd()} $${expression.trim()}$`
-          : `${sentence}${expression}$`
-      ),
-    );
-
-    if (!repaired.includes("$")) {
-      if (looksLikeMathExpression(repaired)) return `$$${repaired.trim()}$$`;
-
-      const mixed = repaired.match(/^(.*[가-힣])((?:[A-Za-z]|\\[A-Za-z]+).*)$/);
-      if (mixed && looksLikeMathExpression(mixed[2])) {
-        return `${mixed[1].trimEnd()} $${mixed[2].trim()}$`;
-      }
-    }
-
-    const indexes = singleDollarIndexes(repaired);
-    if (indexes.length % 2 === 0) return repaired;
-
-    const lastDollar = indexes.at(-1)!;
-    const trailing = repaired.slice(lastDollar + 1);
-    if (looksLikeMathExpression(trailing)) return `${repaired}$`;
-
-    return repaired;
+    // A blockquote marker is Markdown structure, not a "greater than" sign.
+    const quoteMarker = line.match(/^[\t ]*(?:>[\t ]?)+/)?.[0] ?? "";
+    return quoteMarker + repairBrokenMathLine(line.slice(quoteMarker.length));
   }).join("");
+}
+
+function repairBrokenMathLine(line: string) {
+  let repaired = line;
+
+  repaired = repaired.replace(
+    /(^|\|)([\t ]*)([^|$\r\n]+?)\$([\t ]*)(?=\||$)/g,
+    (match, boundary: string, spacing: string, expression: string, trailingSpacing: string) => {
+      if (!looksLikeMathExpression(expression) && !looksLikeOrderedPairList(expression)) return match;
+      return `${boundary}${spacing}$${expression.trim()}$${trailingSpacing}`;
+    },
+  );
+
+  repaired = repaired.replace(
+    /^(\s*)([^$]+?)\$(?=[가-힣])/,
+    (match, indentation: string, expression: string) => (
+      looksLikeMathExpression(expression)
+        ? `${indentation}$${expression.trim()}$`
+        : match
+    ),
+  );
+
+  repaired = repaired.replace(
+    /^(.*[가-힣])((?:\\[A-Za-z]+)[^$]*?)\$(?=[가-힣])/,
+    (_, sentence: string, expression: string) => (
+      looksLikeMathExpression(expression)
+        ? `${sentence.trimEnd()} $${expression.trim()}$`
+        : `${sentence}${expression}$`
+    ),
+  );
+
+  if (!repaired.includes("$")) {
+    if (looksLikeMathExpression(repaired)) return `$$${repaired.trim()}$$`;
+
+    const mixed = repaired.match(/^(.*[가-힣])((?:[A-Za-z]|\\[A-Za-z]+).*)$/);
+    if (mixed && looksLikeMathExpression(mixed[2])) {
+      return `${mixed[1].trimEnd()} $${mixed[2].trim()}$`;
+    }
+  }
+
+  const indexes = singleDollarIndexes(repaired);
+  if (indexes.length % 2 === 0) return repaired;
+
+  const lastDollar = indexes.at(-1)!;
+  const trailing = repaired.slice(lastDollar + 1);
+  if (looksLikeMathExpression(trailing)) return `${repaired}$`;
+
+  return repaired;
 }
 
 /** Normalize common model aliases before KaTeX parses the expression. */
