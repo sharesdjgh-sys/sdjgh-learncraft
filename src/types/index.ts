@@ -96,6 +96,24 @@ export type BookmarkOutlineUnit = BookmarkUnitContext & {
   count: number;
 };
 
+export type QuizMistake = {
+  id: string;
+  unitId: string;
+  clientQuizId: string;
+  problemMarkdown: string;
+  studentAnswer: string;
+  correctAnswer: string;
+  attempts: number;
+  hintsUsed: number;
+  confusions: string[];
+  note: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  unitTitle?: string;
+  subjectTitle?: string;
+};
+
 export type TutorMessage = {
   id: string;
   role: "user" | "assistant";

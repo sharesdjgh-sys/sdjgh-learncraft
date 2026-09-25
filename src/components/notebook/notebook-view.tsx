@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, BookOpen, LibraryBig, ListTree, LoaderCircle, NotebookTabs, Search, Trash2, X } from "lucide-react";
+import { Bookmark, BookOpen, LibraryBig, ListTree, LoaderCircle, NotebookPen, NotebookTabs, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { QuizMistakeList } from "@/components/notebook/quiz-mistake-list";
 import { formatCurriculumUnitNumber } from "@/lib/curriculum-hierarchy";
 import { cn } from "@/lib/utils";
 import type { Bookmark as BookmarkType, BookmarkOutlineUnit, BookmarkPage, BookmarkSummary } from "@/types";
@@ -112,8 +113,22 @@ export function NotebookView() {
   const [mobileOutlineOpen, setMobileOutlineOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<BookmarkType | null>(null);
+  const [tab, setTab] = useState<"bookmarks" | "mistakes">("bookmarks");
   const detailRef = useRef<HTMLElement>(null);
   const detailCache = useRef(new Map<string, BookmarkType>());
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the tab comes from the URL only after hydration
+    if (new URLSearchParams(window.location.search).get("tab") === "mistakes") setTab("mistakes");
+  }, []);
+
+  function changeTab(nextTab: "bookmarks" | "mistakes") {
+    setTab(nextTab);
+    const url = new URL(window.location.href);
+    if (nextTab === "mistakes") url.searchParams.set("tab", "mistakes");
+    else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url);
+  }
 
   useEffect(() => {
     fetch("/api/bookmarks/outline", { cache: "no-store" })
@@ -244,8 +259,19 @@ export function NotebookView() {
                 <h1 className="font-learning mt-3 text-[2.2rem] font-bold tracking-[-0.045em] text-ink">학습 북마크</h1>
                 <p className="mt-3 max-w-xl text-[.94rem] leading-7 text-ink-3">필요한 답변만 모아 두고, 시험 전에 과목과 단원별로 빠르게 다시 읽어 보세요.</p>
               </div>
-              <p className="figure text-[.9rem] font-semibold text-ink-3"><span className="text-2xl text-brand">{itemCount}</span>개 저장됨</p>
+              {tab === "bookmarks" && <p className="figure text-[.9rem] font-semibold text-ink-3"><span className="text-2xl text-brand">{itemCount}</span>개 저장됨</p>}
             </header>
+
+            <div className="mt-6 flex gap-1 rounded-[13px] border border-line bg-surface-2 p-1" role="tablist" aria-label="학습 기록 종류">
+              {([["bookmarks", "저장한 답변", Bookmark], ["mistakes", "오답 기록", NotebookPen]] as const).map(([value, label, Icon]) => (
+                <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => changeTab(value)} className={cn(
+                  "flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] text-[.84rem] font-bold transition sm:flex-none sm:px-5",
+                  tab === value ? "bg-surface text-brand-dark shadow-[var(--lift-1)]" : "text-ink-3 hover:text-ink",
+                )}><Icon size={15} />{label}</button>
+              ))}
+            </div>
+
+            {tab === "mistakes" ? <QuizMistakeList /> : <>
 
             <div className="mt-6 flex gap-2.5">
               <label className="composer flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[12px] border border-line bg-surface px-4 shadow-[var(--lift-1)]">
@@ -338,6 +364,7 @@ export function NotebookView() {
                 )}
               </>
             )}
+            </>}
           </div>
         </main>
       </div>

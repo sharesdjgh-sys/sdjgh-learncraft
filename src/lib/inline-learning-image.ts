@@ -1,4 +1,5 @@
 import { parseLearningVisual, type VisualOf } from "./learning-visual";
+import { quizTextContext } from "./learning-quiz";
 
 export function inlineLearningImageMarkdown(spec: VisualOf<"generated-image">) {
   const validated = parseLearningVisual(JSON.stringify(spec));
@@ -7,7 +8,7 @@ export function inlineLearningImageMarkdown(spec: VisualOf<"generated-image">) {
 
 // Keep the conceptual description, but never resend image bytes as text tokens.
 export function learningTextContext(markdown: string) {
-  return markdown.replace(/```learncraft-visual\s*\n([\s\S]*?)```/g, (block, source: string) => {
+  return quizTextContext(markdown).replace(/```learncraft-visual\s*\n([\s\S]*?)```/g, (block, source: string) => {
     try {
       const spec = JSON.parse(source);
       if (spec.kind !== "generated-image" && spec.kind !== "image-slot") return block;

@@ -1,6 +1,7 @@
 "use client";
 import { fillImageSlots, validImageUpdate } from "@/lib/image-slots";
 import { ImageRetryContext } from "@/components/tutor/image-retry-context";
+import { LearningQuizContext } from "@/components/ui/learning-quiz-context";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import { detachInlineLearningImages } from "@/lib/bookmark-content";
@@ -1584,7 +1585,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                             signal.throwIfAborted();
                             setMessages(current => current.map(item => item.id === message.id ? { ...item, content: fillImageSlots(item.content, new Map([[slot.id, payload.markdown]])) } : item));
                           } }}>
-                            {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize} repairGeneratedFence>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            <LearningQuizContext.Provider value={message.completed ? {
+                              unitId: selectedUnit.id,
+                              messageId: message.id,
+                              markdown: message.content,
+                              onRequestSolution: index === messages.length - 1 && !loading ? () => void ask("REVEAL") : undefined,
+                            } : null}>
+                              {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize} repairGeneratedFence>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            </LearningQuizContext.Provider>
                           </ImageRetryContext.Provider>
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (

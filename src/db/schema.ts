@@ -453,6 +453,30 @@ export const bookmarks = pgTable(
   ],
 );
 
+export const quizMistakes = pgTable(
+  "quiz_mistakes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id).notNull(),
+    studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    unitId: uuid("unit_id").references(() => units.id).notNull(),
+    clientQuizId: text("client_quiz_id").notNull(),
+    problemMarkdown: text("problem_markdown").notNull(),
+    studentAnswer: text("student_answer").notNull(),
+    correctAnswer: text("correct_answer").notNull(),
+    attempts: integer("attempts").default(1).notNull(),
+    hintsUsed: integer("hints_used").default(0).notNull(),
+    confusions: jsonb("confusions").$type<string[]>().default([]).notNull(),
+    note: text("note").default("").notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("quiz_mistakes_student_quiz_idx").on(table.studentId, table.clientQuizId),
+    index("quiz_mistakes_student_school_created_idx").on(table.studentId, table.schoolId, table.createdAt.desc()),
+  ],
+);
+
 export const dailyUsage = pgTable(
   "daily_usage",
   {
