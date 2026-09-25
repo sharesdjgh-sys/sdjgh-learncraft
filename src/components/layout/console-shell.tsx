@@ -59,8 +59,8 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
                   aria-label={subject ? `${subject} ${label}` : undefined}
                   className={cn(
                     "flex items-center border-b-2 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
-                    // Six badge+label tools do not fit beside the account box below 1280px, so stack them there.
-                    subject ? "flex-col gap-1 px-2 py-1.5 xl:flex-row xl:gap-2 xl:px-3 xl:py-2.5" : "gap-2 px-3 py-2.5",
+                    // Seven badge+label tools do not fit beside the account box below 1536px, so stack them there.
+                    subject ? "flex-col gap-1 px-2 py-1.5 2xl:flex-row 2xl:gap-2 2xl:px-3 2xl:py-2.5" : "gap-2 px-3 py-2.5",
                     active
                       ? "border-[#3217c9] text-[#3217c9]"
                       : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
