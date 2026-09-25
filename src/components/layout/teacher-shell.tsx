@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, GraduationCap, Languages, MapIcon, Music, Palette } from "lucide-react";
+import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, GraduationCap, Languages, MapIcon, Music, Palette, Trophy } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
@@ -16,6 +16,7 @@ const links: readonly ConsoleLink[] = [
   { href: "/teacher/ai-lab", subject: "AI", label: "원리 체험", icon: BrainCircuit },
   { href: "/teacher/music-score", subject: "음악", label: "악보 제작", icon: Music },
   { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette },
+  { href: "/teacher/pe", subject: "체육", label: "경기 도구", icon: Trophy },
 ];
 
 async function clearLearnerState() {

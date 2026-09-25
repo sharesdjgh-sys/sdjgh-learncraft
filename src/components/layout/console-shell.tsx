@@ -48,7 +48,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
       <header className="veil sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-4 xl:gap-7">
           <Logo />
-          <nav className={cn("hidden items-center min-[1024px]:flex", links.some((link) => link.subject) ? "gap-0.5 min-[1160px]:gap-1.5 xl:gap-2.5 2xl:gap-5" : "gap-0.5 xl:gap-1")} aria-label={menuLabel}>
+          <nav className={cn("hidden items-center min-[1024px]:flex", links.some((link) => link.subject) ? "gap-0.5 min-[1160px]:gap-1.5 xl:gap-2 2xl:gap-5" : "gap-0.5 xl:gap-1")} aria-label={menuLabel}>
             {links.map(({ href, label, icon: Icon, subject }) => {
               const active = pathname.startsWith(href);
               return (
@@ -77,9 +77,10 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {actions}
-          <div className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-3 shadow-[var(--lift-1)]" aria-label={`로그인 사용자 ${user.name}`}>
+          {/* 1024~1159px에서는 메뉴 자리를 위해 이름을 숨기고 아이콘만 둡니다(마우스를 올리면 이름이 보여요). */}
+          <div className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-3 shadow-[var(--lift-1)] min-[1024px]:max-[1159px]:pr-1.5" aria-label={`로그인 사용자 ${user.name}`} title={user.name}>
             <span className="grid size-7 place-items-center rounded-[8px] bg-brand-soft text-brand-dark"><BadgeIcon size={14} /></span>
-            <span className="min-w-0 leading-tight">
+            <span className="min-w-0 leading-tight min-[1024px]:max-[1159px]:hidden">
               <span className="block max-w-28 truncate text-[.78rem] font-bold text-ink">{user.name}</span>
               <span className="hidden max-w-36 truncate text-[.68rem] text-ink-5 xl:block">{user.schoolName}</span>
             </span>
