@@ -1,4 +1,10 @@
 import assert from "node:assert/strict";
+import { aiFigureExamples } from "../src/lib/ai-figure/examples";
+import { buildImagePrompt, describeFigure, MAX_IMAGE_REQUEST } from "../src/lib/ai-figure/image-prompt";
+import {
+  blankAiFigure, confusionMetrics, figureKindInfo, flattenTree, layoutTree, linearRegression, nearestNeighbors, parseAiFigureDoc, parseOutline, parsePoints, parseQuery,
+  perceptronResult, visitOrder,
+} from "../src/lib/ai-figure/model";
 import {
   classificationDatasets, clusterDatasets, gradientStep, inertia, initKMeans, kMeansStep, knnPredict, leastSquares, leaveOneOutAccuracy,
   meanSquaredError, regressionDatasets, rSquared, runKMeans, type DataPoint,
@@ -241,4 +247,53 @@ assert.ok(toCsv(base, ["키", "무리"], ["A"]).startsWith("﻿키,무리"), "CS
   }
 }
 
-console.log("AI 원리 체험 검증 완료: 회귀·경사 하강법·k-NN·k-평균·예시 자료·데이터 표(실제 값 축·붙여넣기)·탐색 4종·신경망·강화학습(Q-러닝·절벽·탐험과 할인율)");
+/* AI 수업 그림: 트리 읽기·방문 순서, 퍼셉트론 계산, 혼동 행렬 지표, 예시 문서, GPT에 보낼 설명. */
+{
+  const roots = parseOutline(["A", "  B", "    D", "    E", "  C", "    F *", "    G"].join("\n"));
+  assert.equal(roots.length, 1);
+  assert.deepEqual(flattenTree(roots).map((node) => node.text), ["A", "B", "D", "E", "C", "F", "G"]);
+  const name = (visits: Map<number, number>) => flattenTree(roots).filter((node) => visits.has(node.id)).sort((a, b) => visits.get(a.id)! - visits.get(b.id)!).map((node) => node.text).join("");
+  assert.equal(name(visitOrder(roots, "bfs", true)), "ABCDEF", "너비 우선: 목표 F에서 멈춤");
+  assert.equal(name(visitOrder(roots, "dfs", true)), "ABDECF", "깊이 우선: 목표 F에서 멈춤");
+  assert.equal(name(visitOrder(roots, "bfs", false)), "ABCDEFG");
+  const decision = parseOutline(["날씨?", "  [예] 실내", "  [아니요] 야외"].join("\n"));
+  assert.deepEqual(decision[0].children.map((node) => node.edge), ["예", "아니요"], "가지 이름");
+  const layout = layoutTree(decision, "box", 16);
+  const [top, left, right] = layout.boxes.sort((a, b) => a.node.id - b.node.id);
+  near(top.x, (left.x + right.x) / 2, 1e-9, "부모는 자식 가운데");
+  assert.ok(left.x + left.w / 2 < right.x - right.w / 2, "형제 노드가 겹치지 않음");
+
+  const and = aiFigureExamples.find((item) => item.name === "AND 게이트 퍼셉트론")!.build();
+  const result = perceptronResult(and.perceptron)!;
+  near(result.sum, 0.3, 1e-9, "AND 퍼셉트론 가중합"); assert.equal(result.output, 1, "1 AND 1 = 1");
+  assert.equal(perceptronResult(blankAiFigure("perceptron").perceptron), null, "기호만 있으면 계산하지 않음");
+
+  const metrics = confusionMetrics({ ...blankAiFigure("confusion").confusion, tp: 40, fn: 10, fp: 5, tn: 45 });
+  near(metrics.accuracy!, 0.85, 1e-12, "정확도"); near(metrics.precision!, 40 / 45, 1e-12, "정밀도"); near(metrics.recall!, 0.8, 1e-12, "재현율");
+  near(metrics.f1!, (2 * (40 / 45) * 0.8) / (40 / 45 + 0.8), 1e-12, "F1");
+  assert.equal(confusionMetrics({ ...blankAiFigure("confusion").confusion, tp: 0, fn: 0, fp: 0, tn: 0 }).accuracy, null, "전체 0이면 계산 불가");
+
+  const knnDoc = blankAiFigure("scatter").scatter;
+  assert.equal(nearestNeighbors(parsePoints(knnDoc.points), parseQuery(knnDoc.query)!, 1).prediction, "강아지", "기본 k-NN 예시: k=1이면 강아지");
+  assert.equal(nearestNeighbors(parsePoints(knnDoc.points), parseQuery(knnDoc.query)!, knnDoc.k).prediction, "고양이", "기본 k-NN 예시: k=3이면 고양이");
+  const line = linearRegression(parsePoints("1, 3\n2, 5\n3, 7"))!;
+  near(line.slope, 2, 1e-12, "회귀 기울기"); near(line.intercept, 1, 1e-12, "회귀 절편");
+
+  for (const example of aiFigureExamples) {
+    const doc = example.build();
+    assert.ok(parseAiFigureDoc(JSON.parse(JSON.stringify(doc))), `${example.name}: 저장·불러오기 형식`);
+    const prompt = buildImagePrompt({ mode: "figure", style: "textbook", request: "", doc });
+    assert.ok(prompt.includes(figureKindInfo[doc.kind].name) && prompt.includes("Korean"), `${example.name}: 설명에 그림 종류와 한국어 규칙`);
+  }
+  const network = aiFigureExamples.find((item) => item.name === "붓꽃 품종 분류 신경망")!.build();
+  const networkPrompt = describeFigure(network);
+  assert.ok(networkPrompt.includes("input layer = 4 nodes") && networkPrompt.includes("output layer = 3 nodes") && networkPrompt.includes("\"세토사\""), "신경망 설명에 층·이름");
+  const confusionPrompt = describeFigure(aiFigureExamples.find((item) => item.kind === "confusion")!.build());
+  assert.ok(confusionPrompt.includes("TP (참 양성) = 40") && confusionPrompt.includes("정확도 85%"), "혼동 행렬 설명에 숫자·지표");
+  const free = buildImagePrompt({ mode: "free", style: "lineart", request: "고양이 사진을 분류하는 신경망", doc: null });
+  assert.ok(free.includes("고양이 사진을 분류하는 신경망") && free.includes("black-and-white") && !free.includes("attached"), "글로 만들기: 요청·느낌만");
+  assert.ok(buildImagePrompt({ mode: "free", style: "textbook", request: "가".repeat(MAX_IMAGE_REQUEST + 50) }).includes("가".repeat(MAX_IMAGE_REQUEST)) &&
+    !buildImagePrompt({ mode: "free", style: "textbook", request: "가".repeat(MAX_IMAGE_REQUEST + 50) }).includes("가".repeat(MAX_IMAGE_REQUEST + 1)), "요청 길이 제한");
+}
+
+console.log("AI 원리 체험 검증 완료: 회귀·경사 하강법·k-NN·k-평균·예시 자료·데이터 표(실제 값 축·붙여넣기)·탐색 4종·신경망·강화학습(Q-러닝·절벽·탐험과 할인율)·수업 그림(트리·퍼셉트론·혼동 행렬·GPT 설명)");

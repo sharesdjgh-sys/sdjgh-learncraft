@@ -2,16 +2,17 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Bot, BrainCircuit, ChartScatter, LoaderCircle, Route, ShieldCheck } from "lucide-react";
+import { Bot, BrainCircuit, ChartScatter, ImagePlus, LoaderCircle, Route, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/* AI 원리 체험(지도·비지도학습·탐색·신경망·강화학습)이 함께 쓰는 머리말, 탭, 그래프 도구입니다. */
+/* AI 원리 체험(지도·비지도학습·강화학습·탐색·신경망·수업 그림)이 함께 쓰는 머리말, 탭, 그래프 도구입니다. */
 
 export const aiLabTools = [
   { key: "ml", label: "지도·비지도학습 체험", icon: ChartScatter, title: "지도·비지도학습 체험", help: "점을 찍거나 표에 자료를 넣어 지도학습(회귀·분류)과 비지도학습(군집)이 데이터를 학습하는 과정을 한 단계씩 보여 줍니다." },
   { key: "rl", label: "강화학습 체험", icon: Bot, title: "강화학습 체험 (Q-러닝)", help: "정답 없이 보상만으로 로봇이 격자 세상의 길을 스스로 익혀요. 탐험·이용, 할인율, 보상 설계가 학습에 어떤 영향을 주는지 봅니다." },
   { key: "search", label: "탐색 알고리즘", icon: Route, title: "탐색 알고리즘", help: "미로를 그리고 너비 우선·깊이 우선·탐욕·A* 탐색이 칸을 펼치는 순서와 찾은 길을 비교합니다." },
   { key: "nn", label: "신경망 놀이터", icon: BrainCircuit, title: "신경망 놀이터", help: "은닉층과 뉴런 수, 활성화 함수를 바꿔 가며 신경망이 두 무리를 나누는 경계를 학습하는 모습을 봅니다." },
+  { key: "figure", label: "AI 수업 그림", icon: ImagePlus, title: "AI 수업 그림", help: "신경망·퍼셉트론·트리·산점도·혼동 행렬·활성화 함수 그림을 설정으로 만들어 저장하고, GPT로 선명한 삽화를 만듭니다." },
 ] as const;
 export type AiLabTool = (typeof aiLabTools)[number]["key"];
 

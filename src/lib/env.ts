@@ -12,6 +12,9 @@ const envSchema = z.object({
   GEMINI_FALLBACK_MODEL_ID: z.string().default("gemini-3.6-flash"),
   GEMINI_IMAGE_MODEL_ID: z.string().default("gemini-3.1-flash-image"),
   GEMINI_IMAGE_ENABLED: z.enum(["true", "false"]).default("true"),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_IMAGE_MODEL_ID: z.string().default("gpt-image-2.5-sunburst"),
+  OPENAI_IMAGE_QUALITY: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).default("high"),
   APP_TIMEZONE: z.string().default("Asia/Seoul"),
   UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal("")),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
@@ -30,6 +33,9 @@ const parsed = envSchema.safeParse({
   GEMINI_FALLBACK_MODEL_ID: process.env.GEMINI_FALLBACK_MODEL_ID,
   GEMINI_IMAGE_MODEL_ID: process.env.GEMINI_IMAGE_MODEL_ID,
   GEMINI_IMAGE_ENABLED: process.env.GEMINI_IMAGE_ENABLED,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_IMAGE_MODEL_ID: process.env.OPENAI_IMAGE_MODEL_ID || undefined,
+  OPENAI_IMAGE_QUALITY: process.env.OPENAI_IMAGE_QUALITY || undefined,
   APP_TIMEZONE: process.env.APP_TIMEZONE,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -50,3 +56,4 @@ export const env = {
 
 export const isDatabaseConfigured = Boolean(env.DATABASE_URL);
 export const isGeminiConfigured = Boolean(env.GEMINI_API_KEY);
+export const isOpenAiImageConfigured = Boolean(env.OPENAI_API_KEY);
