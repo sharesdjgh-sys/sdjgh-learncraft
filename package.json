@@ -8,6 +8,7 @@
     "test:music-score": "tsx scripts/verify-music-score.ts",
     "test:social-map": "tsx scripts/verify-social-map.ts",
     "test:science-figure": "tsx scripts/verify-science-figure.ts",
+    "test:ai-lab": "tsx scripts/verify-ai-lab.ts",
     "test:art-works": "tsx scripts/verify-art-works.ts",
     "maps:history": "tsx scripts/build-historical-maps.ts",
     "dev": "next dev",

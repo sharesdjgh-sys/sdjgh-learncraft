@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookA, BookOpenText, DraftingCompass, FlaskConical, GraduationCap, Languages, MapIcon, Music, Palette } from "lucide-react";
+import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, GraduationCap, Languages, MapIcon, Music, Palette } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
@@ -13,6 +13,7 @@ const links: readonly ConsoleLink[] = [
   { href: "/teacher/math-figures", subject: "수학", label: "도형 제작", icon: DraftingCompass },
   { href: "/teacher/social-map", subject: "사회", label: "지도 제작", icon: MapIcon },
   { href: "/teacher/science-figures", subject: "과학", label: "실험 그림", icon: FlaskConical },
+  { href: "/teacher/ai-lab", subject: "AI", label: "원리 체험", icon: BrainCircuit },
   { href: "/teacher/music-score", subject: "음악", label: "악보 제작", icon: Music },
   { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette },
 ];

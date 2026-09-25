@@ -46,9 +46,9 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
   return (
     <div className="app-canvas min-h-dvh">
       <header className="veil sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-7">
+        <div className="flex min-w-0 items-center gap-4 xl:gap-7">
           <Logo />
-          <nav className="hidden items-center gap-1 min-[1024px]:flex" aria-label={menuLabel}>
+          <nav className="hidden items-center gap-0.5 min-[1024px]:flex xl:gap-1" aria-label={menuLabel}>
             {links.map(({ href, label, icon: Icon, subject }) => {
               const active = pathname.startsWith(href);
               return (
@@ -59,8 +59,8 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
                   aria-label={subject ? `${subject} ${label}` : undefined}
                   className={cn(
                     "flex items-center border-b-2 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
-                    // Seven badge+label tools do not fit beside the account box below 1536px, so stack them there.
-                    subject ? "flex-col gap-1 px-2 py-1.5 2xl:flex-row 2xl:gap-2 2xl:px-3 2xl:py-2.5" : "gap-2 px-3 py-2.5",
+                    // Eight badge+label tools do not fit beside the account box below 1536px, so stack them there.
+                    subject ? "flex-col gap-1 px-1.5 py-1.5 xl:px-2 2xl:flex-row 2xl:gap-2 2xl:px-3 2xl:py-2.5" : "gap-2 px-3 py-2.5",
                     active
                       ? "border-[#3217c9] text-[#3217c9]"
                       : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
@@ -81,7 +81,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
             <span className="grid size-7 place-items-center rounded-[8px] bg-brand-soft text-brand-dark"><BadgeIcon size={14} /></span>
             <span className="min-w-0 leading-tight">
               <span className="block max-w-28 truncate text-[.78rem] font-bold text-ink">{user.name}</span>
-              <span className="hidden max-w-36 truncate text-[.68rem] text-ink-5 lg:block">{user.schoolName}</span>
+              <span className="hidden max-w-36 truncate text-[.68rem] text-ink-5 xl:block">{user.schoolName}</span>
             </span>
           </div>
           <button onClick={logout} className="grid size-10 place-items-center rounded-[11px] text-ink-4 transition hover:bg-[var(--danger-page)] hover:text-danger" aria-label="로그아웃"><LogOut size={17} /></button>
