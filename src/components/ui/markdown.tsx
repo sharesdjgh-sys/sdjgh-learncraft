@@ -10,6 +10,7 @@ import { FunctionGraph } from "@/components/ui/function-graph";
 import { LearningVisual } from "@/components/ui/learning-visual";
 import { LearningFigure } from "@/components/ui/learning-figure";
 import { LearningQuiz } from "@/components/ui/learning-quiz";
+import { CheckAnswer } from "@/components/ui/check-answer";
 import { VocabularyExplanation } from "@/components/ui/vocabulary-explanation";
 import { compactDollarMath } from "@/lib/math-notation";
 import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
@@ -66,7 +67,14 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
 }
 
 const markdownComponents: Components = {
-  details: ({ children }) => <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>,
+  details: ({ children, ...props }) => {
+    const details = <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>;
+    const data = props as Record<string, unknown>;
+    const question = data["data-check-question"];
+    const answer = data["data-check-answer"];
+    if (typeof question !== "string" || typeof answer !== "string") return details;
+    return <CheckAnswer index={Number(data["data-check-index"]) || 0} question={question} modelAnswer={answer} renderInline={(text) => <InlineMarkdown>{text}</InlineMarkdown>}>{details}</CheckAnswer>;
+  },
   summary: ({ children }) => {
     const answer = nodeText(children).includes("정답 보기");
     return <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">{answer ? "생각한 뒤 확인하세요" : "막힐 때 펼쳐보세요"}</span></summary>;

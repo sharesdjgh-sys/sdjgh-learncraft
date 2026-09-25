@@ -22,6 +22,7 @@
     "test:feedback": "tsx scripts/verify-feedback.ts",
     "test:markdown": "tsx scripts/verify-markdown-rendering.tsx",
     "test:learning-quiz": "tsx scripts/verify-learning-quiz.ts",
+    "test:check-answer": "tsx scripts/verify-check-answer.ts",
     "test:math": "tsx scripts/verify-math-rendering.ts",
     "test:pdf-filename": "tsx scripts/verify-tutor-pdf-file-name.ts",
     "test:pdf-selectable": "tsx scripts/verify-selectable-pdf.ts",

@@ -1,16 +1,15 @@
 "use client";
 
 import { Component, useContext, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Check, CircleCheck, CircleX, Eye, Lightbulb, LoaderCircle, NotebookPen, RotateCcw, Sparkles } from "lucide-react";
+import { Check, CircleCheck, CircleX, Eye, Lightbulb, LoaderCircle, RotateCcw, Sparkles } from "lucide-react";
 import { LearningQuizContext } from "@/components/ui/learning-quiz-context";
+import { MistakeRecorderPanel, useMistakeRecord } from "@/components/ui/mistake-recorder";
 import { checkQuizAnswer, choiceMarks, parseLearningQuiz, quizAnswerLabel, quizProblemMarkdown } from "@/lib/learning-quiz";
 import { cn } from "@/lib/utils";
 
-const commonConfusions = ["문제가 무엇을 묻는지 모르겠어요", "개념이나 공식이 기억나지 않아요", "풀이 도중 계산·판단 실수를 했어요"] as const;
 const noAnswer = "(답을 입력하지 않음)";
 
 type QuizStatus = "idle" | "wrong" | "correct";
-type SaveState = "idle" | "saving" | "saved" | "error";
 
 type RenderInline = (text: string) => ReactNode;
 
@@ -49,9 +48,7 @@ function LearningQuizCard({ source, streaming = false, renderInline }: LearningQ
   const [lastAnswer, setLastAnswer] = useState("");
   const [hintsShown, setHintsShown] = useState(0);
   const [answerShown, setAnswerShown] = useState(false);
-  const [confusions, setConfusions] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const record = useMistakeRecord(context, context?.messageId ?? "");
 
   if (streaming) {
     return <p className="my-5 flex items-center gap-2 rounded-[12px] border border-dashed border-brand/25 bg-brand-page px-4 py-3 text-[.86rem] font-semibold text-brand-dark"><LoaderCircle size={15} className="animate-spin" /> 정답 입력 칸을 준비하고 있어요…</p>;
@@ -64,33 +61,17 @@ function LearningQuizCard({ source, streaming = false, renderInline }: LearningQ
   const solved = status === "correct";
   const finished = solved || answerShown;
   const canRecord = Boolean(context) && !solved && (status === "wrong" || answerShown);
-  const confusionOptions = [...new Set([...currentQuiz.concepts, ...commonConfusions])];
 
-  async function saveRecord(resolved: boolean, answer = lastAnswer, attemptCount = attempts) {
+  function saveRecord(resolved: boolean, answer = lastAnswer, attemptCount = attempts) {
     if (!context) return;
-    setSaveState("saving");
-    try {
-      const result = await fetch("/api/quiz-mistakes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientQuizId: context.messageId,
-          unitId: context.unitId,
-          problemMarkdown: quizProblemMarkdown(context.markdown) || "확인 문제",
-          studentAnswer: answer || noAnswer,
-          correctAnswer: quizAnswerLabel(currentQuiz).slice(0, 420),
-          attempts: Math.max(1, attemptCount),
-          hintsUsed: hintsShown,
-          confusions,
-          note: note.trim(),
-          resolved,
-        }),
-      });
-      if (!result.ok) throw new Error();
-      setSaveState("saved");
-    } catch {
-      setSaveState("error");
-    }
+    return record.save({
+      problemMarkdown: quizProblemMarkdown(context.markdown) || "확인 문제",
+      studentAnswer: answer || noAnswer,
+      correctAnswer: quizAnswerLabel(currentQuiz),
+      attempts: attemptCount,
+      hintsUsed: hintsShown,
+      resolved,
+    });
   }
 
   function submit(event: FormEvent) {
@@ -103,17 +84,12 @@ function LearningQuizCard({ source, streaming = false, renderInline }: LearningQ
     setAttempts(nextAttempts);
     setLastAnswer(label);
     setStatus(correct ? "correct" : "wrong");
-    if (correct && saveState === "saved") void saveRecord(true, label, nextAttempts);
+    if (correct && record.saveState === "saved") void saveRecord(true, label, nextAttempts);
   }
 
   function retry() {
     setStatus("idle");
     setResponse("");
-  }
-
-  function toggleConfusion(value: string) {
-    setConfusions((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
-    if (saveState === "saved" || saveState === "error") setSaveState("idle");
   }
 
   return (
@@ -209,7 +185,7 @@ function LearningQuizCard({ source, streaming = false, renderInline }: LearningQ
             </p>
             {solved && currentQuiz.type === "short" && <p className="mt-1 text-[.82rem] text-ink-3">정답: {renderInline(currentQuiz.answer)}</p>}
             {currentQuiz.explanation && <p className="mt-2 text-[.88rem] leading-7 text-ink-2">{renderInline(currentQuiz.explanation)}</p>}
-            {solved && saveState === "saved" && <p className="mt-2 text-[.78rem] font-semibold text-ok">오답 기록에 ‘다시 풀어서 해결’로 표시했어요.</p>}
+            {solved && record.saveState === "saved" && <p className="mt-2 text-[.78rem] font-semibold text-ok">오답 기록에 ‘다시 풀어서 해결’로 표시했어요.</p>}
             {context?.onRequestSolution && (
               <button type="button" onClick={context.onRequestSolution} className="mt-3 flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#cfe6df] bg-[#f1faf7] px-3.5 text-[.82rem] font-semibold text-[#356f65] transition hover:-translate-y-px hover:border-[#bddbd2]">
                 <Sparkles size={15} /> 단계별 전체 풀이 보기
@@ -219,47 +195,7 @@ function LearningQuizCard({ source, streaming = false, renderInline }: LearningQ
         )}
       </form>
 
-      {canRecord && (
-        <div className="learncraft-pdf-exclude border-t border-brand/10 bg-brand-page/60 p-4 sm:p-5">
-          <p className="flex items-center gap-1.5 text-[.88rem] font-bold text-ink"><NotebookPen size={16} className="text-brand" /> 어느 부분에서 막혔나요?</p>
-          <p className="mt-1 text-[.78rem] leading-5 text-ink-4">막힌 부분을 기록해 두면 학습 북마크의 ‘오답 기록’에서 다시 확인할 수 있어요.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {confusionOptions.map((option) => {
-              const selected = confusions.includes(option);
-              return (
-                <button key={option} type="button" onClick={() => toggleConfusion(option)} aria-pressed={selected} className={cn(
-                  "min-h-9 cursor-pointer rounded-full border px-3 text-[.8rem] font-semibold transition",
-                  selected ? "border-brand/40 bg-brand-soft text-brand-dark" : "border-line bg-surface text-ink-3 hover:border-brand/25 hover:text-ink",
-                )}>{option}</button>
-              );
-            })}
-          </div>
-          <label className="mt-3 block">
-            <span className="sr-only">막힌 부분 직접 적기</span>
-            <textarea
-              value={note}
-              onChange={(event) => { setNote(event.target.value); if (saveState === "saved" || saveState === "error") setSaveState("idle"); }}
-              maxLength={300}
-              rows={2}
-              placeholder="내 말로 적어 보기 (선택) · 예: 분모를 0으로 만드는 값을 빼는 걸 잊었어요"
-              className="composer w-full resize-none rounded-[11px] border border-line bg-surface px-3.5 py-2.5 text-[.88rem] leading-6 outline-none transition focus:border-brand/40"
-            />
-          </label>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void saveRecord(false)}
-              disabled={saveState === "saving" || saveState === "saved" || (confusions.length === 0 && !note.trim())}
-              className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-brand/25 bg-surface px-3.5 text-[.84rem] font-bold text-brand-dark transition hover:-translate-y-px hover:border-brand/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-            >
-              {saveState === "saving" ? <LoaderCircle size={15} className="animate-spin" /> : saveState === "saved" ? <Check size={15} /> : <NotebookPen size={15} />}
-              {saveState === "saved" ? "기록했어요" : "오답 기록 저장"}
-            </button>
-            {saveState === "saved" && <a href="/notebook?tab=mistakes" className="text-[.8rem] font-semibold text-brand hover:underline">오답 기록 보기</a>}
-            {saveState === "error" && <span className="text-[.8rem] font-semibold text-danger">저장하지 못했어요. 잠시 후 다시 시도해 주세요.</span>}
-          </div>
-        </div>
-      )}
+      {canRecord && <MistakeRecorderPanel record={record} options={currentQuiz.concepts} onSave={() => void saveRecord(false)} />}
     </section>
   );
 }

@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { env } from "@/lib/env";
 
-type RateLimitCategory = "login" | "tutor" | "image";
+type RateLimitCategory = "login" | "tutor" | "image" | "check";
 type Subject = { kind: "user" | "school" | "ip"; value: string; limit: number; windowSeconds: number };
 type RateLimitInput = { category: RateLimitCategory; userId?: string; schoolId?: string; ip?: string };
 
@@ -16,6 +16,12 @@ const policies: Record<RateLimitCategory, (input: RateLimitInput) => Subject[]> 
     userId && { kind: "user", value: userId, limit: 6, windowSeconds: 60 },
     schoolId && { kind: "school", value: schoolId, limit: 300, windowSeconds: 60 },
     schoolId && { kind: "school", value: schoolId, limit: 10_000, windowSeconds: 86_400 },
+    ip && { kind: "ip", value: ip, limit: 300, windowSeconds: 60 },
+  ].filter((item): item is Subject => Boolean(item)),
+  check: ({ userId, schoolId, ip }) => [
+    userId && { kind: "user", value: userId, limit: 8, windowSeconds: 60 },
+    userId && { kind: "user", value: userId, limit: 200, windowSeconds: 86_400 },
+    schoolId && { kind: "school", value: schoolId, limit: 300, windowSeconds: 60 },
     ip && { kind: "ip", value: ip, limit: 300, windowSeconds: 60 },
   ].filter((item): item is Subject => Boolean(item)),
   image: ({ userId, schoolId, ip }) => [

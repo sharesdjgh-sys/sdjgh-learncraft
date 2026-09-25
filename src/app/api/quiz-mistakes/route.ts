@@ -7,12 +7,13 @@ import { observedJson } from "@/lib/observability";
 import { listStudentQuizMistakes, saveStudentQuizMistake } from "@/features/quiz-mistakes/repository";
 
 const saveSchema = z.object({
-  clientQuizId: z.string().uuid(),
+  // A quiz card uses its answer id; a check question adds its position, e.g. "<uuid>:c0".
+  clientQuizId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?::c\d{1,2})?$/i),
   unitId: z.string().min(1).max(100),
   problemMarkdown: z.string().trim().min(1).max(6000)
     .refine((value) => !containsInlineImageData(value), "INLINE_IMAGE_NOT_ALLOWED"),
-  studentAnswer: z.string().trim().min(1).max(200),
-  correctAnswer: z.string().trim().min(1).max(420),
+  studentAnswer: z.string().trim().min(1).max(1000),
+  correctAnswer: z.string().trim().min(1).max(3000),
   attempts: z.number().int().min(1).max(99),
   hintsUsed: z.number().int().min(0).max(3),
   confusions: z.array(z.string().trim().min(1).max(60)).max(8).default([]),
