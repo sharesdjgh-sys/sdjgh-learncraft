@@ -9,7 +9,18 @@ import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
 
-export type ConsoleLink = { href: Route; label: string; icon: LucideIcon };
+/** subject: optional small badge (e.g. "국어") shown before the tool label so tools read differently from subject names. */
+export type ConsoleLink = { href: Route; label: string; icon: LucideIcon; subject?: string };
+
+function SubjectBadge({ subject, active, stacked = false }: { subject: string; active: boolean; stacked?: boolean }) {
+  return (
+    <span className={cn(
+      "shrink-0 rounded-[6px] font-bold leading-none",
+      stacked ? "px-1.5 py-[3px] text-[.62rem] sm:text-[.66rem]" : "px-1.5 py-1 text-[.68rem]",
+      active ? "bg-[#3217c9] text-white" : "bg-brand-soft text-brand-dark",
+    )}>{subject}</span>
+  );
+}
 
 export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, actions, beforeLogout, children }: {
   user: SessionUser;
@@ -38,22 +49,27 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
         <div className="flex min-w-0 items-center gap-7">
           <Logo />
           <nav className="hidden items-center gap-1 min-[1024px]:flex" aria-label={menuLabel}>
-            {links.map(({ href, label, icon: Icon }) => {
+            {links.map(({ href, label, icon: Icon, subject }) => {
               const active = pathname.startsWith(href);
               return (
                 <Link
                   key={href}
                   href={href}
                   aria-current={active ? "page" : undefined}
+                  aria-label={subject ? `${subject} ${label}` : undefined}
                   className={cn(
-                    "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
+                    "flex items-center border-b-2 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
+                    // Six badge+label tools do not fit beside the account box below 1280px, so stack them there.
+                    subject ? "flex-col gap-1 px-2 py-1.5 xl:flex-row xl:gap-2 xl:px-3 xl:py-2.5" : "gap-2 px-3 py-2.5",
                     active
                       ? "border-[#3217c9] text-[#3217c9]"
                       : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
                   )}
                 >
-                  <Icon size={17} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />
-                  {label}
+                  {subject
+                    ? <SubjectBadge subject={subject} active={active} />
+                    : <Icon size={17} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />}
+                  <span className="whitespace-nowrap">{label}</span>
                 </Link>
               );
             })}
@@ -77,13 +93,14 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
         style={{ gridTemplateColumns: `repeat(${Math.max(links.length, 1)}, minmax(0, 1fr))` }}
         aria-label={`모바일 ${menuLabel}`}
       >
-        {links.map(({ href, label, icon: Icon }) => {
+        {links.map(({ href, label, icon: Icon, subject }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
+                  aria-label={subject ? `${subject} ${label}` : undefined}
               className={cn(
                 "flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.72rem] font-semibold transition-[border-color,color] duration-200 active:scale-[.98] sm:text-[.78rem]",
                 active
@@ -91,8 +108,10 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
                   : "border-transparent text-[#996bf5] hover:border-[#996bf5]/40 hover:text-[#6847e8]",
               )}
             >
-              <Icon size={18} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />
-              {label}
+              {subject
+                ? <SubjectBadge subject={subject} active={active} stacked />
+                : <Icon size={18} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />}
+              <span className={cn(subject && "whitespace-nowrap text-[.68rem] sm:text-[.76rem]")}>{label}</span>
             </Link>
           );
         })}

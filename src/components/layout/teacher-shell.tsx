@@ -6,14 +6,14 @@ import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shel
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
 
-// 과목별 교사 지원 도구가 늘어나면 이 목록에 추가합니다.
+// 과목별 교사 지원 도구가 늘어나면 이 목록에 추가합니다. subject는 과목 배지, label은 도구 이름입니다.
 const links: readonly ConsoleLink[] = [
-  { href: "/teacher/korean-vocabulary", label: "국어 어휘", icon: BookA },
-  { href: "/teacher/english", label: "영어 독해", icon: Languages },
-  { href: "/teacher/math-figures", label: "수학 도형", icon: DraftingCompass },
-  { href: "/teacher/music-score", label: "음악 악보", icon: Music },
-  { href: "/teacher/social-map", label: "사회 지도", icon: MapIcon },
-  { href: "/teacher/art-works", label: "미술 작품", icon: Palette },
+  { href: "/teacher/korean-vocabulary", subject: "국어", label: "어휘 카드", icon: BookA },
+  { href: "/teacher/english", subject: "영어", label: "독해 문제", icon: Languages },
+  { href: "/teacher/math-figures", subject: "수학", label: "도형 제작", icon: DraftingCompass },
+  { href: "/teacher/social-map", subject: "사회", label: "지도 제작", icon: MapIcon },
+  { href: "/teacher/music-score", subject: "음악", label: "악보 제작", icon: Music },
+  { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette },
 ];
 
 async function clearLearnerState() {

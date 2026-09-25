@@ -386,7 +386,7 @@ export function ArtWorksLab() {
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><Palette size={16} /> 교사 지원실 · 미술</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수업용 미술 작품</h1>
-          <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3">교과서에서 다루는 시대·사조별 대표 작품과 미술 용어를 모았어요. 작품을 골라 AI 해설과 감상 발문을 만들고, 자료함에 담아 슬라이드로 보여 주거나 감상 활동지로 인쇄하세요.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">교과서에서 다루는 시대·사조별 대표 작품과 미술 용어를 모았어요. 작품을 골라 AI 해설과 감상 발문을 만들고, 자료함에 담아 슬라이드로 보여 주거나 감상 활동지로 인쇄하세요.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>

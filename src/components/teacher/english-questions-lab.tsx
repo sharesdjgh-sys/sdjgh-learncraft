@@ -385,7 +385,7 @@ function EnglishQuestionsEditor({ initial, tabs }: { initial: Stored; tabs?: Rea
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><FileQuestion size={16} /> 교사 지원실 · 영어 독해</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">변형 문제 만들기 · 성립 검토</h1>
-          <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12">영어 지문으로 수능형 5지선다 변형 문제를 만들고, AI가 정답을 모르는 상태에서 다시 풀어 정답이 하나로 정해지는지 검토합니다. 직접 만든 문제도 검토할 수 있어요.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12 xl:min-h-6">영어 지문으로 수능형 5지선다 변형 문제를 만들고, AI가 정답을 모르는 상태에서 다시 풀어 정답이 하나로 정해지는지 검토합니다. 직접 만든 문제도 검토할 수 있어요.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>

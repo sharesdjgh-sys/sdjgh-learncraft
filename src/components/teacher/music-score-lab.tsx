@@ -511,7 +511,7 @@ ${example}` : example;
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><Music size={16} /> 교사 지원실 · 음악</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수업용 악보 만들기</h1>
-          <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3">한글 계이름으로 적거나 건반을 눌러 악보를 만들고, 소리로 확인한 뒤 그림 파일로 저장하거나 인쇄합니다.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">한글 계이름으로 적거나 건반을 눌러 악보를 만들고, 소리로 확인한 뒤 그림 파일로 저장하거나 인쇄합니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>

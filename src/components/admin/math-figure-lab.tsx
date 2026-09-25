@@ -892,7 +892,7 @@ export function MathFigureLab({ audience = "admin" }: { audience?: "admin" | "te
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> {audience === "teacher" ? "교사 지원실 · 수학" : "관리자 전용 실험 기능"}</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수학 그림 문제 제작 AI</h1>
-          <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3">교재 도형을 벡터로 복원하고, 미리보기를 보면서 필요한 표시를 바로 다듬습니다.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">교재 도형을 벡터로 복원하고, 미리보기를 보면서 필요한 표시를 바로 다듬습니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> {audience === "teacher" ? "교사·관리자에게만 표시됨" : "관리자에게만 표시됨"}</span>
       </header>

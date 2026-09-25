@@ -220,7 +220,7 @@ export function EnglishVocabularyLab({ tabs }: { tabs?: React.ReactNode }) {
         <div>
           <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><Languages size={16} /> 교사 지원실 · 영어 독해</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">영어 어휘 어원 카드</h1>
-          <p className="mt-2 max-w-3xl break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12">영어 단어를 고르면 접두사·어근·접미사 풀이, 뜻의 변화, 예문, 같은 뿌리에서 온 단어를 수업에서 바로 쓸 수 있게 정리합니다.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12 xl:min-h-6">영어 단어를 고르면 접두사·어근·접미사 풀이, 뜻의 변화, 예문, 같은 뿌리에서 온 단어를 수업에서 바로 쓸 수 있게 정리합니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>
