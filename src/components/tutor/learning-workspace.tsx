@@ -134,6 +134,8 @@ const subjectCatalog: SubjectCatalogItem[] = [
 
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const maxImageCount = 3;
+// 서버의 질문·대화 맥락 제한(/api/ai/tutor, 2400자)과 같게 둡니다.
+const maxQuestionLength = 2400;
 const maxSourceImageBytes = 15 * 1024 * 1024;
 const maxPreparedImageBytes = 4 * 1024 * 1024;
 const maxTotalImageBytes = 8 * 1024 * 1024;
@@ -1186,7 +1188,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     const recentMessages = baseMessages
       .filter((message) => message.content && message.completed)
       .slice(-6)
-      .map(({ role, content }) => ({ role, content: learningTextContext(content).slice(0, 3000) }));
+      .map(({ role, content }) => ({ role, content: learningTextContext(content).slice(0, role === "user" ? maxQuestionLength : 3000) }));
 
     streamingAnswerRef.current = true;
     autoScrollRef.current = false;
@@ -1755,8 +1757,17 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                       event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, maxHeight)}px`;
                     }}
                     onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }}
+                    onPaste={(event) => {
+                      // maxLength는 붙여 넣은 글의 뒷부분을 말없이 버리므로 잘렸다는 것을 알려 줍니다.
+                      const target = event.currentTarget;
+                      const nextLength = target.value.length - (target.selectionEnd - target.selectionStart) + event.clipboardData.getData("text").length;
+                      if (nextLength > maxQuestionLength) {
+                        setNotice(`질문은 ${maxQuestionLength.toLocaleString()}자까지 쓸 수 있어 뒷부분이 잘렸어요. 긴 지문은 사진으로 올려 주세요.`);
+                        window.setTimeout(() => setNotice(""), 3500);
+                      }
+                    }}
                     rows={1}
-                    maxLength={1200}
+                    maxLength={maxQuestionLength}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
                     className={cn("scrollbar-hidden col-span-3 row-start-1 max-h-[230px] min-h-9 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-2.5 pb-1.5 pt-2 leading-6 text-ink outline-none [-webkit-overflow-scrolling:touch] placeholder:text-[.78rem] placeholder:text-ink-5 sm:max-h-32 sm:min-h-11 sm:flex-1 sm:px-2.5 sm:py-2.5 sm:leading-7 sm:placeholder:text-[1rem]", messageInputTextSizeClasses[messageTextSize])}
                   />
@@ -1824,7 +1835,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                         {remaining}/{dailyLimit}회
                       </span>
                     </span>
-                    <span className="figure shrink-0 border-l border-line pl-1.5 sm:pl-2">{input.length}/1200</span>
+                    <span className="figure shrink-0 border-l border-line pl-1.5 sm:pl-2">{input.length}/{maxQuestionLength}</span>
                   </div>
                 </div>
               </form>
