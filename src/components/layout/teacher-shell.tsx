@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookA, BookOpenText, DraftingCompass, GraduationCap, MapIcon, Music, Palette } from "lucide-react";
+import { BookA, BookOpenText, DraftingCompass, GraduationCap, Languages, MapIcon, Music, Palette } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
@@ -9,6 +9,7 @@ import type { SessionUser } from "@/types";
 // 과목별 교사 지원 도구가 늘어나면 이 목록에 추가합니다.
 const links: readonly ConsoleLink[] = [
   { href: "/teacher/korean-vocabulary", label: "국어 어휘", icon: BookA },
+  { href: "/teacher/english", label: "영어 독해", icon: Languages },
   { href: "/teacher/math-figures", label: "수학 도형", icon: DraftingCompass },
   { href: "/teacher/music-score", label: "음악 악보", icon: Music },
   { href: "/teacher/social-map", label: "사회 지도", icon: MapIcon },

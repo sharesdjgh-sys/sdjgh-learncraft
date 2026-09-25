@@ -55,7 +55,7 @@ export const vocabularyExplanations = pgTable("vocabulary_explanations", {
   schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
   owner: uuid("owner").notNull(),
   leaseUntil: timestamp("lease_until", { withTimezone: true }).notNull(),
-  explanation: jsonb("explanation").$type<import("@/features/vocabulary/content").VocabularyExplanation | import("@/features/vocabulary/etymology").KoreanEtymology>(),
+  explanation: jsonb("explanation").$type<import("@/features/vocabulary/content").VocabularyExplanation | import("@/features/vocabulary/etymology").KoreanEtymology | import("@/features/vocabulary/english-etymology").EnglishEtymology>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -7,8 +7,9 @@ import type { z } from "zod";
 import type { LearningUnit } from "@/types";
 import { VOCABULARY_PROMPT_VERSION, vocabularyContext, vocabularyExplanationSchema, type VocabularyExplanation } from "./content";
 import { ETYMOLOGY_PROMPT_VERSION, etymologyContext, koreanEtymologySchema, type KoreanEtymology } from "./etymology";
+import { ENGLISH_ETYMOLOGY_PROMPT_VERSION, englishEtymologyContext, englishEtymologySchema, type EnglishEtymology } from "./english-etymology";
 
-type CachedCard = VocabularyExplanation | KoreanEtymology;
+type CachedCard = VocabularyExplanation | KoreanEtymology | EnglishEtymology;
 type Cached = { explanation: CachedCard | null; lease: number; owner: string };
 const demo = new Map<string, Cached>();
 export function vocabularyCacheKey(schoolId: string, unit: LearningUnit, term: string) {
@@ -16,6 +17,10 @@ export function vocabularyCacheKey(schoolId: string, unit: LearningUnit, term: s
 }
 export function etymologyCacheKey(schoolId: string, term: string, unit?: LearningUnit) {
   return createHash("sha256").update(JSON.stringify([schoolId, "etymology", unit?.courseCode ?? null, unit?.id ?? null, ETYMOLOGY_PROMPT_VERSION, etymologyContext(term, unit)])).digest("hex");
+}
+export function englishEtymologyCacheKey(schoolId: string, term: string, unit?: LearningUnit) {
+  // 영어는 대소문자만 다른 입력을 같은 카드로 봅니다.
+  return createHash("sha256").update(JSON.stringify([schoolId, "english-etymology", unit?.courseCode ?? null, unit?.id ?? null, ENGLISH_ETYMOLOGY_PROMPT_VERSION, englishEtymologyContext(term.toLowerCase(), unit)])).digest("hex");
 }
 async function readCached<T extends CachedCard>(key: string, schema: z.ZodType<T>) {
   if (!db) {
@@ -27,6 +32,7 @@ async function readCached<T extends CachedCard>(key: string, schema: z.ZodType<T
 }
 export const readExplanation = (key: string) => readCached(key, vocabularyExplanationSchema);
 export const readEtymology = (key: string) => readCached(key, koreanEtymologySchema);
+export const readEnglishEtymology = (key: string) => readCached(key, englishEtymologySchema);
 export async function discardCached(key: string) {
   if (!db) return void demo.delete(key);
   await db.delete(vocabularyExplanations).where(eq(vocabularyExplanations.key, key));
