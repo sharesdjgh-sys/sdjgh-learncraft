@@ -1,6 +1,6 @@
 import { gaussian, round, seededRandom } from "./random";
 
-/* 기계학습 체험: 회귀(최소제곱·경사 하강법), 분류(k-최근접 이웃), 군집(k-평균). 좌표는 0~10 범위입니다. */
+/* 지도·비지도학습 체험: 지도학습인 회귀(최소제곱·경사 하강법)·분류(k-최근접 이웃), 비지도학습인 군집(k-평균). 좌표는 0~10 범위입니다. */
 
 export const PLOT_MIN = 0;
 export const PLOT_MAX = 10;

@@ -2,13 +2,14 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { BrainCircuit, ChartScatter, LoaderCircle, Route, ShieldCheck } from "lucide-react";
+import { Bot, BrainCircuit, ChartScatter, LoaderCircle, Route, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/* AI 원리 체험(기계학습·탐색·신경망)이 함께 쓰는 머리말, 탭, 그래프 도구입니다. */
+/* AI 원리 체험(지도·비지도학습·탐색·신경망·강화학습)이 함께 쓰는 머리말, 탭, 그래프 도구입니다. */
 
 export const aiLabTools = [
-  { key: "ml", label: "기계학습 체험", icon: ChartScatter, title: "기계학습 체험", help: "점을 찍거나 수업 예시를 불러와 회귀·분류·군집이 데이터를 학습하는 과정을 한 단계씩 보여 줍니다." },
+  { key: "ml", label: "지도·비지도학습 체험", icon: ChartScatter, title: "지도·비지도학습 체험", help: "점을 찍거나 표에 자료를 넣어 지도학습(회귀·분류)과 비지도학습(군집)이 데이터를 학습하는 과정을 한 단계씩 보여 줍니다." },
+  { key: "rl", label: "강화학습 체험", icon: Bot, title: "강화학습 체험 (Q-러닝)", help: "정답 없이 보상만으로 로봇이 격자 세상의 길을 스스로 익혀요. 탐험·이용, 할인율, 보상 설계가 학습에 어떤 영향을 주는지 봅니다." },
   { key: "search", label: "탐색 알고리즘", icon: Route, title: "탐색 알고리즘", help: "미로를 그리고 너비 우선·깊이 우선·탐욕·A* 탐색이 칸을 펼치는 순서와 찾은 길을 비교합니다." },
   { key: "nn", label: "신경망 놀이터", icon: BrainCircuit, title: "신경망 놀이터", help: "은닉층과 뉴런 수, 활성화 함수를 바꿔 가며 신경망이 두 무리를 나누는 경계를 학습하는 모습을 봅니다." },
 ] as const;
@@ -117,16 +118,21 @@ export function makeScale(size: number, margin: number, min: number, max: number
   };
 }
 
-export function PlotAxes({ size, margin, min, max, step, xLabel, yLabel }: { size: number; margin: number; min: number; max: number; step: number; xLabel: string; yLabel: string }) {
+type Tick = { position: number; label: string };
+
+/** 정사각형 그래프의 격자·눈금·축 이름. xTicks/yTicks를 주면 실제 값 라벨을 그 자리에 씁니다. */
+export function PlotAxes({ size, margin, min, max, step, xLabel, yLabel, xTicks, yTicks }: { size: number; margin: number; min: number; max: number; step: number; xLabel: string; yLabel: string; xTicks?: Tick[]; yTicks?: Tick[] }) {
   const scale = makeScale(size, margin, min, max);
-  const ticks: number[] = [];
-  for (let value = min; value <= max + 1e-9; value += step) ticks.push(Math.round(value * 100) / 100);
+  const defaults: Tick[] = [];
+  for (let value = min; value <= max + 1e-9; value += step) defaults.push({ position: Math.round(value * 100) / 100, label: String(Math.round(value * 100) / 100) });
   return <g pointerEvents="none" fontFamily="Pretendard, 'Malgun Gothic', sans-serif">
-    {ticks.map((tick) => <g key={tick}>
-      <line x1={scale.toX(tick)} y1={margin} x2={scale.toX(tick)} y2={size - margin} stroke="#f1f3f5" />
-      <line x1={margin} y1={scale.toY(tick)} x2={size - margin} y2={scale.toY(tick)} stroke="#f1f3f5" />
-      <text x={scale.toX(tick)} y={size - margin + 16} textAnchor="middle" fontSize={11} fill="#868e96">{tick}</text>
-      <text x={margin - 8} y={scale.toY(tick) + 4} textAnchor="end" fontSize={11} fill="#868e96">{tick}</text>
+    {(xTicks ?? defaults).map((tick) => <g key={`x${tick.position}`}>
+      <line x1={scale.toX(tick.position)} y1={margin} x2={scale.toX(tick.position)} y2={size - margin} stroke="#f1f3f5" />
+      <text x={scale.toX(tick.position)} y={size - margin + 16} textAnchor="middle" fontSize={11} fill="#868e96">{tick.label}</text>
+    </g>)}
+    {(yTicks ?? defaults).map((tick) => <g key={`y${tick.position}`}>
+      <line x1={margin} y1={scale.toY(tick.position)} x2={size - margin} y2={scale.toY(tick.position)} stroke="#f1f3f5" />
+      <text x={margin - 8} y={scale.toY(tick.position) + 4} textAnchor="end" fontSize={11} fill="#868e96">{tick.label}</text>
     </g>)}
     <rect x={margin} y={margin} width={size - margin * 2} height={size - margin * 2} fill="none" stroke="#ced4da" />
     <text x={size / 2} y={size - 6} textAnchor="middle" fontSize={12} fontWeight={700} fill="#495057">{xLabel}</text>

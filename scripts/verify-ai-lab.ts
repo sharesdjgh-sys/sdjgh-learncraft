@@ -4,7 +4,10 @@ import {
   meanSquaredError, regressionDatasets, rSquared, runKMeans, type DataPoint,
 } from "../src/lib/ai-lab/ml";
 import { buildNnDataset, createNetwork, evaluate, nnDatasets, trainEpoch, type FeatureKind } from "../src/lib/ai-lab/nn";
+import { axisTicks, dataRange, decimalsFor, fromUnit, niceRange, realLine, realMeanSquaredError, toUnit, toUnitPoints } from "../src/lib/ai-lab/axis";
 import { seededRandom } from "../src/lib/ai-lab/random";
+import { bestAction, createQ, defaultParams, defaultRewards, greedyPath, MAX_STEPS, move, runEpisode, shortestSteps, train as trainRl, worldExamples } from "../src/lib/ai-lab/rl";
+import { applyPastedRows, parseLabel, parseNumber, parsePastedTable, toCsv, toTsv } from "../src/lib/ai-lab/table";
 import { algorithms, gridExamples, GRID_COLUMNS, GRID_ROWS, mazeGrid, neighbors, runSearch, toIndex, traceState } from "../src/lib/ai-lab/search";
 
 const near = (actual: number, expected: number, tolerance: number, message: string) => assert.ok(Math.abs(actual - expected) <= tolerance, `${message}: ${actual} ≠ ${expected}±${tolerance}`);
@@ -148,4 +151,94 @@ for (const dataset of nnDatasets) {
   assert.ok(samples.every((sample) => Math.abs(sample.x) < 1 && Math.abs(sample.y) < 1), `${dataset.name} 범위`);
 }
 
-console.log("AI 원리 체험 검증 완료: 회귀·경사 하강법·k-NN·k-평균·탐색 4종(최단 경로·함정·막힘)·신경망(XOR·퍼셉트론 한계·특성)");
+/* 데이터 표: 실제 값에 맞춘 축, 그래프 좌표로 학습해도 실제 단위의 결과가 같아야 합니다. */
+assert.deepEqual(niceRange([152, 188]), { lo: 150, hi: 190, step: 10 }, "키 축");
+assert.deepEqual(niceRange([40, 100]), { lo: 0, hi: 100, step: 20 }, "점수 축은 0부터");
+assert.deepEqual(niceRange([0.8, 8.9]), { lo: 0, hi: 10, step: 2 }, "예시 자료 축");
+assert.deepEqual(niceRange([-3, 7]).lo < -3 && niceRange([-3, 7]).hi >= 7, true, "음수 축");
+assert.deepEqual(niceRange([]), { lo: 0, hi: 10, step: 2 }, "빈 자료");
+assert.ok(niceRange([5, 5]).lo < 5 && niceRange([5, 5]).hi > 5, "값이 하나뿐이어도 범위");
+assert.deepEqual(axisTicks(niceRange([1200, 5400])).map((tick) => tick.label).slice(0, 3), ["0", "1,000", "2,000"]);
+assert.deepEqual(axisTicks({ lo: 0, hi: 1, step: 0.25 }).map((tick) => tick.label), ["0", "0.25", "0.5", "0.75", "1"]);
+assert.equal(decimalsFor({ lo: 150, hi: 190, step: 10 }), 0);
+const heights: DataPoint[] = [[150, 45], [158, 50], [163, 57], [171, 62], [176, 69], [184, 74]].map(([x, y]) => ({ x, y, label: 0 }));
+const heightRange = dataRange(heights);
+near(fromUnit(toUnit(163, heightRange.x), heightRange.x), 163, 1e-9, "좌표 왕복");
+const heightUnit = toUnitPoints(heights, heightRange);
+assert.ok(heightUnit.every((point) => point.x >= 0 && point.x <= 10 && point.y >= 0 && point.y <= 10), "그래프 좌표는 0~10");
+const direct = leastSquares(heights)!;
+const viaUnit = realLine(leastSquares(heightUnit)!, heightRange);
+near(viaUnit.slope, direct.slope, 1e-9, "실제 단위 기울기"); near(viaUnit.intercept, direct.intercept, 1e-9, "실제 단위 절편");
+near(realMeanSquaredError(meanSquaredError(heightUnit, leastSquares(heightUnit)!), heightRange), meanSquaredError(heights, direct), 1e-9, "실제 단위 평균제곱오차");
+let unitLine = { slope: 0, intercept: 0 };
+for (let step = 0; step < 6000; step += 1) unitLine = gradientStep(heightUnit, unitLine, 0.01);
+near(realLine(unitLine, heightRange).slope, direct.slope, 0.02, "값이 커도 경사 하강법이 발산하지 않음");
+
+assert.equal(parseNumber(" 1,234.5 "), 1234.5); assert.equal(parseNumber("１７０"), 170); assert.equal(parseNumber("abc"), null); assert.equal(parseNumber(""), null);
+assert.equal(parseLabel("스팸 메일", ["정상 메일", "스팸 메일"]), 1); assert.equal(parseLabel("B", ["정상 메일", "스팸 메일"]), 1); assert.equal(parseLabel("1", ["가", "나"]), 0); assert.equal(parseLabel("사과", ["가", "나"]), null);
+const pasted = parsePastedTable("키\t몸무게\n150\t45\n160\t52\n\n170\t61", [], false);
+assert.equal(pasted.skippedHeader, true); assert.equal(pasted.rows.length, 3); assert.deepEqual(pasted.rows[2], { x: 170, y: 61, label: null });
+const csv = parsePastedTable("3,4,스팸 메일\n1,2,정상 메일", ["정상 메일", "스팸 메일"], true);
+assert.deepEqual(csv.rows.map((row) => row.label), [1, 0]);
+assert.equal(parsePastedTable("1\t9999999", [], false).outOfRange, 1, "너무 큰 값은 건너뜀");
+const base: DataPoint[] = [{ x: 1, y: 1, label: 0 }, { x: 2, y: 2, label: 0 }];
+const merged = applyPastedRows(base, [{ x: 5, y: 6, label: null }, { x: 7, y: 8, label: null }], 1, null);
+assert.deepEqual(merged.points.map((point) => [point.x, point.y]), [[1, 1], [5, 6], [7, 8]], "그 줄부터 덮어쓰고 이어 붙임");
+assert.equal(merged.added, 1); assert.equal(merged.changed, 1);
+assert.deepEqual(applyPastedRows(base, [{ x: 9, y: null, label: null }, { x: 8, y: null, label: null }], 0, "y").points.map((point) => point.y), [9, 8], "한 열만 붙이면 그 열만 채움");
+assert.equal(toTsv(base, ["x", "y"], null), "x\ty\n1\t1\n2\t2");
+assert.ok(toCsv(base, ["키", "무리"], ["A"]).startsWith("﻿키,무리"), "CSV는 한글이 깨지지 않게 BOM");
+
+/* 강화학습(Q-러닝): 충분히 배우면 가장 짧은 길, 예시 설명에 적은 성질이 실제로 나와야 합니다. */
+{
+  const example = (id: string) => worldExamples.find((item) => item.id === id)!;
+  const basic = example("basic").build();
+  assert.equal(basic.cells.length, basic.cols * basic.rows);
+  const firstMove = move(basic, basic.start, 3, defaultRewards);
+  assert.equal(firstMove.nextState, basic.start, "바깥으로는 못 나가고 제자리");
+  assert.equal(firstMove.reward, defaultRewards.step, "한 걸음 벌점");
+  const q = createQ(basic);
+  const random = seededRandom(1);
+  const episode = runEpisode(basic, q, defaultRewards, defaultParams, random);
+  assert.ok(episode.steps.length > 0 && episode.steps.length <= MAX_STEPS);
+  assert.ok(q.some((values) => values.some((value) => value !== 0)), "한 에피소드로 Q값이 바뀜");
+  assert.equal(bestAction([0, 2, 2, -1]), 1, "같으면 앞 순서");
+  for (const id of ["basic", "cliff", "maze"]) {
+    const world = example(id).build();
+    const table = createQ(world);
+    const { results } = trainRl(world, table, defaultRewards, defaultParams, 400, 1, true);
+    const path = greedyPath(world, table, defaultRewards);
+    assert.ok(path.reachedGoal && path.end === "goal", `${id}: 학습한 정책으로 보물 도착`);
+    assert.equal(path.path.length - 1, shortestSteps(world), `${id}: 가장 짧은 길`);
+    assert.ok(results.slice(-50).filter((item) => item.reachedGoal).length >= 45, `${id}: 마지막 50번 대부분 성공`);
+    const average = (items: typeof results) => items.reduce((sum, item) => sum + item.totalReward, 0) / items.length;
+    assert.ok(average(results.slice(-50)) > average(results.slice(0, 20)), `${id}: 처음보다 받는 보상이 커짐`);
+  }
+  const cliff = example("cliff").build();
+  const cliffQ = createQ(cliff);
+  trainRl(cliff, cliffQ, defaultRewards, defaultParams, 400, 1, true);
+  assert.ok(greedyPath(cliff, cliffQ, defaultRewards).path.every((state) => cliff.cells[state] !== "trap"), "절벽 걷기: 절벽에 떨어지지 않는 길");
+  const choice = example("choice");
+  assert.deepEqual(choice.params, { epsilon: 0.5, gamma: 0.9 });
+  const choose = (params: Partial<typeof defaultParams>) => [1, 2, 3, 4, 5, 6].map((seed) => {
+    const world = choice.build(); const table = createQ(world);
+    trainRl(world, table, defaultRewards, { ...defaultParams, ...params }, 600, seed, false);
+    return greedyPath(world, table, defaultRewards).end;
+  });
+  assert.ok(choose({ epsilon: 0.5, gamma: 0.9 }).every((end) => end === "goal"), "ε 0.5·γ 0.9: 먼 보물");
+  assert.ok(choose({ epsilon: 0.5, gamma: 0.5 }).every((end) => end === "coin"), "γ 0.5: 가까운 동전");
+  assert.ok(choose({ epsilon: 0.2, gamma: 0.9 }).filter((end) => end === "coin").length >= 4, "ε 0.2: 대부분 동전에 안주");
+  const wander = (step: number) => [1, 2, 3, 4, 5].reduce((sum, seed) => {
+    const world = example("maze").build(); const table = createQ(world);
+    return sum + trainRl(world, table, { ...defaultRewards, step }, { ...defaultParams, epsilon: 0.02 }, 10, seed, false).results.reduce((total, item) => total + item.steps.length, 0);
+  }, 0);
+  assert.ok(wander(0) > wander(-1) * 1.3, "미로: 걸음 벌점이 없으면 처음에 훨씬 오래 헤맴");
+  for (const item of worldExamples) {
+    const world = item.build();
+    assert.ok(world.cells[world.start] === "empty", `${item.name}: 출발 칸은 빈 칸`);
+    assert.ok(world.cells.some((cell) => cell === "goal"), `${item.name}: 보물 칸`);
+    assert.ok(shortestSteps(world) !== null, `${item.name}: 보물까지 갈 수 있음`);
+  }
+}
+
+console.log("AI 원리 체험 검증 완료: 회귀·경사 하강법·k-NN·k-평균·예시 자료·데이터 표(실제 값 축·붙여넣기)·탐색 4종·신경망·강화학습(Q-러닝·절벽·탐험과 할인율)");
