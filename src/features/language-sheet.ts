@@ -29,6 +29,8 @@ export const zh = (text: string, mode: SheetMode) => zhHtml(escapeHtml(text), mo
 const hasFinal = (word: string) => { const code = word.charCodeAt(word.length - 1) - 0xac00; return code >= 0 && code <= 11171 && code % 28 !== 0; };
 export const subjectParticle = (word: string) => `${word}${hasFinal(word) ? "이" : "가"}`;
 export const objectParticle = (word: string) => `${word}${hasFinal(word) ? "을" : "를"}`;
+/** 조사만 돌려줍니다. 괄호 설명이 붙은 말은 괄호 앞 낱말로 고릅니다. */
+export const particle = (word: string, withFinal: string, without: string) => hasFinal(word) ? withFinal : without;
 
 export const romans = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"];
 
