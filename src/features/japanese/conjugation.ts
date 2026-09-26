@@ -1,4 +1,4 @@
-import { answerSection, clipboardWrap, escapeHtml, jaHtml, romans, sheetHead, shuffled, textHead, type SheetMode } from "./sheet";
+import { answerSection, clipboardWrap, escapeHtml, jaHtml, romans, sheetHead, shuffled, textHead, type SheetMode } from "@/features/language-sheet";
 
 /* 동사·형용사 활용을 규칙으로 만듭니다. AI를 쓰지 않으므로 같은 낱말은 늘 같은 답이 나옵니다.
  * 활용은 끝의 가나만 바꾸므로 한자 표기(word)와 읽기(reading)에 같은 규칙을 적용합니다. 来る만 한자는 그대로 두고 읽기가 바뀝니다. */

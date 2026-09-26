@@ -4,13 +4,14 @@ import { env, isOpenAiImageConfigured } from "@/lib/env";
 import { geminiAspectRatios, isGeminiImageReady, requestGeminiImage } from "@/lib/gemini-image";
 import { requestOpenAiImage } from "@/lib/openai-image";
 import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
-import { buildCultureImagePrompt, cultureImageRequestSchema } from "@/features/japanese/culture-image";
+import { buildCultureImagePrompt, cultureImageRequestSchema } from "@/features/culture/image";
 
 export const runtime = "nodejs";
 // 자세한 그림은 GPT·Gemini가 1~2분쯤 걸릴 수 있습니다.
 export const maxDuration = 180;
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 
+// 일본문화·중국문화 수업 그림을 GPT나 Gemini로 만듭니다. profile로 과목을, provider로 모델을 고릅니다.
 export async function POST(request: Request) {
   const user = await requireTeacherTools();
   if (!user) return json({ error: "교사 또는 관리자 권한이 필요합니다." }, 403);
@@ -30,9 +31,9 @@ export async function POST(request: Request) {
     ? await requestGeminiImage({ prompt, aspect: input.size, large: input.large, signal: request.signal })
     : await requestOpenAiImage({ prompt, size, signal: request.signal });
   if (!result.ok) {
-    console.error("teacher_japanese_image_failure", { userId: user.id, provider: input.provider, model: gemini ? env.GEMINI_IMAGE_MODEL_ID : env.OPENAI_IMAGE_MODEL_ID, topicId: input.topicId, ...result.detail });
+    console.error("culture_image_failure", { userId: user.id, profile: input.profile, provider: input.provider, model: gemini ? env.GEMINI_IMAGE_MODEL_ID : env.OPENAI_IMAGE_MODEL_ID, topicId: input.topicId, ...result.detail });
     return json({ error: result.error }, result.status);
   }
-  console.info("teacher_japanese_image", { userId: user.id, provider: input.provider, topicId: input.topicId, style: input.style, text: input.text, size, model: result.model, ...(!gemini && { quality: env.OPENAI_IMAGE_QUALITY }), seconds: Math.round((Date.now() - started) / 1000) });
+  console.info("culture_image", { userId: user.id, profile: input.profile, provider: input.provider, topicId: input.topicId, style: input.style, text: input.text, size, model: result.model, ...(!gemini && { quality: env.OPENAI_IMAGE_QUALITY }), seconds: Math.round((Date.now() - started) / 1000) });
   return json({ image: result.image, prompt, size, model: result.model });
 }

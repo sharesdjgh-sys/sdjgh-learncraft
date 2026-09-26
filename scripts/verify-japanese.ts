@@ -1,8 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import vm from "node:vm";
-import * as zod from "zod";
-import ts from "typescript";
 import { KANA_STROKES } from "../src/data/kana-strokes";
 import { CONFUSABLE_SETS, KANA_CELLS, KANA_CHARS, KANA_ROWS, KANA_WORDS, kanaCell, kanaUnits, selectedItems, strokeCount, toHiragana, toKatakana, wordReading, wordsFor } from "../src/features/japanese/kana";
 import { buildKanaQuiz, kanaChartHtml, kanaPracticeHtml, kanaQuizHtml, kanaQuizText, rowKeysOf } from "../src/features/japanese/kana-sheet";
@@ -11,25 +7,13 @@ import {
   alignRuby, BUILTIN_ENTRIES, conjSheetHtml, conjSheetText, conjugate, dictionaryForm, entryIssue, formKeys, guessGroup, splitChange, type ConjEntry, type ConjForm,
 } from "../src/features/japanese/conjugation";
 import {
-  analysisSchema, analysisTask, analyzeRequestSchema, ANALYSIS_PROMPT, buildWorksheet, chunksOf, normalizeSentence, plainOf, readingOf, sentenceIssues, sheetTypeKeys,
-  spacedOf, splitSentences, textMismatch, worksheetHtml, worksheetText, type JapaneseSentence,
-} from "../src/features/japanese/text";
-import { JAPANESE_EXAMPLES } from "../src/features/japanese/examples";
+  analysisSchemaFor, analysisTask, analyzeRequestSchema, buildWorksheet, chunksOf, normalizeSentence, plainOf, readingOf, sentenceIssues, sheetTypeKeys,
+  spacedOf, splitSentences, textMismatch, worksheetHtml, worksheetText, type TextSentence,
+} from "../src/features/study-text/core";
+import { textProfile } from "../src/features/study-text/profiles";
 
-// 서버 전용 모듈("server-only")을 필요한 모듈만 바꿔 끼워 불러옵니다.
-function loadTs(path: string, modules: Record<string, unknown>) {
-  const exports: Record<string, unknown> = {};
-  vm.runInNewContext(ts.transpileModule(readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-    exports, require: (name: string) => { assert(name in modules, name); return modules[name]; },
-    fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args), AbortSignal, Buffer, JSON, Response,
-  });
-  return exports;
-}
-import { CULTURE_TOPICS, cultureSheetHtml, cultureSheetText, cultureSheetTypeKeys, rubyHtml, rubyIssues, rubyTokens, stripRuby } from "../src/features/japanese/culture";
-import {
-  normalizeReading, readingIssues, readingRequestSchema, readingSchema, readingSheetHtml, readingSheetText, readingSheetTypeKeys, readingTask, READING_PROMPT, type ReadingMaterial,
-} from "../src/features/japanese/culture-reading";
-import { buildCultureImagePrompt, cultureImageRequestSchema, topicImageRequest } from "../src/features/japanese/culture-image";
+const jp = textProfile("japanese");
+import { JAPANESE_EXAMPLES } from "../src/features/japanese/examples";
 
 // 가나 자료
 assert.equal(KANA_CELLS.filter(cell => cell.group === "seion").length, 46, "청음 46자");
@@ -160,144 +144,42 @@ assert.equal(spacedOf(ruby), "私は 毎朝 七時に 起きます。");
 assert.equal(readingOf(ruby), "わたしはまいあさしちじにおきます。");
 assert.equal(chunksOf(ruby).length, 4);
 assert.equal(plainOf("{壊れ|た}}"), "壊れ}", "괄호가 남으면 글자 그대로");
-const good: JapaneseSentence = { ruby, translation: "저는 매일 아침 7시에 일어납니다.", grammar: [{ pattern: "〜に", surface: "に", meaning: "~에" }], words: [{ word: "起きる", reading: "おきる", meaning: "일어나다", pos: "동사" }] };
-assert.deepEqual(sentenceIssues(good), []);
-assert.deepEqual(sentenceIssues({ ...good, ruby: "{何|なに}を/しましたか。", grammar: [], words: [{ word: "する", reading: "する", meaning: "하다", pos: "동사" }, { word: "勉強する", reading: "べんきょうする", meaning: "", pos: "동사" }] }).map(issue => issue.text), ["이 문장에 없는 낱말: 勉強する"], "する는 활용해도 있는 낱말로 봄");
-assert.deepEqual(sentenceIssues({ ...good, ruby: "{私|watashi}は七時に起きます。" }).map(issue => issue.level), ["error", "check"], "로마자 후리가나는 오류, 후리가나 없는 한자는 확인");
-assert.match(sentenceIssues({ ...good, ruby: "{私|わたし}は{七時|しちじ}に{起|お}きます{。" })[0].text, /괄호/);
-assert.match(sentenceIssues({ ...good, grammar: [{ pattern: "〜を", surface: "を", meaning: "" }] })[0].text, /문장에 없는 문법/);
+const good: TextSentence = { ruby, translation: "저는 매일 아침 7시에 일어납니다.", grammar: [{ pattern: "〜に", surface: "に", meaning: "~에" }], words: [{ word: "起きる", reading: "おきる", meaning: "일어나다", pos: "동사" }] };
+assert.deepEqual(sentenceIssues(jp, good), []);
+assert.deepEqual(sentenceIssues(jp, { ...good, ruby: "{何|なに}を/しましたか。", grammar: [], words: [{ word: "する", reading: "する", meaning: "하다", pos: "동사" }, { word: "勉強する", reading: "べんきょうする", meaning: "", pos: "동사" }] }).map(issue => issue.text), ["이 문장에 없는 낱말: 勉強する"], "する는 활용해도 있는 낱말로 봄");
+assert.deepEqual(sentenceIssues(jp, { ...good, ruby: "{私|watashi}は七時に起きます。" }).map(issue => issue.level), ["error", "check"], "로마자 후리가나는 오류, 후리가나 없는 한자는 확인");
+assert.match(sentenceIssues(jp, { ...good, ruby: "{私|わたし}は{七時|しちじ}に{起|お}きます{。" })[0].text, /괄호/);
+assert.match(sentenceIssues(jp, { ...good, grammar: [{ pattern: "〜を", surface: "を", meaning: "" }] })[0].text, /문장에 없는 문법/);
 assert.equal(textMismatch("私は毎朝\n七時に起きます。", [good]), null, "줄바꿈은 무시");
 assert.match(textMismatch("私は毎晩七時に起きます。", [good]) ?? "", /4번째 글자 ‘晩’/);
 assert.match(textMismatch("私は毎朝七時に起きます。明日も。", [good]) ?? "", /빠졌습니다/);
 assert.equal(normalizeSentence({ ...good, ruby: " {私| わたし }は//{毎朝|まいあさ} " }).ruby, "{私|わたし}は/{毎朝|まいあさ}");
-assert.deepEqual(splitSentences("おはよう。元気？\n\nはい！").map(sentence => sentence.ruby), ["おはよう。", "元気？", "はい！"]);
-assert(analyzeRequestSchema.safeParse({ text: "안녕하세요" }).success === false);
-assert(analyzeRequestSchema.safeParse({ text: "こんにちは" }).success);
-assert(ANALYSIS_PROMPT.includes("{食|た}べます") && analysisTask({ text: "こんにちは", title: "" }).includes("こんにちは"));
+assert.deepEqual(splitSentences(jp, "おはよう。元気？\n\nはい！").map(sentence => sentence.ruby), ["おはよう。", "元気？", "はい！"]);
+assert.equal(analyzeRequestSchema.parse({ text: "こんにちは" }).profile, "japanese", "처음 화면은 profile 없이 보냄");
+assert(jp.prompt.includes("{食|た}べます") && analysisTask({ text: "こんにちは", title: "" }).includes("こんにちは"));
+assert.match(sentenceIssues(jp, { ...good, ruby: "{私|watashi}は{七時|しちじ}に{起|お}きます。" })[0].text, /후리가나 형식이 맞지 않습니다. 私\(watashi\): 후리가나는 가나로만 씁니다/);
 console.log("PASS japanese: ruby markup, checks and normalization");
 
 // 예시와 학습지
 for (const example of JAPANESE_EXAMPLES) {
-  assert(analysisSchema.safeParse({ summary: example.summary, sentences: example.sentences }).success, `${example.title} 스키마`);
+  assert(analysisSchemaFor(jp).safeParse({ summary: example.summary, sentences: example.sentences }).success, `${example.title} 스키마`);
   assert.equal(textMismatch(example.text, example.sentences), null, `${example.title} 원문과 같음`);
-  for (const sentence of example.sentences) assert.deepEqual(sentenceIssues(sentence), [], `${example.title}: ${plainOf(sentence.ruby)}`);
-  const sections = buildWorksheet(example.sentences, { types: sheetTypeKeys, furigana: true, spaced: false });
-  assert.deepEqual(sections.map(section => section.type), sheetTypeKeys, `${example.title}: 모든 유형`);
+  for (const sentence of example.sentences) assert.deepEqual(sentenceIssues(jp, sentence), [], `${example.title}: ${plainOf(sentence.ruby)}`);
+  const sections = buildWorksheet(jp, example.sentences, { types: [...sheetTypeKeys], ruby: true, spaced: false });
+  assert.deepEqual(sections.map(section => section.type), [...sheetTypeKeys], `${example.title}: 모든 유형`);
   const grammar = sections.find(section => section.type === "grammar")!;
   const blanks = grammar.items.map(item => item.answer).join(" ").split(/\s+/).filter(part => !/^[①-⑳]$/.test(part));
   const expected = example.sentences.flatMap(sentence => sentence.grammar.map(item => item.surface));
   assert.deepEqual([...new Set(blanks)].sort(), [...new Set(expected)].sort(), `${example.title}: 문법 표현이 모두 빈칸이 됨`);
 }
 const day = JAPANESE_EXAMPLES[1].sentences;
-const grammar = buildWorksheet(day, { types: ["grammar"], furigana: false, spaced: true })[0];
+const grammar = buildWorksheet(jp, day, { types: ["grammar"], ruby: false, spaced: true })[0];
 assert.equal(grammar.items[2].answer, "① で  ② と  ③ ています", "끊어 읽는 곳을 넘는 ています도 빈칸");
-const kanji = buildWorksheet(day.slice(0, 1), { types: ["kanji"], furigana: true, spaced: false })[0];
+const kanji = buildWorksheet(jp, day.slice(0, 1), { types: ["kanji"], ruby: true, spaced: false })[0];
 assert.equal(kanji.items[0].answer, "① わたし  ② まいあさ  ③ しちじ  ④ お");
 const intro = JAPANESE_EXAMPLES[0].sentences;
-const particle = buildWorksheet([{ ...intro[1], ruby: "{花|はな}は/はなです。", grammar: [{ pattern: "〜は", surface: "は", meaning: "" }] }], { types: ["grammar"], furigana: false, spaced: false })[0];
-assert(worksheetText([particle], { title: "", answers: false }).includes("\n1. 花( ① )はなです。"), "조사 は는 はな 속에서 잡히지 않음");
-const html = worksheetHtml(buildWorksheet(intro, { types: sheetTypeKeys, furigana: true, spaced: true }), { title: "<script>", answers: true }, "clipboard");
+const particle = buildWorksheet(jp, [{ ...intro[1], ruby: "{花|はな}は/はなです。", grammar: [{ pattern: "〜は", surface: "は", meaning: "" }] }], { types: ["grammar"], ruby: false, spaced: false })[0];
+assert(worksheetText(jp, [particle], { title: "", answers: false }).includes("\n1. 花( ① )はなです。"), "조사 は는 はな 속에서 잡히지 않음");
+const html = worksheetHtml(jp, buildWorksheet(jp, intro, { types: [...sheetTypeKeys], ruby: true, spaced: true }), { title: "<script>", answers: true }, "clipboard");
 assert(html.includes("&lt;script&gt;") && !html.includes("<script>") && html.includes("<ruby>") && html.includes("〈보기〉"));
 console.log("PASS japanese: examples and worksheet types");
-
-// 일본문화 주제 자료
-const cultureIds = new Set(CULTURE_TOPICS.map(topic => topic.id));
-assert.equal(cultureIds.size, CULTURE_TOPICS.length, "주제 id가 겹치지 않음");
-assert.equal(CULTURE_TOPICS.length, 22);
-for (const topic of CULTURE_TOPICS) {
-  assert.deepEqual(rubyIssues(topic.ja, true), [], `${topic.id} 제목 후리가나`);
-  if (topic.phrase) assert.deepEqual(rubyIssues(topic.phrase.ja, true), [], `${topic.id} 표현 후리가나`);
-  assert(topic.words.length >= 2 && topic.points.length >= 2 && topic.quiz.length >= 2, `${topic.id} 내용 수`);
-  for (const word of topic.words) assert.match(word.reading, /^[\u3041-\u309f\u30a0-\u30ffー]+$/u, `${topic.id} ${word.word} 읽기`);
-  for (const quiz of topic.quiz) if (!quiz.answer) assert(quiz.note, `${topic.id} 틀린 문장에는 바른 내용`);
-}
-assert(CULTURE_TOPICS.flatMap(topic => topic.quiz).some(quiz => !quiz.answer) && CULTURE_TOPICS.flatMap(topic => topic.quiz).some(quiz => quiz.answer), "O·X가 섞임");
-assert.deepEqual(rubyTokens("お{正月|しょうがつ}에는 {初詣|はつもうで}"), [{ text: "お" }, { text: "正月", ruby: "しょうがつ" }, { text: "에는 " }, { text: "初詣", ruby: "はつもうで" }]);
-assert.equal(stripRuby("{鬼|おに}は{外|そと}"), "鬼は外");
-assert.equal(rubyHtml("{鬼|おに}<b>", true), "<ruby>鬼<rt style=\"font-size:.5em\">おに</rt></ruby>&lt;b&gt;");
-assert.deepEqual(rubyIssues("{鬼|oni}は外", true), ["후리가나는 가나로만 씁니다: 鬼", "후리가나가 없는 한자: 外"]);
-assert.deepEqual(rubyIssues("{鬼|おに는", false), ["후리가나 괄호 {한자|읽기}가 맞지 않는 곳이 있습니다."]);
-assert.deepEqual(rubyIssues("설날에는 떡국을 먹어요.", false), [], "한국어 글은 한자 후리가나를 묻지 않음");
-const events = CULTURE_TOPICS.filter(topic => topic.category === "events");
-const cultureOptions = { title: "<i>", types: cultureSheetTypeKeys, furigana: true, answers: true };
-const cultureHtml = cultureSheetHtml(events, cultureOptions, "screen");
-assert(cultureHtml.includes("&lt;i&gt;") && cultureHtml.includes("일본의 모습을 읽고") && cultureHtml.includes("정답"));
-assert(cultureHtml.includes("おせち<ruby>料理<rt"), "후리가나는 한자 부분에만");
-assert.equal((cultureHtml.match(/\( &nbsp;&nbsp;&nbsp; \)/g) ?? []).length, events.flatMap(topic => topic.quiz).length, "O·X 문항 수");
-assert(cultureSheetText(events.slice(0, 1), { ...cultureOptions, furigana: false }).includes("初詣 읽기: ______ 뜻: ______"));
-console.log("PASS japanese: culture topics and activity sheet");
-
-// 일본문화 읽기 자료
-const reading: ReadingMaterial = {
-  title: " お{正月|しょうがつ} 이야기 ",
-  paragraphs: [{ text: "{日本|にほん}のお{正月|しょうがつ}は1{月|がつ}1{日|にち}です。", translation: "일본의 설날은 1월 1일입니다." }, { text: "  ", translation: "" }],
-  words: [{ word: "初詣", reading: "はつもうで", meaning: "새해 첫 참배" }],
-  choices: [{ question: "일본의 설날은 언제인가요?", options: ["양력 1월 1일", "음력 1월 1일", "2월 3일", "8월 15일"], answer: 0, explanation: "양력 1월 1일입니다." }],
-  ox: [{ statement: "일본은 음력 설을 쇤다.", answer: false, explanation: "양력 1월 1일입니다." }],
-  essays: ["한국 설날과 비교해 봅시다.", " "], checks: [],
-};
-assert(readingSchema.safeParse(reading).success);
-const normalizedReading = normalizeReading(reading);
-assert.equal(normalizedReading.title, "お{正月|しょうがつ} 이야기");
-assert.equal(normalizedReading.paragraphs.length, 1, "빈 문단은 버림");
-assert.equal(normalizedReading.essays.length, 1);
-assert.deepEqual(readingIssues(normalizedReading, "ja"), []);
-assert.deepEqual(readingIssues({ ...normalizedReading, paragraphs: [{ text: "日本のお正月", translation: "" }], choices: [{ ...normalizedReading.choices[0], options: ["a", "a", "b", "c"] }] }, "ja"),
-  ["1문단: 후리가나가 없는 한자: 日 本 正 月", "1문단: 해석이 비어 있습니다.", "객관식 1번: 보기 네 개가 모두 달라야 합니다."]);
-assert.deepEqual(readingIssues({ ...normalizedReading, paragraphs: [{ text: "한국의 {茶禮|다례}", translation: "" }] }, "ko"), ["1문단: 후리가나는 가나로만 씁니다: 茶禮"], "한글 후리가나는 오류");
-assert(readingRequestSchema.safeParse({ topic: "설날", language: "ko", level: "easy", length: "short" }).success);
-assert(READING_PROMPT.includes("{食|た}べます") && readingTask({ topic: "설날", notes: "", language: "ja", level: "easy", length: "short" }).includes("설날"));
-const readingOptions = { types: readingSheetTypeKeys, furigana: true, translation: true, answers: true };
-const readingHtml = readingSheetHtml(normalizedReading, "ja", readingOptions, "screen");
-assert(readingHtml.includes("<ruby>日本<rt") && readingHtml.includes("일본의 설날은 1월 1일입니다.") && readingHtml.includes("정답") && readingHtml.includes("① 양력 1월 1일"));
-assert(!readingSheetHtml(normalizedReading, "ja", { ...readingOptions, translation: false }, "clipboard").includes("일본의 설날은 1월 1일입니다."));
-assert(readingSheetText(normalizedReading, "ja", { ...readingOptions, furigana: false }).includes("日本のお正月は1月1日です。"));
-console.log("PASS japanese: culture reading material and worksheet");
-
-// 일본문화 그림(GPT)
-const shogatsu = CULTURE_TOPICS[0];
-const imageRequest = cultureImageRequestSchema.parse({ topicId: "shogatsu", style: "textbook", size: "landscape", text: "ja", request: topicImageRequest(shogatsu) });
-assert.equal(imageRequest.large, false);
-assert(topicImageRequest(shogatsu).startsWith("일본의 설날(お正月), 1월 1일 장면."));
-const imagePrompt = buildCultureImagePrompt(imageRequest);
-assert(imagePrompt.includes("left front panel overlaps the right") && imagePrompt.includes("copyrighted characters") && imagePrompt.includes('"初詣", "お年玉"'), "문화 규칙과 일본어 이름표");
-assert(buildCultureImagePrompt({ ...imageRequest, text: "ko" }).includes('"새해 첫 참배"'));
-const noText = buildCultureImagePrompt({ ...imageRequest, topicId: "", text: "none", request: "벚꽃이 핀 학교 입학식" });
-assert(noText.includes("Do not draw any text") && !noText.includes("Labels:") && !noText.includes("Topic:"));
-assert(!cultureImageRequestSchema.safeParse({ ...imageRequest, request: "벚꽃" }).success, "너무 짧은 설명");
-const png = "data:image/png;base64,iVBORw0KGgo=";
-const pictured = cultureSheetHtml([shogatsu], { ...cultureOptions, types: ["ox"], pictures: { shogatsu: png } }, "screen");
-assert(pictured.includes(`<img src="${png}"`) && pictured.indexOf("<img") < pictured.indexOf("맞으면 O"), "그림은 활동지 맨 앞");
-assert(!cultureSheetHtml([shogatsu], { ...cultureOptions, types: ["ox"], pictures: { shogatsu: "javascript:alert(1)\" onerror=\"x" } }, "screen").includes("<img"), "그림 주소가 아니면 넣지 않음");
-console.log("PASS japanese: culture image prompt and pictures on the activity sheet");
-
-// Gemini 그림 호출(가짜 fetch로 응답 처리만 확인합니다)
-assert.equal(cultureImageRequestSchema.parse({ topicId: "", style: "textbook", size: "square", text: "none", request: "벚꽃이 핀 학교" }).provider, "gpt", "기본은 GPT");
-assert(cultureImageRequestSchema.safeParse({ provider: "gemini", topicId: "", style: "textbook", size: "square", text: "none", request: "벚꽃이 핀 학교" }).success);
-void (async () => {
-  const envStub = { env: { GEMINI_API_KEY: "test-key", GEMINI_IMAGE_ENABLED: "true", GEMINI_IMAGE_MODEL_ID: "gemini-3.1-flash-image" } };
-  const gemini = loadTs("src/lib/gemini-image.ts", { "server-only": {}, zod: zod, "@/lib/env": envStub, "@/lib/openai-image": {} }) as typeof import("../src/lib/gemini-image");
-  const calls: { url: string; body: { generationConfig: { imageConfig: { aspectRatio: string; imageSize: string } } } }[] = [];
-  const reply = (status: number, body: unknown) => async (url: string, init: { body: string }) => { calls.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify(body), { status }); };
-  const run = async (fetcher: unknown, aspect: "landscape" | "square" | "portrait" = "landscape", large = false) => {
-    const original = globalThis.fetch;
-    globalThis.fetch = fetcher as typeof fetch;
-    // vm 안에서 만든 객체는 프로토타입이 달라 일반 객체로 바꿔 비교합니다.
-    try { return structuredClone(await gemini.requestGeminiImage({ prompt: "p", aspect, large, signal: new AbortController().signal })); } finally { globalThis.fetch = original; }
-  };
-  const ok = await run(reply(200, { candidates: [{ finishReason: "STOP", content: { parts: [{ thought: true, inlineData: { mimeType: "image/png", data: "AAAA" } }, { inlineData: { mimeType: "image/jpeg", data: "iVBORw0KGgo=" } }] } }] }), "portrait", true);
-  assert.deepEqual(ok, { ok: true, image: "data:image/jpeg;base64,iVBORw0KGgo=", model: "gemini-3.1-flash-image" }, "생각 중 그림은 건너뜀");
-  assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-image:generateContent");
-  assert.deepEqual({ ...calls[0].body.generationConfig.imageConfig }, { imageSize: "2K", aspectRatio: "2:3" });
-  const blocked = await run(reply(200, { candidates: [{ finishReason: "IMAGE_SAFETY" }] }));
-  assert(!blocked.ok && blocked.status === 422);
-  const limited = await run(reply(429, { error: { message: "quota", status: "RESOURCE_EXHAUSTED" } }));
-  assert(!limited.ok && limited.status === 429 && limited.error.includes("한도"));
-  const empty = await run(reply(200, { candidates: [{ finishReason: "STOP", content: { parts: [] } }] }));
-  assert(!empty.ok && empty.status === 502);
-  const badData = await run(reply(200, { candidates: [{ finishReason: "STOP", content: { parts: [{ inlineData: { mimeType: "image/svg+xml", data: "PHN2Zz4=" } }] } }] }));
-  assert(!badData.ok, "SVG 등 다른 형식은 받지 않음");
-  const disabled = loadTs("src/lib/gemini-image.ts", { "server-only": {}, zod: zod, "@/lib/env": { env: { ...envStub.env, GEMINI_IMAGE_ENABLED: "false" } }, "@/lib/openai-image": {} }) as typeof import("../src/lib/gemini-image");
-  assert.equal(disabled.isGeminiImageReady(), false);
-  console.log("PASS japanese: Gemini image response handling");
-})().catch(error => { console.error(error); process.exit(1); });

@@ -2,30 +2,43 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
-import { AlertCircle, FileText, Flower2, LoaderCircle, MonitorPlay, PencilLine, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { AlertCircle, FileText, Flower2, Lamp, LoaderCircle, MonitorPlay, PencilLine, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
-import { grammarSchema, japaneseOf, MAX_SENTENCES, MAX_TEXT_LENGTH, plainOf, sheetTypeKeys, splitSentences, textMismatch, wordSchema, type JapaneseSentence, type SheetType } from "@/features/japanese/text";
-import { JAPANESE_EXAMPLES, type JapaneseExample } from "@/features/japanese/examples";
+import { grammarSchema, MAX_SENTENCES, MAX_TEXT_LENGTH, plainOf, scriptOf, sheetTypeKeys, splitSentences, textMismatch, wordSchema, type TextProfileId, type TextSentence } from "@/features/study-text/core";
+import { textProfile } from "@/features/study-text/profiles";
+import { CHINESE_EXAMPLES } from "@/features/chinese/examples";
+import { JAPANESE_EXAMPLES } from "@/features/japanese/examples";
 import { IssueList } from "./hanmun-sentence";
-import { SentenceCard, type EditableSentence } from "./japanese-sentence";
-import { JapaneseTextSheet, type SheetSettings } from "./japanese-text-sheet";
-import { JapaneseTextShow } from "./japanese-text-show";
-import { speechNotice, useJapaneseSpeech } from "./japanese-speech";
+import { SentenceCard, type EditableSentence } from "./text-sentence";
+import { StudyTextSheet, type SheetSettings } from "./text-sheet";
+import { StudyTextShow } from "./text-show";
+import { speechNotice, useSpeech } from "./speech";
 
 type Tab = "review" | "sheet";
 type Doc = { id: string; title: string; text: string; summary: string; sentences: EditableSentence[]; skip: string[]; updatedAt: number };
 
-const endpoint = "/api/teacher/japanese";
+const endpoint = "/api/teacher/text";
+type Example = { id: string; title: string; text: string; summary: string; sentences: TextSentence[] };
+// 언어마다 다른 저장 키·예시·안내 문구입니다. 일본어는 처음 만든 저장 키를 그대로 씁니다.
+const labConfigs: Record<TextProfileId, { storageKey: string; examples: Example[]; titlePlaceholder: string; textPlaceholder: string; badge: string }> = {
+  japanese: {
+    storageKey: "learncraft_japanese_text_v1", examples: JAPANESE_EXAMPLES, badge: "일본어", titlePlaceholder: "예: 3과 わたしの一日",
+    textPlaceholder: "교과서 본문이나 대화문을 붙여 넣으세요.\n대화문은 ‘A: …’처럼 줄마다 적어도 괜찮아요.\n\n예: 私は毎朝七時に起きます。",
+  },
+  chinese: {
+    storageKey: "learncraft_chinese_text_v1", examples: CHINESE_EXAMPLES, badge: "중국어", titlePlaceholder: "예: 第3课 我的一天",
+    textPlaceholder: "교과서 본문이나 대화문(간체자)을 붙여 넣으세요.\n대화문은 ‘A: …’처럼 줄마다 적어도 괜찮아요.\n\n예: 我每天早上七点起床。",
+  },
+};
 const MAX_DOCS = 30;
 const makeId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const newDoc = (): Doc => ({ id: makeId(), title: "", text: "", summary: "", sentences: [], skip: [], updatedAt: Date.now() });
-const withIds = (sentences: JapaneseSentence[]): EditableSentence[] => sentences.map(sentence => ({ ...sentence, id: makeId(), checked: false }));
-const defaultSheet: SheetSettings = { types: ["kanji", "translation", "grammar"], furigana: true, spaced: false, answers: true };
+const withIds = (sentences: TextSentence[]): EditableSentence[] => sentences.map(sentence => ({ ...sentence, id: makeId(), checked: false }));
+const defaultSheet: SheetSettings = { types: ["kanji", "translation", "grammar"], ruby: true, spaced: false, answers: true };
 
 // 본문과 풀이는 이 브라우저에만 저장합니다. 깨진 본문 하나 때문에 나머지를 잃지 않도록 본문마다 따로 확인합니다.
-const storageKey = "learncraft_japanese_text_v1";
 const sentenceStored = z.object({
   id: z.string(), checked: z.boolean().catch(false), ruby: z.string().max(500), translation: z.string().max(500).catch(""),
   grammar: z.array(grammarSchema).max(4).catch([]), words: z.array(wordSchema).max(8).catch([]),
@@ -39,12 +52,12 @@ const storedSchema = z.object({
   currentId: z.string().nullable().catch(null),
   tab: z.enum(["review", "sheet"]).catch("review"),
   sheet: z.object({
-    types: z.array(z.enum(sheetTypeKeys as [SheetType, ...SheetType[]])).catch(defaultSheet.types),
-    furigana: z.boolean().catch(true), spaced: z.boolean().catch(false), answers: z.boolean().catch(true),
-  }).catch(defaultSheet),
+    types: z.array(z.enum(sheetTypeKeys)).catch(defaultSheet.types),
+    ruby: z.boolean().optional().catch(undefined), furigana: z.boolean().optional().catch(undefined), spaced: z.boolean().catch(false), answers: z.boolean().catch(true),
+  }).catch(defaultSheet).transform(({ ruby, furigana, ...rest }): SheetSettings => ({ ...rest, ruby: ruby ?? furigana ?? true })),
 });
 type Stored = z.infer<typeof storedSchema>;
-function readStored(): Stored {
+function readStored(storageKey: string): Stored {
   try {
     const saved = window.localStorage.getItem(storageKey);
     return storedSchema.parse(saved ? JSON.parse(saved) : {});
@@ -61,12 +74,17 @@ async function readJson<T>(response: Response) {
   return data;
 }
 
-export function JapaneseTextLab({ tabs }: { tabs?: React.ReactNode }) {
+/** 일본어·중국어 본문 풀이 도구입니다. profileId로 언어를 고릅니다. */
+export function StudyTextLab({ profileId, tabs }: { profileId: TextProfileId; tabs?: React.ReactNode }) {
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
-  return hydrated ? <TextEditor initial={readStored()} tabs={tabs} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 일본어 본문 풀이 도구를 준비하는 중…</div>;
+  return hydrated ? <TextEditor key={profileId} profileId={profileId} initial={readStored(labConfigs[profileId].storageKey)} tabs={tabs} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 본문 풀이 도구를 준비하는 중…</div>;
 }
 
-function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode }) {
+function TextEditor({ profileId, initial, tabs }: { profileId: TextProfileId; initial: Stored; tabs?: React.ReactNode }) {
+  const profile = textProfile(profileId);
+  const config = labConfigs[profileId];
+  const lang = profile.speech;
+  const SubjectIcon = profileId === "chinese" ? Lamp : Flower2;
   const [docs, setDocs] = useState<Doc[]>(() => initial.docs.length ? initial.docs : [newDoc()]);
   const [currentId, setCurrentId] = useState(() => initial.docs.some(doc => doc.id === initial.currentId) ? initial.currentId! : docs[0].id);
   const [tab, setTab] = useState<Tab>(initial.tab);
@@ -75,14 +93,14 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
   const [error, setError] = useState("");
   const [showing, setShowing] = useState(false);
   const controller = useRef<AbortController | null>(null);
-  const closeShow = useCallback(() => setShowing(false), []);
+  const closeShow = useCallback(() => setShowing(false), [setShowing]);
   const [confirm, confirmDialog] = useConfirm();
-  const { supported, hasVoice, speak } = useJapaneseSpeech();
+  const { supported, hasVoice, speak } = useSpeech(profile.speech);
   const doc = docs.find(item => item.id === currentId) ?? docs[0];
 
   useEffect(() => {
-    try { window.localStorage.setItem(storageKey, JSON.stringify({ docs, currentId, tab, sheet })); } catch { /* 저장하지 못해도 이번 화면에서는 계속 쓸 수 있습니다. */ }
-  }, [docs, currentId, tab, sheet]);
+    try { window.localStorage.setItem(config.storageKey, JSON.stringify({ docs, currentId, tab, sheet })); } catch { /* 저장하지 못해도 이번 화면에서는 계속 쓸 수 있습니다. */ }
+  }, [config, docs, currentId, tab, sheet]);
   useEffect(() => () => controller.current?.abort(), []);
 
   const patchDoc = (id: string, patch: Partial<Doc>) => setDocs(current => current.map(item => item.id === id ? { ...item, ...patch, updatedAt: Date.now() } : item));
@@ -102,7 +120,7 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
     setTab("review");
   }
   // 예시는 검토 완료 상태로 넣어 학습지·수업 화면까지 바로 볼 수 있게 합니다. 이미 불러온 예시면 그 본문을 엽니다.
-  function openExample(example: JapaneseExample) {
+  function openExample(example: Example) {
     const existing = docs.find(item => item.title === example.title && item.text === example.text);
     if (existing) { openDoc(existing.id); setTab("review"); return; }
     const content = { title: example.title, text: example.text, summary: example.summary, sentences: withIds(example.sentences).map(sentence => ({ ...sentence, checked: true })), skip: [] };
@@ -139,9 +157,9 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
     setAnalyzing(id);
     setError("");
     try {
-      const data = await readJson<{ summary: string; sentences: JapaneseSentence[] }>(await fetch(endpoint, {
+      const data = await readJson<{ summary: string; sentences: TextSentence[] }>(await fetch(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: request.signal,
-        body: JSON.stringify({ text: doc.text, title: doc.title }),
+        body: JSON.stringify({ profile: profileId, text: doc.text, title: doc.title }),
       }));
       patchDoc(id, { summary: data.summary, sentences: withIds(data.sentences), skip: [] });
       setTab("review");
@@ -159,17 +177,17 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
       description: `지금 풀이(문장 ${doc.sentences.length}개)를 지우고 본문을 문장별 빈칸으로 나눕니다.`,
       note: "직접 고친 내용과 검토 완료 표시가 모두 사라져요.",
     })) return;
-    update({ summary: "", sentences: withIds(splitSentences(doc.text).slice(0, MAX_SENTENCES)), skip: [] });
+    update({ summary: "", sentences: withIds(splitSentences(profile, doc.text).slice(0, MAX_SENTENCES)), skip: [] });
     setTab("review");
   }
 
-  const jaCount = japaneseOf(doc.text).length;
+  const jaCount = scriptOf(profile, doc.text).length;
   const textLength = doc.text.trim().length;
   const canAnalyze = jaCount >= 2 && textLength <= MAX_TEXT_LENGTH && !analyzing;
   const checkedCount = doc.sentences.filter(sentence => sentence.checked).length;
   const mismatch = doc.text.trim() && doc.sentences.length ? textMismatch(doc.text, doc.sentences) : null;
   const sortedDocs = [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
-  const notice = speechNotice(supported, hasVoice);
+  const notice = speechNotice(supported, hasVoice, profile.speech);
   const fieldClass = "w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-4 focus:border-brand/50 focus:ring-2 focus:ring-brand/10";
   const tabClass = (active: boolean) => cn("flex min-h-10 items-center gap-1.5 rounded-xl px-4 text-[.86rem] font-bold transition-colors", active ? "bg-surface text-brand-dark shadow-[var(--lift-1)]" : "text-ink-3 hover:text-brand-dark");
 
@@ -177,9 +195,9 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><Flower2 size={16} /> 교사 지원실 · 일본어</p>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><SubjectIcon size={16} /> 교사 지원실 · {config.badge}</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">본문 풀이 · 학습지 만들기</h1>
-          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12 xl:min-h-6">일본어 본문을 붙여 넣으면 AI가 후리가나·끊어 읽기·해석·문법·낱말 풀이 초안을 만들고, 원문과 달라진 곳과 후리가나 형식을 자동으로 점검합니다. 확인한 풀이로 한자 읽기·해석·문법 빈칸·작문 학습지를 바로 뽑을 수 있어요.</p>
+          <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3 lg:min-h-12 xl:min-h-6">{profile.language} 본문을 붙여 넣으면 AI가 {profile.rubyName}·끊어 읽기·해석·문법·낱말 풀이 초안을 만들고, 원문과 달라진 곳과 {profile.rubyName} 형식{profile.id === "chinese" ? "·사전 읽기" : ""}를 자동으로 점검합니다. 확인한 풀이로 {profile.readingSheet.label}·해석·문법 빈칸·작문 학습지를 바로 뽑을 수 있어요.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>
@@ -206,18 +224,18 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
             <p className="mt-2 text-[.72rem] leading-5 text-ink-4">본문과 고친 풀이는 이 브라우저에 자동으로 저장돼요.</p>
             <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-line pt-2">
               <span className="text-[.72rem] font-bold text-ink-4">예시 본문</span>
-              {JAPANESE_EXAMPLES.map(example => <button key={example.id} type="button" onClick={() => openExample(example)} className="rounded-lg px-2 py-1 text-[.74rem] font-bold text-brand-dark hover:bg-brand-page">{example.title.replace("[예시] ", "")}</button>)}
+              {config.examples.map(example => <button key={example.id} type="button" onClick={() => openExample(example)} className="rounded-lg px-2 py-1 text-[.74rem] font-bold text-brand-dark hover:bg-brand-page">{example.title.replace("[예시] ", "")}</button>)}
             </div>
           </div>
 
           <form onSubmit={event => { event.preventDefault(); if (canAnalyze) void analyze(); }} className="space-y-4 rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
             <label className="block text-sm font-bold text-ink-2">제목·단원 <span className="text-xs font-semibold text-ink-4">(선택 · 학습지 제목으로 써요)</span>
-              <input value={doc.title} maxLength={100} onChange={event => update({ title: event.target.value })} placeholder="예: 3과 わたしの一日" className={cn(fieldClass, "mt-2 font-normal")} />
+              <input value={doc.title} maxLength={100} onChange={event => update({ title: event.target.value })} placeholder={config.titlePlaceholder} className={cn(fieldClass, "mt-2 font-normal")} />
             </label>
             <div>
-              <label htmlFor="japanese-text" className="flex items-baseline justify-between text-sm font-bold text-ink-2">일본어 본문 <span className={cn("text-xs font-semibold tabular-nums", textLength > MAX_TEXT_LENGTH ? "text-danger" : "text-ink-4")}>{textLength.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}자</span></label>
-              <textarea id="japanese-text" lang="ja" value={doc.text} maxLength={MAX_TEXT_LENGTH * 2} onChange={event => update({ text: event.target.value })} rows={9} spellCheck={false}
-                placeholder={"교과서 본문이나 대화문을 붙여 넣으세요.\n대화문은 ‘A: …’처럼 줄마다 적어도 괜찮아요.\n\n예: 私は毎朝七時に起きます。"} className={cn(fieldClass, "font-ja mt-2 resize-y text-[1.05rem] leading-8 placeholder:font-sans placeholder:text-sm")} />
+              <label htmlFor="study-text" className="flex items-baseline justify-between text-sm font-bold text-ink-2">{profile.language} 본문 <span className={cn("text-xs font-semibold tabular-nums", textLength > MAX_TEXT_LENGTH ? "text-danger" : "text-ink-4")}>{textLength.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}자</span></label>
+              <textarea id="study-text" lang={lang} value={doc.text} maxLength={MAX_TEXT_LENGTH * 2} onChange={event => update({ text: event.target.value })} rows={9} spellCheck={false}
+                placeholder={config.textPlaceholder} className={cn(fieldClass, profile.fontClass, "mt-2 resize-y text-[1.05rem] leading-8 placeholder:font-sans placeholder:text-sm")} />
             </div>
             <Button type="submit" size="lg" className="w-full" disabled={!canAnalyze}>{analyzing === doc.id ? <LoaderCircle size={17} className="animate-spin" /> : <Sparkles size={17} />} {analyzing === doc.id ? "풀이를 만드는 중… (최대 1~2분)" : "AI 풀이 만들기"}</Button>
             <Button type="button" variant="ghost" size="sm" className="w-full" disabled={jaCount < 1 || Boolean(analyzing)} onClick={() => void startManual()}><PencilLine size={15} /> AI 없이 직접 입력 (문장별 빈칸으로 나누기)</Button>
@@ -232,17 +250,17 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
               <button type="button" aria-pressed={tab === "review"} onClick={() => setTab("review")} className={tabClass(tab === "review")}><PencilLine size={16} /> 풀이 검토 {doc.sentences.length > 0 && <span className="text-[.74rem] font-semibold text-ink-4">{checkedCount}/{doc.sentences.length}</span>}</button>
               <button type="button" aria-pressed={tab === "sheet"} onClick={() => setTab("sheet")} className={tabClass(tab === "sheet")}><FileText size={16} /> 학습지</button>
             </nav>
-            <Button variant="secondary" size="sm" disabled={!doc.sentences.some(sentence => plainOf(sentence.ruby).trim())} onClick={() => setShowing(true)} title="본문을 크게 띄우고 후리가나·해석·문법을 하나씩 켜요"><MonitorPlay size={15} /> 수업 화면</Button>
+            <Button variant="secondary" size="sm" disabled={!doc.sentences.some(sentence => plainOf(sentence.ruby).trim())} onClick={() => setShowing(true)} title={`본문을 크게 띄우고 ${profile.rubyName}·해석·문법을 하나씩 켜요`}><MonitorPlay size={15} /> 수업 화면</Button>
           </div>
 
           {analyzing === doc.id && !doc.sentences.length ? (
-            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-brand/25 bg-brand-page text-[.9rem] font-semibold text-brand-dark"><LoaderCircle size={26} className="animate-spin" /> 본문을 문장별로 나눠 후리가나·해석·문법을 만드는 중이에요…</div>
+            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-brand/25 bg-brand-page text-[.9rem] font-semibold text-brand-dark"><LoaderCircle size={26} className="animate-spin" /> 본문을 문장별로 나눠 {profile.rubyName}·해석·문법을 만드는 중이에요…</div>
           ) : !doc.sentences.length ? (
             <div className="flex min-h-[360px] flex-col items-center justify-center gap-5 rounded-2xl border border-dashed border-line bg-surface-2 px-6 py-8 text-center text-[.9rem] text-ink-3">
-              <Flower2 size={24} className="text-brand" />
+              <SubjectIcon size={24} className="text-brand" />
               <ol className="grid w-full max-w-3xl gap-2 text-left sm:grid-cols-3">
                 {[
-                  ["본문 붙여 넣기", "교과서 본문을 붙여 넣고 ‘AI 풀이 만들기’를 눌러요. 1분 안팎이면 후리가나·해석·문법 초안이 나와요."],
+                  ["본문 붙여 넣기", `교과서 본문을 붙여 넣고 ‘AI 풀이 만들기’를 눌러요. 1분 안팎이면 ${profile.rubyName}·해석·문법 초안이 나와요.`],
                   ["문장마다 검토", "틀린 읽기나 해석은 ‘고치기’로 바로잡고 ‘검토 완료’를 눌러요. 원문과 달라진 곳은 자동으로 알려 줘요."],
                   ["학습지·수업 화면", "학습지 탭에서 문항 유형을 골라 인쇄하거나 한글에 붙여 넣고, 수업 시간에는 ‘수업 화면’으로 띄워 읽어 줘요."],
                 ].map(([heading, body], index) => (
@@ -255,7 +273,7 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
               <div>
                 <p className="font-bold text-ink-2">처음이라면 완성된 예시부터 둘러보세요.</p>
                 <div className="mt-2.5 flex flex-wrap justify-center gap-2">
-                  {JAPANESE_EXAMPLES.map(example => <Button key={example.id} variant="secondary" size="sm" onClick={() => openExample(example)}><Flower2 size={15} /> {example.title.replace("[예시] ", "")} 예시 열기</Button>)}
+                  {config.examples.map(example => <Button key={example.id} variant="secondary" size="sm" onClick={() => openExample(example)}><SubjectIcon size={15} /> {example.title.replace("[예시] ", "")} 예시 열기</Button>)}
                 </div>
               </div>
             </div>
@@ -267,10 +285,10 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
                 <textarea value={doc.summary} rows={2} maxLength={1000} onChange={event => update({ summary: event.target.value })} placeholder="글 전체의 내용을 적어 두세요." className="mt-1 w-full resize-y bg-transparent text-[.92rem] leading-7 text-ink outline-none placeholder:text-ink-5" />
               </label>
               {doc.sentences.map((sentence, index) => (
-                <SentenceCard key={sentence.id} sentence={sentence} number={index + 1} onSpeak={text => speak(text)}
+                <SentenceCard key={sentence.id} profile={profile} sentence={sentence} number={index + 1} onSpeak={text => speak(text)}
                   onChange={next => setSentences(doc.sentences.map(item => item.id === sentence.id ? next : item))}
                   onDelete={async () => {
-                    if (await confirm({ eyebrow: "풀이 검토", title: `${index + 1}번 문장을 지울까요?`, tone: "danger", confirmLabel: "지우기", description: "이 문장의 후리가나·해석·문법·낱말이 함께 지워집니다.", note: "지운 문장은 되돌릴 수 없어요." })) {
+                    if (await confirm({ eyebrow: "풀이 검토", title: `${index + 1}번 문장을 지울까요?`, tone: "danger", confirmLabel: "지우기", description: `이 문장의 ${profile.rubyName}·해석·문법·낱말이 함께 지워집니다.`, note: "지운 문장은 되돌릴 수 없어요." })) {
                       setDocs(current => current.map(item => item.id === doc.id ? { ...item, sentences: item.sentences.filter(other => other.id !== sentence.id), updatedAt: Date.now() } : item));
                     }
                   }} />
@@ -278,12 +296,12 @@ function TextEditor({ initial, tabs }: { initial: Stored; tabs?: React.ReactNode
               {doc.sentences.length < MAX_SENTENCES && <Button variant="ghost" onClick={() => setSentences([...doc.sentences, ...withIds([{ ruby: "", translation: "", grammar: [], words: [] }])])}><Plus size={16} /> 문장 추가</Button>}
             </div>
           ) : (
-            <JapaneseTextSheet title={doc.title} sentences={doc.sentences} skip={doc.skip} settings={sheet} onSkip={skip => update({ skip })} onSettings={setSheet} />
+            <StudyTextSheet profile={profile} title={doc.title} sentences={doc.sentences} skip={doc.skip} settings={sheet} onSkip={skip => update({ skip })} onSettings={setSheet} />
           )}
         </div>
       </section>
       {confirmDialog}
-      {showing && <JapaneseTextShow title={doc.title} sentences={doc.sentences.filter(sentence => plainOf(sentence.ruby).trim())} speak={speak} onClose={closeShow} />}
+      {showing && <StudyTextShow profile={profile} title={doc.title} sentences={doc.sentences.filter(sentence => plainOf(sentence.ruby).trim())} speak={speak} onClose={closeShow} />}
     </div>
   );
 }

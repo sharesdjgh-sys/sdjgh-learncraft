@@ -13,7 +13,7 @@ import {
 import { Card, Segmented, Toggle } from "./tool-panel";
 import { copyToClipboard, PrintablePage } from "./hanmun-sheet";
 import { KanaFlash } from "./japanese-kana-flash";
-import { speechNotice, useJapaneseSpeech } from "./japanese-speech";
+import { speechNotice, useJapaneseSpeech } from "./speech";
 import { StrokeOrder } from "./japanese-strokes";
 
 type View = "chart" | "practice" | "quiz";

@@ -1,18 +1,34 @@
-/* 일본어 학습지들이 함께 쓰는 HTML 조각입니다. 모든 글은 escapeHtml을 거쳐 넣습니다. */
+/* 일본어·중국어 학습지들이 함께 쓰는 HTML 조각입니다. 모든 글은 escapeHtml을 거쳐 넣습니다. */
 
 export const escapeHtml = (text: string) => text.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[char]!);
 
 export type SheetMode = "screen" | "clipboard";
+export type SheetLang = "ja" | "zh";
 
-// 화면·인쇄에서는 이 페이지에서만 불러오는 교과서체(Klee One)를, 한글·워드에 붙여 넣을 때는 윈도에 있는 일본어 글꼴을 씁니다.
-const JA_FONT: Record<SheetMode, string> = {
-  screen: "var(--font-ja), 'Klee One', 'UD Digi Kyokasho N-R', 'Yu Gothic', 'Meiryo', sans-serif",
-  clipboard: "'UD Digi Kyokasho N-R', 'Yu Mincho', 'Yu Gothic', 'MS Mincho', sans-serif",
+// 화면·인쇄에서는 그 페이지에서만 불러오는 글꼴(일본어 Klee One, 중국어 Noto Serif SC)을, 한글·워드에 붙여 넣을 때는 윈도에 있는 글꼴을 씁니다.
+const FONTS: Record<SheetLang, Record<SheetMode, string>> = {
+  ja: {
+    screen: "var(--font-ja), 'Klee One', 'UD Digi Kyokasho N-R', 'Yu Gothic', 'Meiryo', sans-serif",
+    clipboard: "'UD Digi Kyokasho N-R', 'Yu Mincho', 'Yu Gothic', 'MS Mincho', sans-serif",
+  },
+  zh: {
+    screen: "var(--font-zh), 'Noto Serif SC', 'KaiTi', 'SimSun', 'Microsoft YaHei', serif",
+    clipboard: "'KaiTi', 'SimSun', 'Microsoft YaHei', serif",
+  },
 };
-export const jaStyle = (mode: SheetMode) => `font-family:${JA_FONT[mode]}`;
-/** 일본어 글을 일본어 글꼴로 감쌉니다. html은 이미 이스케이프한 조각입니다. */
-export const jaHtml = (html: string, mode: SheetMode) => `<span lang="ja" style="${jaStyle(mode)}">${html}</span>`;
+export const langStyle = (lang: SheetLang, mode: SheetMode) => `font-family:${FONTS[lang][mode]}`;
+/** 외국어 글을 그 언어 글꼴로 감쌉니다. html은 이미 이스케이프한 조각입니다. */
+export const langHtml = (lang: SheetLang, html: string, mode: SheetMode) => `<span lang="${lang === "zh" ? "zh-CN" : "ja"}" style="${langStyle(lang, mode)}">${html}</span>`;
+export const jaStyle = (mode: SheetMode) => langStyle("ja", mode);
+export const jaHtml = (html: string, mode: SheetMode) => langHtml("ja", html, mode);
 export const ja = (text: string, mode: SheetMode) => jaHtml(escapeHtml(text), mode);
+export const zhHtml = (html: string, mode: SheetMode) => langHtml("zh", html, mode);
+export const zh = (text: string, mode: SheetMode) => zhHtml(escapeHtml(text), mode);
+
+// 받침이 있으면 이·을, 없으면 가·를을 붙입니다(병음이·병음을, 후리가나가·후리가나를).
+const hasFinal = (word: string) => { const code = word.charCodeAt(word.length - 1) - 0xac00; return code >= 0 && code <= 11171 && code % 28 !== 0; };
+export const subjectParticle = (word: string) => `${word}${hasFinal(word) ? "이" : "가"}`;
+export const objectParticle = (word: string) => `${word}${hasFinal(word) ? "을" : "를"}`;
 
 export const romans = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"];
 

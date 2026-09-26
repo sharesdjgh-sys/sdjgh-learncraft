@@ -1,7 +1,7 @@
 import { Klee_One } from "next/font/google";
-import { JapaneseCultureLab } from "@/components/teacher/japanese-culture-lab";
+import { CultureLab } from "@/components/teacher/culture-lab";
 import { JapaneseKanaLab } from "@/components/teacher/japanese-kana-lab";
-import { JapaneseTextLab } from "@/components/teacher/japanese-text-lab";
+import { StudyTextLab } from "@/components/teacher/text-lab";
 import { JapaneseToolTabs, type JapaneseTool } from "@/components/teacher/japanese-tool-tabs";
 import { JapaneseVerbLab } from "@/components/teacher/japanese-verb-lab";
 import { isOpenAiImageConfigured } from "@/lib/env";
@@ -18,7 +18,7 @@ export default async function TeacherJapanesePage({ searchParams }: { searchPara
   const tabs = <JapaneseToolTabs current={current} />;
   return (
     <div className={jaFont.variable}>
-      {current === "text" ? <JapaneseTextLab tabs={tabs} /> : current === "verb" ? <JapaneseVerbLab tabs={tabs} /> : current === "culture" ? <JapaneseCultureLab tabs={tabs} imageReady={{ gpt: isOpenAiImageConfigured, gemini: isGeminiImageReady() }} /> : <JapaneseKanaLab tabs={tabs} />}
+      {current === "text" ? <StudyTextLab profileId="japanese" tabs={tabs} /> : current === "verb" ? <JapaneseVerbLab tabs={tabs} /> : current === "culture" ? <CultureLab profileId="japan" tabs={tabs} imageReady={{ gpt: isOpenAiImageConfigured, gemini: isGeminiImageReady() }} /> : <JapaneseKanaLab tabs={tabs} />}
     </div>
   );
 }

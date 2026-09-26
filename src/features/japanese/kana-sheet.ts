@@ -1,5 +1,5 @@
 import { KANA_ROWS, rowsOfGroup, scriptLabels, strokeCount, wordReading, wordsFor, type KanaGroup, type KanaItem, type KanaRow, type Script, type ScriptChoice } from "./kana";
-import { answerSection, clipboardWrap, escapeHtml, ja, jaStyle, romans, seededRandom, sheetHead, shuffled, textHead, type SheetMode } from "./sheet";
+import { answerSection, clipboardWrap, escapeHtml, ja, jaStyle, romans, seededRandom, sheetHead, shuffled, textHead, type SheetMode } from "@/features/language-sheet";
 import { strokeStepsSvg } from "./strokes";
 
 /* 가나 학습지 세 가지(50음도 표, 쓰기 연습지, 가나 퀴즈)를 만듭니다. 화면·인쇄·복사가 같은 결과가 되도록 seed로 섞습니다. */

@@ -1,8 +1,8 @@
-import type { JapaneseSentence } from "./text";
+import type { TextSentence } from "@/features/study-text/core";
 
 /* 처음 쓰는 선생님이 완성된 모습을 볼 수 있도록 직접 작성한 예시입니다. 검토 완료 상태로 열립니다. */
 
-export type JapaneseExample = { id: string; title: string; text: string; summary: string; sentences: JapaneseSentence[] };
+export type JapaneseExample = { id: string; title: string; text: string; summary: string; sentences: TextSentence[] };
 
 export const JAPANESE_EXAMPLES: JapaneseExample[] = [
   {

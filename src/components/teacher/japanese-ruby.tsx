@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import { alignRuby, splitChange, type Conjugated } from "@/features/japanese/conjugation";
-import { rubyTokens } from "@/features/japanese/culture";
 
 /** 후리가나를 단 일본어입니다. base(사전형)를 주면 바뀐 끝부분과 바뀐 읽기를 강조합니다. */
 export function RubyText({ value, base, className }: { value: Conjugated; base?: Conjugated; className?: string }) {
@@ -23,9 +22,4 @@ export function RubyText({ value, base, className }: { value: Conjugated; base?:
       })}
     </span>
   );
-}
-
-/** {한자|읽기} 표기가 섞인 글을 후리가나와 함께 그립니다. 한국어 글 속 일본어 낱말에도 씁니다. */
-export function RubyInline({ text, furigana = true }: { text: string; furigana?: boolean }) {
-  return <>{rubyTokens(text).map((token, index) => token.ruby && furigana ? <ruby key={index} lang="ja" className="font-ja">{token.text}<rt className="text-[.5em] text-ink-4">{token.ruby}</rt></ruby> : <span key={index}>{token.text}</span>)}</>;
 }

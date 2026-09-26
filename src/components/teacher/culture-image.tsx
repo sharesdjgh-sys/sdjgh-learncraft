@@ -5,8 +5,9 @@ import { ClipboardCopy, Download, ExternalLink, ImagePlus, LoaderCircle, Pin, Sp
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { imageSizes, imageStyles, type ImageSize, type ImageStyle } from "@/lib/ai-figure/image-prompt";
-import { cultureTopic, type CultureTopic } from "@/features/japanese/culture";
-import { imageProviders, imageTextModes, MAX_CULTURE_IMAGE_REQUEST, topicImageRequest, type ImageProvider, type ImageTextMode } from "@/features/japanese/culture-image";
+import type { CultureTopic } from "@/features/culture/core";
+import { findTopic, type CultureProfile } from "@/features/culture/profiles";
+import { imageProviders, imageTextModes, MAX_CULTURE_IMAGE_REQUEST, topicImageRequest, type ImageProvider, type ImageTextMode } from "@/features/culture/image";
 import { Segmented, Toggle } from "./tool-panel";
 
 type Generated = { id: number; provider: ImageProvider; url: string; prompt: string; size: string; topicId: string; style: ImageStyle; seconds: number };
@@ -40,10 +41,10 @@ async function copyImage(blob: Promise<Blob>) {
 }
 
 /** 주제에 맞는 수업 그림을 GPT나 Gemini로 만들고, 마음에 드는 그림을 주제 카드·수업 화면·활동지에 넣습니다. 같은 설명으로 두 모델을 번갈아 써 볼 수 있습니다. */
-export function CultureImagePanel({ topics, ready, attached, onAttach }: { topics: CultureTopic[]; ready: Record<ImageProvider, boolean>; attached: Record<string, string>; onAttach: (topicId: string, image: string | null) => void }) {
+export function CultureImagePanel({ profile, topics, ready, attached, onAttach }: { profile: CultureProfile; topics: CultureTopic[]; ready: Record<ImageProvider, boolean>; attached: Record<string, string>; onAttach: (topicId: string, image: string | null) => void }) {
   const first = topics[0];
   const [topicId, setTopicId] = useState(first?.id ?? "");
-  const [request, setRequest] = useState(() => first ? topicImageRequest(first) : "");
+  const [request, setRequest] = useState(() => first ? topicImageRequest(profile.country, first) : "");
   const [style, setStyle] = useState<ImageStyle>("textbook");
   const [size, setSize] = useState<ImageSize>("landscape");
   const [large, setLarge] = useState(false);
@@ -69,8 +70,8 @@ export function CultureImagePanel({ topics, ready, attached, onAttach }: { topic
 
   function chooseTopic(id: string) {
     setTopicId(id);
-    const topic = cultureTopic(id);
-    if (topic) setRequest(topicImageRequest(topic));
+    const topic = findTopic(profile, id);
+    if (topic) setRequest(topicImageRequest(profile.country, topic));
     if (!topic) setText("none");
   }
 
@@ -82,9 +83,9 @@ export function CultureImagePanel({ topics, ready, attached, onAttach }: { topic
     setElapsed(0);
     setRunning({ provider, started, controller });
     try {
-      const response = await fetch("/api/teacher/japanese/image", {
+      const response = await fetch("/api/teacher/culture/image", {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify({ provider, topicId, style, size, large, text, request }),
+        body: JSON.stringify({ profile: profile.id, provider, topicId, style, size, large, text, request }),
       });
       const payload = await response.json().catch(() => ({})) as { image?: string; prompt?: string; size?: string; error?: string };
       if (!response.ok || !payload.image) throw new Error(payload.error ?? `${imageProviders[provider]}가 그림을 만들지 못했어요.`);
@@ -97,7 +98,7 @@ export function CultureImagePanel({ topics, ready, attached, onAttach }: { topic
   }
 
   const styleName = (id: ImageStyle) => imageStyles.find(item => item.id === id)?.name ?? "";
-  const topicName = (id: string) => cultureTopic(id)?.title ?? "직접 적은 그림";
+  const topicName = (id: string) => findTopic(profile, id)?.title ?? "직접 적은 그림";
   const chip = (active: boolean) => cn("min-h-8 rounded-full border px-3 text-[.76rem] font-bold", active ? "border-brand/40 bg-brand-soft text-brand-dark" : "border-line bg-surface text-ink-4 hover:border-brand/25");
 
   return (
@@ -122,11 +123,11 @@ export function CultureImagePanel({ topics, ready, attached, onAttach }: { topic
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-ink-4">만들고 싶은 그림</span>
             <textarea value={request} rows={6} maxLength={MAX_CULTURE_IMAGE_REQUEST} onChange={event => setRequest(event.target.value)}
-              placeholder="예: 설날 아침, 일본 가족이 신사에 새해 첫 참배(初詣)를 하러 가는 장면. 입구에 門松 장식이 있고 사람들은 겨울옷과 기모노를 입었다."
+              placeholder={profile.imageExample}
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-[.84rem] leading-6 text-ink outline-none focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/10" />
             <span className="mt-0.5 block text-right text-[.68rem] text-ink-5">{request.length}/{MAX_CULTURE_IMAGE_REQUEST}</span>
           </label>
-          <p className="break-keep text-[.72rem] leading-5 text-ink-4">기모노 여밈 방향처럼 AI가 틀리기 쉬운 점, 다른 나라 풍습과 섞지 않기, 실제 인물·만화 캐릭터를 그리지 않기를 함께 알려 줘요.</p>
+          <p className="break-keep text-[.72rem] leading-5 text-ink-4">{profile.imageHint}</p>
         </div>
         <div className="space-y-3">
           <div>
@@ -137,8 +138,8 @@ export function CultureImagePanel({ topics, ready, attached, onAttach }: { topic
           </div>
           <div>
             <p className="mb-1 text-xs font-semibold text-ink-4">그림 속 글자</p>
-            <Segmented label="그림 속 글자" value={text} onChange={setText} options={(Object.keys(imageTextModes) as ImageTextMode[]).map(value => ({ value, label: imageTextModes[value].label, title: value === "none" ? "AI가 쓴 글자는 틀리기 쉬워 글자 없이 그리기를 권해요." : "주제 낱말만 이름표로 달아요." }))} />
-            {text !== "none" && !cultureTopic(topicId) && <p className="mt-1 text-[.72rem] text-warn">이름표는 주제를 골랐을 때 주제 낱말로 달아요.</p>}
+            <Segmented label="그림 속 글자" value={text} onChange={setText} options={(Object.keys(imageTextModes) as ImageTextMode[]).map(value => ({ value, label: value === "native" ? `${profile.language} 이름표` : imageTextModes[value].label, title: value === "none" ? "AI가 쓴 글자는 틀리기 쉬워 글자 없이 그리기를 권해요." : "주제 낱말만 이름표로 달아요." }))} />
+            {text !== "none" && !findTopic(profile, topicId) && <p className="mt-1 text-[.72rem] text-warn">이름표는 주제를 골랐을 때 주제 낱말로 달아요.</p>}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
             <div>

@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { plainOf } from "@/features/japanese/text";
-import { JapaneseLine, type EditableSentence } from "./japanese-sentence";
+import { plainOf, type TextProfile } from "@/features/study-text/core";
+import { StudyLine, type EditableSentence } from "./text-sentence";
 
 const layers = [
-  { key: "furigana", label: "후리가나" },
+  { key: "ruby", label: "읽기" },
   { key: "spaced", label: "끊어 읽기" },
   { key: "meaning", label: "해석" },
   { key: "grammar", label: "문법" },
@@ -19,12 +19,12 @@ const rates = [0.6, 0.8, 1] as const;
 // 긴 문장도 한 화면에 들어가도록 글자 수에 따라 글자 크기를 줄입니다.
 const lineSize = (count: number) => count <= 12 ? "text-[clamp(2.4rem,6vw,5.6rem)]" : count <= 24 ? "text-[clamp(2rem,4.4vw,4.2rem)]" : count <= 40 ? "text-[clamp(1.7rem,3.3vw,3.1rem)]" : "text-[clamp(1.4rem,2.5vw,2.4rem)]";
 
-/** 수업 중에 본문을 크게 띄우고, 설명하는 순서대로 후리가나·끊어 읽기·해석·문법을 하나씩 켭니다. S를 누르면 문장을 읽어 줍니다. */
-export function JapaneseTextShow({ title, sentences, speak, onClose }: { title: string; sentences: EditableSentence[]; speak: (text: string, rate?: number) => void; onClose: () => void }) {
+/** 수업 중에 본문을 크게 띄우고, 설명하는 순서대로 읽기(후리가나·병음)·끊어 읽기·해석·문법을 하나씩 켭니다. S를 누르면 문장을 읽어 줍니다. */
+export function StudyTextShow({ profile, title, sentences, speak, onClose }: { profile: TextProfile; title: string; sentences: EditableSentence[]; speak: (text: string, rate?: number) => void; onClose: () => void }) {
   const [index, setIndex] = useState(0);
   const [all, setAll] = useState(false);
   const [rate, setRate] = useState<(typeof rates)[number]>(0.8);
-  const [shown, setShown] = useState<Record<Layer, boolean>>({ furigana: false, spaced: false, meaning: false, grammar: false, words: false });
+  const [shown, setShown] = useState<Record<Layer, boolean>>({ ruby: false, spaced: false, meaning: false, grammar: false, words: false });
   const stage = useRef<HTMLDivElement>(null);
   const last = sentences.length - 1;
   const toggle = (layer: Layer) => setShown(current => ({ ...current, [layer]: !current[layer] }));
@@ -60,13 +60,13 @@ export function JapaneseTextShow({ title, sentences, speak, onClose }: { title: 
   const pill = (active: boolean) => cn("min-h-10 rounded-full px-3.5 text-[.8rem] font-bold transition", active ? "bg-[#7a2f1f] text-white" : "bg-[#2b2418]/8 text-[#3b3226] hover:bg-[#2b2418]/15");
   const list = all ? sentences : sentences.slice(index, index + 1);
   return (
-    <div ref={stage} role="dialog" aria-modal="true" aria-label="일본어 수업 화면" className="fixed inset-0 z-[80] flex flex-col bg-[#fbf7ee] text-[#1f1a14]">
+    <div ref={stage} role="dialog" aria-modal="true" aria-label={`${profile.language} 수업 화면`} className="fixed inset-0 z-[80] flex flex-col bg-[#fbf7ee] text-[#1f1a14]">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <p className="min-w-0 truncate text-[.82rem] font-semibold text-[#6d6252]">{title || "일본어 본문"} · {all ? `전체 ${sentences.length}문장` : `${index + 1} / ${sentences.length}`}</p>
+        <p className="min-w-0 truncate text-[.82rem] font-semibold text-[#6d6252]">{title || `${profile.language} 본문`} · {all ? `전체 ${sentences.length}문장` : `${index + 1} / ${sentences.length}`}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           {layers.map((layer, layerIndex) => (
-            <button key={layer.key} type="button" aria-pressed={shown[layer.key]} onClick={() => toggle(layer.key)} title={`${layer.label} 보이기·가리기 (${layerIndex + 1})`} className={pill(shown[layer.key])}>
-              <span className="mr-1 text-[.7em] opacity-60">{layerIndex + 1}</span>{layer.label}
+            <button key={layer.key} type="button" aria-pressed={shown[layer.key]} onClick={() => toggle(layer.key)} title={`${layer.key === "ruby" ? profile.rubyName : layer.label} 보이기·가리기 (${layerIndex + 1})`} className={pill(shown[layer.key])}>
+              <span className="mr-1 text-[.7em] opacity-60">{layerIndex + 1}</span>{layer.key === "ruby" ? profile.rubyName : layer.label}
             </button>
           ))}
           <button type="button" aria-pressed={all} onClick={() => setAll(value => !value)} title="한 문장씩·전체 보기 (A)" className={cn("min-h-10 rounded-full px-3.5 text-[.8rem] font-bold transition", all ? "bg-[#3b3226] text-white" : "bg-[#2b2418]/8 text-[#3b3226] hover:bg-[#2b2418]/15")}>전체</button>
@@ -82,14 +82,14 @@ export function JapaneseTextShow({ title, sentences, speak, onClose }: { title: 
         <div className={cn("mx-auto flex min-h-full max-w-[1500px] flex-col", all ? "gap-8 py-6" : "justify-center gap-6 py-4")}>
           {list.map(sentence => (
             <section key={sentence.id} className={cn(all ? "border-b border-[#2b2418]/10 pb-6" : "text-center")}>
-              <JapaneseLine ruby={sentence.ruby} furigana={shown.furigana} spaced={shown.spaced} accent="text-[#a3402a]"
-                className={cn("text-[#1f1a14] [&_rt]:text-[#8a5a3c]", all ? "text-[clamp(1.6rem,3vw,2.8rem)]" : lineSize([...plainOf(sentence.ruby)].length), shown.furigana && "leading-[2.3]")} />
+              <StudyLine profile={profile} ruby={sentence.ruby} showRuby={shown.ruby} spaced={shown.spaced} accent="text-[#a3402a]"
+                className={cn("text-[#1f1a14] [&_rt]:text-[#8a5a3c]", all ? "text-[clamp(1.6rem,3vw,2.8rem)]" : lineSize([...plainOf(sentence.ruby)].length), shown.ruby && "leading-[2.3]")} />
               {shown.meaning && sentence.translation && <p className={cn("mt-4 break-keep font-semibold text-[#2b2418]", all ? "text-[clamp(1rem,1.5vw,1.35rem)]" : "text-[clamp(1.15rem,2.1vw,2rem)]")}>{sentence.translation}</p>}
               {shown.grammar && sentence.grammar.length > 0 && (
                 <ul className={cn("mt-4 flex flex-wrap gap-2", !all && "justify-center")}>
                   {sentence.grammar.map((item, itemIndex) => (
                     <li key={itemIndex} className="rounded-2xl bg-[#7a2f1f]/8 px-3.5 py-2 text-[clamp(.95rem,1.4vw,1.25rem)]">
-                      <span lang="ja" className="font-ja text-[1.2em] font-bold text-[#7a2f1f]">{item.pattern || item.surface}</span>
+                      <span lang={profile.speech} className={cn(profile.fontClass, "text-[1.2em] font-bold text-[#7a2f1f]")}>{item.pattern || item.surface}</span>
                       <span className="ml-2 text-[#3b3226]">{item.meaning}</span>
                     </li>
                   ))}
@@ -99,8 +99,8 @@ export function JapaneseTextShow({ title, sentences, speak, onClose }: { title: 
                 <ul className={cn("mt-4 flex flex-wrap gap-2", !all && "justify-center")}>
                   {sentence.words.map((word, wordIndex) => (
                     <li key={wordIndex} className="rounded-2xl bg-white/80 px-3.5 py-2 text-[clamp(.95rem,1.4vw,1.25rem)] shadow-[0_2px_10px_rgba(60,40,20,.08)]">
-                      <span lang="ja" className="font-ja text-[1.2em] font-bold">{word.word}</span>
-                      {word.reading && word.reading !== word.word && <span lang="ja" className="font-ja ml-1 text-[#8a5a3c]">{word.reading}</span>}
+                      <span lang={profile.speech} className={cn(profile.fontClass, "text-[1.2em] font-bold")}>{word.word}</span>
+                      {word.reading && word.reading !== word.word && <span lang={profile.speech} className={cn(profile.fontClass, "ml-1 text-[#8a5a3c]")}>{word.reading}</span>}
                       <span className="ml-2 text-[#3b3226]">{word.meaning}</span>
                     </li>
                   ))}

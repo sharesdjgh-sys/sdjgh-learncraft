@@ -6,34 +6,43 @@ import { AlertCircle, AlertTriangle, BookOpenText, ClipboardCheck, Copy, FileTex
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
-import { stripRuby, type CultureTopic } from "@/features/japanese/culture";
+import { objectParticle, stripRuby, type CultureTopic } from "@/features/culture/core";
+import type { CultureProfile } from "@/features/culture/profiles";
 import {
   readingIssues, readingSchema, readingSheetHtml, readingSheetText, readingSheetTypeKeys, readingSheetTypes,
   type ReadingMaterial, type ReadingRequest, type ReadingSheetOptions, type ReadingSheetType,
-} from "@/features/japanese/culture-reading";
+} from "@/features/culture/reading";
 import { Card, Segmented, Toggle } from "./tool-panel";
 import { copyToClipboard, PrintablePage } from "./hanmun-sheet";
-import { RubyInline } from "./japanese-ruby";
+import { RubyInline } from "./ruby-inline";
 
-type Saved = { id: string; request: ReadingRequest; material: ReadingMaterial; updatedAt: number };
+type Saved = { id: string; request: Omit<ReadingRequest, "profile">; material: ReadingMaterial; updatedAt: number };
 type Tab = "edit" | "sheet";
 
-// 읽기 자료는 이 브라우저에만 20개까지 저장합니다. 깨진 자료 하나 때문에 나머지를 잃지 않도록 자료마다 따로 확인합니다.
-const storageKey = "learncraft_japanese_culture_reading_v1";
+// 읽기 자료는 이 브라우저에만 과목마다 20개까지 저장합니다. 깨진 자료 하나 때문에 나머지를 잃지 않도록 자료마다 따로 확인합니다.
+// 처음 만든 일본문화 화면은 현지어 글을 language "ja", 읽기 표시를 furigana로 저장했습니다.
 const MAX_SAVED = 20;
-const requestStored = z.object({ topic: z.string().max(60), notes: z.string().max(1500).catch(""), language: z.enum(["ko", "ja"]).catch("ko"), level: z.enum(["easy", "normal"]).catch("easy"), length: z.enum(["short", "medium"]).catch("short") });
+const requestStored = z.object({
+  topic: z.string().max(60), notes: z.string().max(1500).catch(""),
+  language: z.preprocess(value => value === "ja" ? "native" : value, z.enum(["ko", "native"])).catch("ko"),
+  level: z.enum(["easy", "normal"]).catch("easy"), length: z.enum(["short", "medium"]).catch("short"),
+});
 const savedSchema = z.object({ id: z.string(), request: requestStored, material: readingSchema, updatedAt: z.number().catch(0) });
-const defaultSheet: ReadingSheetOptions = { types: ["words", "choices", "ox", "essays"], furigana: true, translation: true, answers: true };
+const defaultSheet: ReadingSheetOptions = { types: ["words", "choices", "ox", "essays"], ruby: true, translation: true, answers: true };
 const storedSchema = z.object({
   saved: z.array(z.unknown()).catch([]).transform(items => items.flatMap(item => { const parsed = savedSchema.safeParse(item); return parsed.success ? [parsed.data] : []; }).slice(0, MAX_SAVED)),
   currentId: z.string().nullable().catch(null),
   tab: z.enum(["edit", "sheet"]).catch("edit"),
-  sheet: z.object({ types: z.array(z.enum(readingSheetTypeKeys as [ReadingSheetType, ...ReadingSheetType[]])).catch(defaultSheet.types), furigana: z.boolean().catch(true), translation: z.boolean().catch(true), answers: z.boolean().catch(true) }).catch(defaultSheet),
+  sheet: z.object({
+    types: z.array(z.enum(readingSheetTypeKeys as [ReadingSheetType, ...ReadingSheetType[]])).catch(defaultSheet.types),
+    ruby: z.boolean().optional().catch(undefined), furigana: z.boolean().optional().catch(undefined), translation: z.boolean().catch(true), answers: z.boolean().catch(true),
+  }).catch(defaultSheet).transform(({ ruby, furigana, ...rest }): ReadingSheetOptions => ({ ...rest, ruby: ruby ?? furigana ?? true })),
 });
 type Stored = z.infer<typeof storedSchema>;
-export function readReadingStored(): Stored {
+type SavedRequest = Omit<ReadingRequest, "profile">;
+export function readReadingStored(profile: CultureProfile): Stored {
   try {
-    const saved = window.localStorage.getItem(storageKey);
+    const saved = window.localStorage.getItem(profile.storage.reading);
     return storedSchema.parse(saved ? JSON.parse(saved) : {});
   } catch {
     return storedSchema.parse({});
@@ -43,7 +52,7 @@ const makeId = () => `${Date.now().toString(36)}-${Math.random().toString(36).sl
 const fieldClass = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-5 focus:border-brand/50 focus:ring-2 focus:ring-brand/10";
 const labelClass = "block text-[.78rem] font-bold text-ink-3";
 const circled = (index: number) => String.fromCharCode(0x2460 + index);
-const topicLabel = (topic: CultureTopic) => `${topic.title}(${stripRuby(topic.ja)})`;
+const topicLabel = (topic: CultureTopic) => `${topic.title}(${stripRuby(topic.native)})`;
 
 async function readJson<T>(response: Response) {
   const data = await response.json().catch(() => ({})) as T & { error?: string };
@@ -51,11 +60,12 @@ async function readJson<T>(response: Response) {
   return data;
 }
 
-function MaterialEditor({ saved, onChange }: { saved: Saved; onChange: (material: ReadingMaterial) => void }) {
+function MaterialEditor({ profile, saved, onChange }: { profile: CultureProfile; saved: Saved; onChange: (material: ReadingMaterial) => void }) {
   const { material, request } = saved;
-  const japanese = request.language === "ja";
+  const native = request.language === "native";
+  const lang = profile.speech;
   const set = (patch: Partial<ReadingMaterial>) => onChange({ ...material, ...patch });
-  const issues = readingIssues(material, request.language);
+  const issues = readingIssues(profile, material, request.language);
   return (
     <div className="space-y-4">
       {issues.length > 0 && (
@@ -69,12 +79,12 @@ function MaterialEditor({ saved, onChange }: { saved: Saved; onChange: (material
         <input value={material.title} maxLength={80} onChange={event => set({ title: event.target.value })} className={cn(fieldClass, "mt-1")} />
       </label>
       <section className="space-y-3 rounded-[18px] border border-line bg-surface p-4 shadow-[var(--lift-1)]">
-        <h3 className="text-sm font-extrabold text-ink">글 <span className="text-xs font-semibold text-ink-4">일본어 한자는 {"{"}漢字|かんじ{"}"}로 후리가나를 달아요</span></h3>
+        <h3 className="text-sm font-extrabold text-ink">글 <span className="text-xs font-semibold text-ink-4">{profile.language} 한자는 {profile.rubyExample} 모양으로 {objectParticle(profile.rubyName)} 달아요</span></h3>
         {material.paragraphs.map((paragraph, index) => (
           <div key={index} className="space-y-1.5 rounded-xl bg-surface-2 p-3">
-            <p className={cn("break-keep text-ink", japanese ? "font-ja text-[1.1rem] leading-[2.1]" : "text-[.95rem] leading-8")} lang={japanese ? "ja" : "ko"}><RubyInline text={paragraph.text} /></p>
-            <textarea aria-label={`${index + 1}문단`} lang={japanese ? "ja" : "ko"} value={paragraph.text} rows={3} maxLength={900} onChange={event => set({ paragraphs: material.paragraphs.map((item, position) => position === index ? { ...item, text: event.target.value } : item) })} className={cn(fieldClass, "resize-y text-[.85rem]", japanese && "font-ja")} />
-            {japanese && <textarea aria-label={`${index + 1}문단 해석`} value={paragraph.translation} rows={2} maxLength={900} placeholder="해석" onChange={event => set({ paragraphs: material.paragraphs.map((item, position) => position === index ? { ...item, translation: event.target.value } : item) })} className={cn(fieldClass, "resize-y text-[.85rem]")} />}
+            <p className={cn("break-keep text-ink", native ? cn(profile.fontClass, "text-[1.1rem] leading-[2.1]") : "text-[.95rem] leading-8")} lang={native ? lang : "ko"}><RubyInline text={paragraph.text} lang={lang} fontClass={profile.fontClass} /></p>
+            <textarea aria-label={`${index + 1}문단`} lang={native ? lang : "ko"} value={paragraph.text} rows={3} maxLength={900} onChange={event => set({ paragraphs: material.paragraphs.map((item, position) => position === index ? { ...item, text: event.target.value } : item) })} className={cn(fieldClass, "resize-y text-[.85rem]", native && profile.fontClass)} />
+            {native && <textarea aria-label={`${index + 1}문단 해석`} value={paragraph.translation} rows={2} maxLength={900} placeholder="해석" onChange={event => set({ paragraphs: material.paragraphs.map((item, position) => position === index ? { ...item, translation: event.target.value } : item) })} className={cn(fieldClass, "resize-y text-[.85rem]")} />}
             <button type="button" onClick={() => set({ paragraphs: material.paragraphs.filter((_, position) => position !== index) })} disabled={material.paragraphs.length < 2} className="text-[.74rem] font-bold text-ink-4 hover:text-danger disabled:opacity-40">문단 지우기</button>
           </div>
         ))}
@@ -84,8 +94,8 @@ function MaterialEditor({ saved, onChange }: { saved: Saved; onChange: (material
         <h3 className="text-sm font-extrabold text-ink">낱말</h3>
         {material.words.map((word, index) => (
           <div key={index} className="grid grid-cols-[6rem_7rem_minmax(0,1fr)_auto] gap-1.5">
-            <input aria-label="낱말" lang="ja" value={word.word} maxLength={20} onChange={event => set({ words: material.words.map((item, position) => position === index ? { ...item, word: event.target.value } : item) })} className={cn(fieldClass, "font-ja px-2")} />
-            <input aria-label="읽기" lang="ja" value={word.reading} maxLength={30} onChange={event => set({ words: material.words.map((item, position) => position === index ? { ...item, reading: event.target.value } : item) })} className={cn(fieldClass, "font-ja px-2")} />
+            <input aria-label="낱말" lang={lang} value={word.word} maxLength={20} onChange={event => set({ words: material.words.map((item, position) => position === index ? { ...item, word: event.target.value } : item) })} className={cn(fieldClass, profile.fontClass, "px-2")} />
+            <input aria-label="읽기" lang={lang} value={word.reading} maxLength={40} onChange={event => set({ words: material.words.map((item, position) => position === index ? { ...item, reading: event.target.value } : item) })} className={cn(fieldClass, profile.fontClass, "px-2")} />
             <input aria-label="뜻" value={word.meaning} maxLength={80} onChange={event => set({ words: material.words.map((item, position) => position === index ? { ...item, meaning: event.target.value } : item) })} className={cn(fieldClass, "px-2")} />
             <button type="button" onClick={() => set({ words: material.words.filter((_, position) => position !== index) })} className="grid min-h-10 w-9 place-items-center rounded-xl text-ink-5 hover:bg-surface-2 hover:text-danger" aria-label={`${word.word || "낱말"} 지우기`}><X size={15} /></button>
           </div>
@@ -138,12 +148,13 @@ function MaterialEditor({ saved, onChange }: { saved: Saved; onChange: (material
 }
 
 /** 주제로 AI 읽기 자료를 만들고, 고친 뒤 학습지로 뽑습니다. */
-export function CultureReading({ topics, initialTopic, initial }: { topics: CultureTopic[]; initialTopic: string; initial: Stored }) {
+export function CultureReading({ profile, initialTopic, initial }: { profile: CultureProfile; initialTopic: string; initial: Stored }) {
+  const topics = profile.topics;
   const [saved, setSaved] = useState<Saved[]>(initial.saved);
   const [currentId, setCurrentId] = useState<string | null>(initial.saved.some(item => item.id === initial.currentId) ? initial.currentId : initial.saved[0]?.id ?? null);
   const [tab, setTab] = useState<Tab>(initial.tab);
   const [sheet, setSheet] = useState<ReadingSheetOptions>(initial.sheet);
-  const [request, setRequest] = useState<ReadingRequest>({ topic: initialTopic, notes: "", language: "ko", level: "easy", length: "short" });
+  const [request, setRequest] = useState<SavedRequest>({ topic: initialTopic, notes: "", language: "ko", level: "easy", length: "short" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -152,8 +163,8 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
   const current = saved.find(item => item.id === currentId) ?? null;
 
   useEffect(() => {
-    try { window.localStorage.setItem(storageKey, JSON.stringify({ saved, currentId, tab, sheet })); } catch { /* 저장하지 못해도 이번 화면에서는 계속 쓸 수 있습니다. */ }
-  }, [saved, currentId, tab, sheet]);
+    try { window.localStorage.setItem(profile.storage.reading, JSON.stringify({ saved, currentId, tab, sheet })); } catch { /* 저장하지 못해도 이번 화면에서는 계속 쓸 수 있습니다. */ }
+  }, [profile, saved, currentId, tab, sheet]);
   useEffect(() => () => controller.current?.abort(), []);
 
   async function generate() {
@@ -163,8 +174,8 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
     setLoading(true);
     setError("");
     try {
-      const data = await readJson<{ material: ReadingMaterial }>(await fetch("/api/teacher/japanese/culture", {
-        method: "POST", headers: { "Content-Type": "application/json" }, signal: call.signal, body: JSON.stringify(request),
+      const data = await readJson<{ material: ReadingMaterial }>(await fetch("/api/teacher/culture/reading", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: call.signal, body: JSON.stringify({ ...request, profile: profile.id }),
       }));
       const item: Saved = { id: makeId(), request, material: data.material, updatedAt: Date.now() };
       setSaved(list => [item, ...list].slice(0, MAX_SAVED));
@@ -189,7 +200,7 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
 
   async function copy() {
     if (!current) return;
-    await copyToClipboard({ text: readingSheetText(current.material, current.request.language, sheet), html: readingSheetHtml(current.material, current.request.language, sheet, "clipboard") });
+    await copyToClipboard({ text: readingSheetText(profile, current.material, current.request.language, sheet), html: readingSheetHtml(profile, current.material, current.request.language, sheet, "clipboard") });
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -200,13 +211,13 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
         <Card title="읽기 자료 만들기" help="AI가 주제에 맞는 글과 낱말·객관식·O·X·서술형 문항 초안을 만들어요. 교과서 내용을 붙여 넣으면 그 범위에 맞춰 씁니다.">
           <form onSubmit={event => { event.preventDefault(); if (request.topic.trim() && !loading) void generate(); }} className="space-y-3">
             <label className={labelClass}>주제
-              <input list="culture-topics" value={request.topic} maxLength={60} onChange={event => setRequest({ ...request, topic: event.target.value })} placeholder="예: 설날(お正月)" className={cn(fieldClass, "mt-1")} />
+              <input list="culture-topics" value={request.topic} maxLength={60} onChange={event => setRequest({ ...request, topic: event.target.value })} placeholder={`예: ${topicLabel(topics[0])}`} className={cn(fieldClass, "mt-1")} />
               <datalist id="culture-topics">{topics.map(topic => <option key={topic.id} value={topicLabel(topic)} />)}</datalist>
             </label>
             <label className={labelClass}>요청·교과서 내용 <span className="font-semibold text-ink-5">(선택)</span>
-              <textarea value={request.notes} rows={4} maxLength={1500} onChange={event => setRequest({ ...request, notes: event.target.value })} placeholder="예: 교과서 3단원 본문을 바탕으로, 한국 설날과 비교하는 문단을 꼭 넣어 주세요." className={cn(fieldClass, "mt-1 resize-y")} />
+              <textarea value={request.notes} rows={4} maxLength={1500} onChange={event => setRequest({ ...request, notes: event.target.value })} placeholder="예: 교과서 3단원 본문을 바탕으로, 한국 명절과 비교하는 문단을 꼭 넣어 주세요." className={cn(fieldClass, "mt-1 resize-y")} />
             </label>
-            <Segmented label="글 언어" value={request.language} onChange={language => setRequest({ ...request, language })} options={[{ value: "ko", label: "한국어 글" }, { value: "ja", label: "일본어 글 + 해석" }]} />
+            <Segmented label="글 언어" value={request.language} onChange={language => setRequest({ ...request, language })} options={[{ value: "ko", label: "한국어 글" }, { value: "native", label: profile.readingLanguageLabel }]} />
             <div className="grid grid-cols-2 gap-2">
               <Segmented label="수준" value={request.level} onChange={level => setRequest({ ...request, level })} options={[{ value: "easy", label: "쉽게" }, { value: "normal", label: "보통" }]} />
               <Segmented label="길이" value={request.length} onChange={length => setRequest({ ...request, length })} options={[{ value: "short", label: "짧게" }, { value: "medium", label: "길게" }]} />
@@ -222,7 +233,7 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
                 <li key={item.id} className={cn("group flex items-center gap-1 rounded-xl border", item.id === currentId ? "border-brand/30 bg-brand-page" : "border-transparent hover:bg-surface-2")}>
                   <button type="button" onClick={() => setCurrentId(item.id)} aria-current={item.id === currentId ? "true" : undefined} className="min-w-0 flex-1 px-2.5 py-2 text-left">
                     <span className="block truncate text-[.84rem] font-bold text-ink">{stripRuby(item.material.title) || item.request.topic}</span>
-                    <span className="block text-[.7rem] text-ink-4">{item.request.language === "ja" ? "일본어 글" : "한국어 글"} · {new Date(item.updatedAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}</span>
+                    <span className="block text-[.7rem] text-ink-4">{item.request.language === "native" ? `${profile.language} 글` : "한국어 글"} · {new Date(item.updatedAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}</span>
                   </button>
                   <button type="button" onClick={() => void remove(item)} className="mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-ink-5 opacity-60 hover:bg-surface hover:text-danger group-hover:opacity-100" aria-label={`${stripRuby(item.material.title) || item.request.topic} 지우기`}><Trash2 size={14} /></button>
                 </li>
@@ -239,7 +250,7 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-surface-2 px-6 text-center text-[.9rem] text-ink-3">
             <BookOpenText size={24} className="text-brand" />
             <p className="font-bold text-ink-2">주제를 정하고 ‘AI 읽기 자료 만들기’를 눌러 주세요.</p>
-            <p className="break-keep">한국어 글이나 쉬운 일본어 글(해석 포함)과 내용 확인 문항이 만들어져요. 고친 뒤 학습지로 인쇄할 수 있어요.</p>
+            <p className="break-keep">한국어 글이나 쉬운 {profile.language} 글(해석 포함)과 내용 확인 문항이 만들어져요. 고친 뒤 학습지로 인쇄할 수 있어요.</p>
           </div>
         ) : (
           <>
@@ -255,14 +266,14 @@ export function CultureReading({ topics, initialTopic, initial }: { topics: Cult
                 </div>
               )}
             </div>
-            {tab === "edit" ? <MaterialEditor key={current.id} saved={current} onChange={update} /> : (
+            {tab === "edit" ? <MaterialEditor key={current.id} profile={profile} saved={current} onChange={update} /> : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-1.5 rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)]">
                   {readingSheetTypeKeys.map(type => <button key={type} type="button" aria-pressed={sheet.types.includes(type)} onClick={() => setSheet({ ...sheet, types: sheet.types.includes(type) ? sheet.types.filter(item => item !== type) : [...sheet.types, type] })} className={chipClass(sheet.types.includes(type))}>{readingSheetTypes[type]}</button>)}
                   <span className="mx-1 h-6 w-px bg-line" />
-                  <div className="flex flex-wrap gap-x-3"><Toggle label="후리가나" checked={sheet.furigana} onChange={furigana => setSheet({ ...sheet, furigana })} />{current.request.language === "ja" && <Toggle label="해석 넣기" checked={sheet.translation} onChange={translation => setSheet({ ...sheet, translation })} />}<Toggle label="정답지" checked={sheet.answers} onChange={answers => setSheet({ ...sheet, answers })} /></div>
+                  <div className="flex flex-wrap gap-x-3"><Toggle label={profile.rubyName} checked={sheet.ruby} onChange={ruby => setSheet({ ...sheet, ruby })} />{current.request.language === "native" && <Toggle label="해석 넣기" checked={sheet.translation} onChange={translation => setSheet({ ...sheet, translation })} />}<Toggle label="정답지" checked={sheet.answers} onChange={answers => setSheet({ ...sheet, answers })} /></div>
                 </div>
-                <PrintablePage id="culture-reading-print" html={readingSheetHtml(current.material, current.request.language, sheet, "screen")} />
+                <PrintablePage id="culture-reading-print" html={readingSheetHtml(profile, current.material, current.request.language, sheet, "screen")} />
               </div>
             )}
           </>

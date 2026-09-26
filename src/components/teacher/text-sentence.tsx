@@ -4,21 +4,21 @@ import { useState } from "react";
 import { CheckCircle2, Circle, PencilLine, Plus, Trash2, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { chunksOf, plainOf, posLabels, sentenceIssues, type JapaneseGrammar, type JapaneseSentence, type JapaneseWord } from "@/features/japanese/text";
+import { chunksOf, plainOf, sentenceIssues, type TextGrammar, type TextProfile, type TextSentence, type TextWord } from "@/features/study-text/core";
 import { IssueList } from "./hanmun-sentence";
 
-export type EditableSentence = JapaneseSentence & { id: string; checked: boolean };
+export type EditableSentence = TextSentence & { id: string; checked: boolean };
 
-/** 일본어 한 문장을 후리가나·끊어 읽기를 골라 보여 줍니다. 수업 화면과 풀이 카드가 함께 씁니다. */
-export function JapaneseLine({ ruby, furigana, spaced, className, accent = "text-brand-dark" }: { ruby: string; furigana: boolean; spaced: boolean; className?: string; accent?: string }) {
+/** 일본어·중국어 한 문장을 읽기(후리가나·병음)·끊어 읽기를 골라 보여 줍니다. 수업 화면과 풀이 카드가 함께 씁니다. */
+export function StudyLine({ profile, ruby, showRuby, spaced, className, accent = "text-brand-dark" }: { profile: TextProfile; ruby: string; showRuby: boolean; spaced: boolean; className?: string; accent?: string }) {
   const chunks = chunksOf(ruby);
   return (
-    <p lang="ja" className={cn("font-ja break-all leading-[2.1] [&_rt]:text-[.45em] [&_rt]:font-normal [&_rt]:text-ink-4", className)}>
+    <p lang={profile.speech} className={cn(profile.fontClass, "break-all leading-[2.1] [&_rt]:text-[.45em] [&_rt]:font-normal [&_rt]:text-ink-4", className)}>
       {chunks.map((chunk, chunkIndex) => (
         <span key={chunkIndex} className="inline">
           {chunkIndex > 0 && spaced && <span aria-hidden="true" className={cn("mx-[.18em] font-sans font-light opacity-50", accent)}>/</span>}
           {chunk.map((token, tokenIndex) => token.kind === "ruby"
-            ? furigana ? <ruby key={tokenIndex}>{token.base}<rt>{token.reading}</rt></ruby> : <span key={tokenIndex}>{token.base}</span>
+            ? showRuby ? <ruby key={tokenIndex}>{token.base}<rt>{token.reading}</rt></ruby> : <span key={tokenIndex}>{token.base}</span>
             : <span key={tokenIndex}>{token.text}</span>)}
         </span>
       ))}
@@ -28,17 +28,23 @@ export function JapaneseLine({ ruby, furigana, spaced, className, accent = "text
 
 const fieldClass = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-5 focus:border-brand/50 focus:ring-2 focus:ring-brand/10";
 const labelClass = "block text-[.78rem] font-bold text-ink-3";
-const emptyWord: JapaneseWord = { word: "", reading: "", meaning: "", pos: "명사" };
-const emptyGrammar: JapaneseGrammar = { pattern: "", surface: "", meaning: "" };
+const emptyGrammar: TextGrammar = { pattern: "", surface: "", meaning: "" };
+// 편집 칸 예시입니다.
+const hints = {
+  japanese: { ruby: "한자는 {漢字|かんじ}, 끊어 읽는 곳은 / 로", pattern: "〜ています", surface: "ています" },
+  chinese: { ruby: "낱말마다 {汉字|hàn zì}(성조 부호, 음절마다 띄어 씀), 끊어 읽는 곳은 / 로", pattern: "因为…所以…", surface: "因为" },
+} as const;
 
-function SentenceEditor({ sentence, onChange }: { sentence: EditableSentence; onChange: (next: EditableSentence) => void }) {
+function SentenceEditor({ profile, sentence, onChange }: { profile: TextProfile; sentence: EditableSentence; onChange: (next: EditableSentence) => void }) {
   const update = (patch: Partial<EditableSentence>) => onChange({ ...sentence, ...patch, checked: false });
-  const setWord = (index: number, patch: Partial<JapaneseWord>) => update({ words: sentence.words.map((word, position) => position === index ? { ...word, ...patch } : word) });
-  const setGrammar = (index: number, patch: Partial<JapaneseGrammar>) => update({ grammar: sentence.grammar.map((item, position) => position === index ? { ...item, ...patch } : item) });
+  const setWord = (index: number, patch: Partial<TextWord>) => update({ words: sentence.words.map((word, position) => position === index ? { ...word, ...patch } : word) });
+  const setGrammar = (index: number, patch: Partial<TextGrammar>) => update({ grammar: sentence.grammar.map((item, position) => position === index ? { ...item, ...patch } : item) });
+  const hint = hints[profile.id];
+  const lang = profile.speech;
   return (
     <div className="space-y-3 rounded-xl border border-brand/15 bg-brand-page/50 p-3.5">
-      <label className={labelClass}>후리가나 표기 <span className="font-semibold text-ink-5">한자는 {"{"}漢字|かんじ{"}"}, 끊어 읽는 곳은 / 로</span>
-        <textarea lang="ja" value={sentence.ruby} rows={2} maxLength={500} onChange={event => update({ ruby: event.target.value })} className={cn(fieldClass, "font-ja mt-1 resize-y text-[1.05rem]")} />
+      <label className={labelClass}>{profile.rubyName} 표기 <span className="font-semibold text-ink-5">{hint.ruby}</span>
+        <textarea lang={lang} value={sentence.ruby} rows={2} maxLength={500} onChange={event => update({ ruby: event.target.value })} className={cn(fieldClass, profile.fontClass, "mt-1 resize-y text-[1.05rem]")} />
       </label>
       <label className={labelClass}>해석
         <textarea value={sentence.translation} rows={2} maxLength={500} onChange={event => update({ translation: event.target.value })} className={cn(fieldClass, "mt-1 resize-y")} />
@@ -48,8 +54,8 @@ function SentenceEditor({ sentence, onChange }: { sentence: EditableSentence; on
         <div className="mt-1 space-y-1.5">
           {sentence.grammar.map((item, index) => (
             <div key={index} className="grid grid-cols-[5.5rem_5.5rem_minmax(0,1fr)_auto] gap-1.5">
-              <input aria-label="문형" placeholder="〜ています" value={item.pattern} maxLength={30} onChange={event => setGrammar(index, { pattern: event.target.value })} className={cn(fieldClass, "font-ja px-2")} />
-              <input aria-label="쓰인 글자" placeholder="ています" value={item.surface} maxLength={20} onChange={event => setGrammar(index, { surface: event.target.value })} className={cn(fieldClass, "font-ja px-2")} />
+              <input aria-label="문형" placeholder={hint.pattern} value={item.pattern} maxLength={30} onChange={event => setGrammar(index, { pattern: event.target.value })} className={cn(fieldClass, profile.fontClass, "px-2")} />
+              <input aria-label="쓰인 글자" placeholder={hint.surface} value={item.surface} maxLength={20} onChange={event => setGrammar(index, { surface: event.target.value })} className={cn(fieldClass, profile.fontClass, "px-2")} />
               <input aria-label="뜻" value={item.meaning} maxLength={120} onChange={event => setGrammar(index, { meaning: event.target.value })} className={cn(fieldClass, "px-2")} />
               <button type="button" onClick={() => update({ grammar: sentence.grammar.filter((_, position) => position !== index) })} className="grid min-h-10 w-9 place-items-center rounded-xl text-ink-5 hover:bg-surface hover:text-danger" aria-label={`${item.pattern || "문법"} 지우기`}><X size={15} /></button>
             </div>
@@ -62,16 +68,16 @@ function SentenceEditor({ sentence, onChange }: { sentence: EditableSentence; on
         <div className="mt-1 space-y-1.5">
           {sentence.words.map((word, index) => (
             <div key={index} className="grid grid-cols-[5rem_6rem_minmax(0,1fr)_5.2rem_auto] gap-1.5">
-              <input aria-label="낱말" value={word.word} maxLength={20} onChange={event => setWord(index, { word: event.target.value })} className={cn(fieldClass, "font-ja px-2")} />
-              <input aria-label="읽기" value={word.reading} maxLength={30} onChange={event => setWord(index, { reading: event.target.value })} className={cn(fieldClass, "font-ja px-2")} />
+              <input aria-label="낱말" lang={lang} value={word.word} maxLength={20} onChange={event => setWord(index, { word: event.target.value })} className={cn(fieldClass, profile.fontClass, "px-2")} />
+              <input aria-label={profile.rubyName} lang={lang} value={word.reading} maxLength={40} onChange={event => setWord(index, { reading: event.target.value })} className={cn(fieldClass, profile.fontClass, "px-2")} />
               <input aria-label="뜻" value={word.meaning} maxLength={80} onChange={event => setWord(index, { meaning: event.target.value })} className={cn(fieldClass, "px-2")} />
-              <select aria-label="품사" value={word.pos} onChange={event => setWord(index, { pos: event.target.value as JapaneseWord["pos"] })} className={cn(fieldClass, "px-1.5 text-xs")}>
-                {posLabels.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+              <select aria-label="품사" value={word.pos} onChange={event => setWord(index, { pos: event.target.value })} className={cn(fieldClass, "px-1.5 text-xs")}>
+                {[...new Set([...profile.posLabels, word.pos])].filter(Boolean).map(pos => <option key={pos} value={pos}>{pos}</option>)}
               </select>
               <button type="button" onClick={() => update({ words: sentence.words.filter((_, position) => position !== index) })} className="grid min-h-10 w-9 place-items-center rounded-xl text-ink-5 hover:bg-surface hover:text-danger" aria-label={`${word.word || "낱말"} 지우기`}><X size={15} /></button>
             </div>
           ))}
-          {sentence.words.length < 8 && <Button type="button" variant="ghost" size="sm" onClick={() => update({ words: [...sentence.words, emptyWord] })}><Plus size={14} /> 낱말 추가</Button>}
+          {sentence.words.length < 8 && <Button type="button" variant="ghost" size="sm" onClick={() => update({ words: [...sentence.words, { word: "", reading: "", meaning: "", pos: profile.posLabels[0] }] })}><Plus size={14} /> 낱말 추가</Button>}
         </div>
       </fieldset>
     </div>
@@ -79,11 +85,12 @@ function SentenceEditor({ sentence, onChange }: { sentence: EditableSentence; on
 }
 
 /** 풀이 한 문장을 보여 주고 고칠 수 있게 합니다. 고치면 검토 완료 표시가 풀립니다. */
-export function SentenceCard({ sentence, number, onChange, onDelete, onSpeak }: { sentence: EditableSentence; number: number; onChange: (next: EditableSentence) => void; onDelete: () => void; onSpeak: (text: string) => void }) {
+export function SentenceCard({ profile, sentence, number, onChange, onDelete, onSpeak }: { profile: TextProfile; sentence: EditableSentence; number: number; onChange: (next: EditableSentence) => void; onDelete: () => void; onSpeak: (text: string) => void }) {
   // 새로 추가한 빈 문장은 바로 입력할 수 있게 열어 둡니다.
   const [editing, setEditing] = useState(!sentence.ruby.trim());
-  const issues = sentenceIssues(sentence);
+  const issues = sentenceIssues(profile, sentence);
   const hasError = issues.some(issue => issue.level === "error");
+  const lang = profile.speech;
   return (
     <article className={cn("space-y-3 rounded-[18px] border bg-surface p-4 shadow-[var(--lift-1)] sm:p-5", sentence.checked ? "border-ok/30" : "border-line")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -98,20 +105,20 @@ export function SentenceCard({ sentence, number, onChange, onDelete, onSpeak }: 
           </Button>
         </div>
       </div>
-      <JapaneseLine ruby={sentence.ruby} furigana spaced={false} className="text-[1.55rem] text-ink" />
+      <StudyLine profile={profile} ruby={sentence.ruby} showRuby spaced={false} className="text-[1.55rem] text-ink" />
       <dl className="grid gap-x-4 gap-y-1.5 text-[.9rem] leading-7 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
         <dt className="font-bold text-ink-4">해석</dt><dd className="break-keep text-ink">{sentence.translation || <span className="text-ink-5">없음</span>}</dd>
         {sentence.grammar.length > 0 && <>
           <dt className="font-bold text-ink-4">문법</dt>
-          <dd className="space-y-0.5">{sentence.grammar.map((item, index) => <p key={index} className="break-keep text-ink-2"><span lang="ja" className="font-ja font-bold text-brand-dark">{item.pattern || item.surface}</span> <span className="text-ink-3">{item.meaning}</span></p>)}</dd>
+          <dd className="space-y-0.5">{sentence.grammar.map((item, index) => <p key={index} className="break-keep text-ink-2"><span lang={lang} className={cn(profile.fontClass, "font-bold text-brand-dark")}>{item.pattern || item.surface}</span> <span className="text-ink-3">{item.meaning}</span></p>)}</dd>
         </>}
       </dl>
       {sentence.words.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
           {sentence.words.map((word, index) => (
             <li key={index} className="rounded-xl border border-line bg-surface-2 px-2.5 py-1.5 text-[.82rem] leading-5">
-              <span lang="ja" className="font-ja text-[1.05rem] font-bold text-ink">{word.word}</span>
-              {word.reading && word.reading !== word.word && <span lang="ja" className="font-ja ml-1 text-ink-4">{word.reading}</span>}
+              <span lang={lang} className={cn(profile.fontClass, "text-[1.05rem] font-bold text-ink")}>{word.word}</span>
+              {word.reading && word.reading !== word.word && <span lang={lang} className={cn(profile.fontClass, "ml-1 text-ink-4")}>{word.reading}</span>}
               <span className="ml-1.5 text-ink-2">{word.meaning}</span>
               <span className="ml-1.5 rounded-full bg-surface px-1.5 py-0.5 text-[.68rem] font-bold text-ink-4">{word.pos}</span>
             </li>
@@ -119,7 +126,7 @@ export function SentenceCard({ sentence, number, onChange, onDelete, onSpeak }: 
         </ul>
       )}
       <IssueList issues={issues} />
-      {editing && <SentenceEditor sentence={sentence} onChange={onChange} />}
+      {editing && <SentenceEditor profile={profile} sentence={sentence} onChange={onChange} />}
     </article>
   );
 }

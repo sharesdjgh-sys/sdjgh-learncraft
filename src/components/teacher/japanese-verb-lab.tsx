@@ -13,7 +13,7 @@ import { Card, Segmented, Toggle } from "./tool-panel";
 import { copyToClipboard, PrintablePage } from "./hanmun-sheet";
 import { RubyText } from "./japanese-ruby";
 import { JapaneseVerbShow } from "./japanese-verb-show";
-import { speechNotice, useJapaneseSpeech } from "./japanese-speech";
+import { speechNotice, useJapaneseSpeech } from "./speech";
 
 type View = "table" | "sheet";
 const kinds: WordKind[] = ["verb", "iAdj", "naAdj"];

@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cultureCategories, stripRuby, type CultureTopic } from "@/features/japanese/culture";
-import { RubyInline } from "./japanese-ruby";
+import { stripRuby, type CultureTopic } from "@/features/culture/core";
+import type { CultureProfile } from "@/features/culture/profiles";
+import { RubyInline } from "./ruby-inline";
 
 const layers = [
   { key: "summary", label: "설명" },
@@ -16,7 +17,8 @@ const layers = [
 type Layer = (typeof layers)[number]["key"];
 
 /** 수업 중에 주제를 한 장씩 크게 띄우고, 설명하는 순서대로 내용을 하나씩 켭니다. O·X는 Q로 답을 보여 줍니다. */
-export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics: CultureTopic[]; images: Record<string, string>; speak: (text: string) => void; onClose: () => void }) {
+export function CultureShow({ profile, topics, images, speak, onClose }: { profile: CultureProfile; topics: CultureTopic[]; images: Record<string, string>; speak: (text: string) => void; onClose: () => void }) {
+  const lang = profile.speech;
   const [index, setIndex] = useState(0);
   const [shown, setShown] = useState<Record<Layer, boolean>>({ summary: true, points: false, words: false, compare: false, quiz: false });
   const [answers, setAnswers] = useState(false);
@@ -29,7 +31,7 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
     setIndex(value => Math.max(0, Math.min(last, value + step)));
     setAnswers(false);
   };
-  const say = () => topic && speak(stripRuby(topic.phrase?.ja ?? topic.ja));
+  const say = () => topic && speak(stripRuby(topic.phrase?.native ?? topic.native));
   const handlers = useRef({ move, say });
   useEffect(() => { handlers.current = { move, say }; });
 
@@ -62,9 +64,9 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
   if (!topic) return null;
   const box = "rounded-3xl bg-white/75 p-5 shadow-[0_2px_14px_rgba(60,40,20,.07)]";
   return (
-    <div ref={stage} role="dialog" aria-modal="true" aria-label="일본문화 수업 화면" className="fixed inset-0 z-[80] flex flex-col bg-[#fbf7ee] text-[#1f1a14]">
+    <div ref={stage} role="dialog" aria-modal="true" aria-label={`${profile.subject} 수업 화면`} className="fixed inset-0 z-[80] flex flex-col bg-[#fbf7ee] text-[#1f1a14]">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <p className="text-[.82rem] font-semibold text-[#6d6252]">{index + 1} / {topics.length} · {cultureCategories[topic.category]}{topic.when ? ` · ${topic.when}` : ""}</p>
+        <p className="text-[.82rem] font-semibold text-[#6d6252]">{index + 1} / {topics.length} · {profile.categories[topic.category]}{topic.when ? ` · ${topic.when}` : ""}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           {layers.map((layer, layerIndex) => (
             <button key={layer.key} type="button" aria-pressed={shown[layer.key]} onClick={() => toggle(layer.key)} title={`${layer.label} 보이기·가리기 (${layerIndex + 1})`} className={pill(shown[layer.key])}>
@@ -72,7 +74,7 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
             </button>
           ))}
           <button type="button" aria-pressed={answers} onClick={() => setAnswers(value => !value)} className={pill(answers)} title="O·X 답 보기 (Q)">답</button>
-          <button type="button" onClick={say} className="flex min-h-10 items-center gap-1 rounded-full bg-[#2b2418]/8 px-3.5 text-[.8rem] font-bold text-[#3b3226] hover:bg-[#2b2418]/15" title="일본어 읽어 주기 (S)"><Volume2 size={15} /> 읽기</button>
+          <button type="button" onClick={say} className="flex min-h-10 items-center gap-1 rounded-full bg-[#2b2418]/8 px-3.5 text-[.8rem] font-bold text-[#3b3226] hover:bg-[#2b2418]/15" title={`${profile.language} 읽어 주기 (S)`}><Volume2 size={15} /> 읽기</button>
           <button type="button" onClick={fullscreen} className={control} aria-label="전체 화면 (F)"><Maximize2 size={17} /></button>
           <button type="button" onClick={onClose} className={control} aria-label="닫기 (Esc)"><X size={18} /></button>
         </div>
@@ -80,7 +82,7 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 sm:px-20">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-5 py-4">
           <header className="text-center">
-            <p className="font-ja text-[clamp(3rem,8vw,6.5rem)] leading-[1.5] [&_rt]:text-[.3em] [&_rt]:text-[#8a5a3c]" lang="ja"><RubyInline text={topic.ja} /></p>
+            <p className={cn(profile.fontClass, "text-[clamp(3rem,8vw,6.5rem)] leading-[1.5] [&_rt]:text-[.3em] [&_rt]:text-[#8a5a3c]")} lang={lang}><RubyInline text={topic.native} lang={lang} fontClass={profile.fontClass} /></p>
             <p className="text-[clamp(1.2rem,2.4vw,2.2rem)] font-extrabold text-[#6d6252]">{topic.title}</p>
           </header>
           {images[topic.id] && (
@@ -99,15 +101,15 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
                 <ul className="flex flex-wrap gap-2">
                   {topic.words.map(word => (
                     <li key={word.word}><button type="button" onClick={() => speak(word.reading)} className="rounded-2xl bg-[#fbf7ee] px-3.5 py-2 text-left text-[clamp(.95rem,1.4vw,1.25rem)] hover:bg-[#f3ead8]">
-                      <span lang="ja" className="font-ja text-[1.25em] font-bold">{word.word}</span>
-                      {word.reading !== word.word && <span lang="ja" className="font-ja ml-1 text-[#8a5a3c]">{word.reading}</span>}
+                      <span lang={lang} className={cn(profile.fontClass, "text-[1.25em] font-bold")}>{word.word}</span>
+                      {word.reading !== word.word && <span lang={lang} className={cn(profile.fontClass, "ml-1 text-[#8a5a3c]")}>{word.reading}</span>}
                       <span className="ml-2 text-[#3b3226]">{word.meaning}</span>
                     </button></li>
                   ))}
                 </ul>
                 {topic.phrase && (
-                  <button type="button" onClick={() => speak(stripRuby(topic.phrase!.ja))} className="mt-3 block w-full rounded-2xl bg-[#7a2f1f]/8 px-4 py-3 text-left hover:bg-[#7a2f1f]/12">
-                    <span lang="ja" className="font-ja block text-[clamp(1.3rem,2.2vw,2rem)] font-bold text-[#7a2f1f] [&_rt]:text-[.45em]"><RubyInline text={topic.phrase.ja} /></span>
+                  <button type="button" onClick={() => speak(stripRuby(topic.phrase!.native))} className="mt-3 block w-full rounded-2xl bg-[#7a2f1f]/8 px-4 py-3 text-left hover:bg-[#7a2f1f]/12">
+                    <span lang={lang} className={cn(profile.fontClass, "block text-[clamp(1.3rem,2.2vw,2rem)] font-bold text-[#7a2f1f] [&_rt]:text-[.45em]")}><RubyInline text={topic.phrase.native} lang={lang} fontClass={profile.fontClass} /></span>
                     <span className="text-[clamp(.95rem,1.4vw,1.2rem)] text-[#3b3226]">{topic.phrase.ko}</span>
                   </button>
                 )}
@@ -115,7 +117,7 @@ export function JapaneseCultureShow({ topics, images, speak, onClose }: { topics
             )}
             {shown.compare && (
               <div className={cn(box, "grid grid-cols-2 gap-3 text-[clamp(1rem,1.5vw,1.35rem)]")}>
-                <div><p className="mb-1 text-[.8em] font-extrabold text-[#a3402a]">일본</p><p className="break-keep">{topic.japan}</p></div>
+                <div><p className="mb-1 text-[.8em] font-extrabold text-[#a3402a]">{profile.country}</p><p className="break-keep">{topic.local}</p></div>
                 <div><p className="mb-1 text-[.8em] font-extrabold text-[#2f5d8a]">한국</p><p className="break-keep">{topic.korea}</p></div>
                 <p className="col-span-2 border-t border-[#2b2418]/10 pt-2 text-[.9em] text-[#6d6252]">{topic.think}</p>
               </div>
