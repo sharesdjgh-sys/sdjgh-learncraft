@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { FileText, Grid3x3, Repeat } from "lucide-react";
+import { FileText, Flower2, Grid3x3, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// 과목마다 교사 지원실 메뉴가 하나이므로 일본어 도구는 제목 아래 하위 탭으로 나눕니다.
+// 과목마다 교사 지원실 메뉴가 하나이므로 일본어 도구는 제목 아래 하위 탭으로 나눕니다. 일본문화 과목도 같은 선생님이 맡는 일이 많아 함께 둡니다.
 const tools = [
   { key: "kana", label: "가나 학습", icon: Grid3x3 },
   { key: "text", label: "본문 풀이", icon: FileText },
   { key: "verb", label: "활용 연습", icon: Repeat },
+  { key: "culture", label: "일본문화", icon: Flower2 },
 ] as const;
 export type JapaneseTool = (typeof tools)[number]["key"];
 

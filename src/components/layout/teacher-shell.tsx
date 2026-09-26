@@ -18,7 +18,7 @@ const links: readonly ConsoleLink[] = [
   { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette },
   { href: "/teacher/pe", subject: "체육", label: "경기 도구", icon: Trophy },
   { href: "/teacher/hanmun", subject: "한문", label: "학습지 제작", icon: ScrollText },
-  { href: "/teacher/japanese", subject: "일본어", label: "학습지 제작", icon: Flower2 },
+  { href: "/teacher/japanese", subject: "일본어", label: "학습지·문화", icon: Flower2 },
 ];
 
 async function clearLearnerState() {
