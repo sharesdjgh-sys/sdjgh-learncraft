@@ -12,7 +12,7 @@ const links: readonly ConsoleLink[] = [
   { href: "/teacher/english", subject: "영어", label: "독해 문제", icon: Languages },
   { href: "/teacher/math-figures", subject: "수학", label: "도형 제작", icon: DraftingCompass },
   { href: "/teacher/social-map", subject: "사회", label: "지도 제작", icon: MapIcon },
-  { href: "/teacher/science-figures", subject: "과학", label: "실험 그림", icon: FlaskConical },
+  { href: "/teacher/science", subject: "과학", label: "실험 그림·교과", icon: FlaskConical },
   { href: "/teacher/ai-lab", subject: "AI", label: "원리 체험", icon: BrainCircuit },
   { href: "/teacher/music-score", subject: "음악", label: "악보 제작", icon: Music },
   { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette },

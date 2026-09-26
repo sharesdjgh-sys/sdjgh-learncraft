@@ -111,12 +111,12 @@ function useWideLayout() {
   );
 }
 
-export function ScienceFigureLab() {
+export function ScienceFigureLab({ tabs }: { tabs?: React.ReactNode }) {
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
-  return hydrated ? <ScienceFigureEditor initial={readDraft()} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 실험 그림 도구를 준비하는 중…</div>;
+  return hydrated ? <ScienceFigureEditor initial={readDraft()} tabs={tabs} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 실험 그림 도구를 준비하는 중…</div>;
 }
 
-function ScienceFigureEditor({ initial }: { initial: FigureDoc }) {
+function ScienceFigureEditor({ initial, tabs }: { initial: FigureDoc; tabs?: React.ReactNode }) {
   const [doc, setDoc] = useState(initial);
   const [past, setPast] = useState<FigureDoc[]>([]);
   const [future, setFuture] = useState<FigureDoc[]>([]);
@@ -309,12 +309,13 @@ function ScienceFigureEditor({ initial }: { initial: FigureDoc }) {
     <style>{".sf-part *{vector-effect:non-scaling-stroke}"}</style>
     <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
       <div>
-        <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><FlaskConical size={16} /> 교사 지원실 · 과학</p>
+        <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><FlaskConical size={16} /> 교사 지원실 · 과학 · 실험 그림</p>
         <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">과학 실험 그림</h1>
         <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">회로·광학·실험 기구·힘과 운동 부품을 놓고 도선·광선·힘 화살표로 이어, 학습지와 시험지에 넣을 실험 그림을 만듭니다.</p>
       </div>
       <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
     </header>
+    {tabs}
 
     <section className={cn("mt-6 grid gap-5 xl:items-start", wide ? "grid-cols-[320px_minmax(0,1fr)_300px]" : "xl:grid-cols-[340px_minmax(0,1fr)]")}>
       <div className="scrollbar-subtle order-2 space-y-4 xl:order-1 xl:sticky xl:top-24 xl:-m-1 xl:h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:p-1">
