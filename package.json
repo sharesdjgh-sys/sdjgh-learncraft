@@ -13,6 +13,8 @@
     "test:art-works": "tsx scripts/verify-art-works.ts",
     "test:hanmun": "tsx scripts/verify-hanmun.ts && tsx scripts/verify-hanja.ts",
     "hanja:data": "tsx scripts/build-hanja-data.ts",
+    "test:japanese": "tsx scripts/verify-japanese.ts",
+    "kana:data": "tsx scripts/build-kana-data.ts",
     "maps:history": "tsx scripts/build-historical-maps.ts",
     "dev": "next dev",
     "build": "next build",
