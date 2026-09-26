@@ -3,6 +3,7 @@ import { requireTeacherTools } from "@/lib/auth";
 import { parseAiFigureDoc } from "@/lib/ai-figure/model";
 import { buildImagePrompt, imageSizes, imageStyles, MAX_IMAGE_REQUEST } from "@/lib/ai-figure/image-prompt";
 import { env, isOpenAiImageConfigured } from "@/lib/env";
+import { requestOpenAiImage } from "@/lib/openai-image";
 import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -19,8 +20,6 @@ const inputSchema = z.object({
 });
 
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
-
-type OpenAiImageResponse = { data?: { b64_json?: string; revised_prompt?: string }[]; error?: { message?: string; code?: string; type?: string } };
 
 export async function POST(request: Request) {
   const user = await requireTeacherTools();
@@ -57,44 +56,13 @@ export async function POST(request: Request) {
 
   const prompt = buildImagePrompt({ mode: input.mode, style: input.style as (typeof imageStyles)[number]["id"], request: input.request, doc });
   const size = imageSizes[input.size][input.large ? "large" : "normal"];
-  const model = env.OPENAI_IMAGE_MODEL_ID;
-  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(170_000)]);
   const started = Date.now();
-  try {
-    let response: Response;
-    if (figure) {
-      // 선생님이 그린 그림을 참고 이미지로 보내 구조·글자·숫자를 그대로 따르게 합니다.
-      const body = new FormData();
-      body.append("model", model);
-      body.append("prompt", prompt);
-      body.append("size", size);
-      body.append("quality", env.OPENAI_IMAGE_QUALITY);
-      body.append("n", "1");
-      body.append("image[]", figure, "figure.png");
-      response = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` }, body, signal });
-    } else {
-      response = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, prompt, size, quality: env.OPENAI_IMAGE_QUALITY, n: 1 }),
-        signal,
-      });
-    }
-    const payload = await response.json().catch(() => ({})) as OpenAiImageResponse;
-    const image = payload.data?.[0]?.b64_json;
-    if (!response.ok || !image) {
-      console.error("teacher_ai_figure_image_failure", { userId: user.id, status: response.status, code: payload.error?.code, type: payload.error?.type, message: payload.error?.message?.slice(0, 300), model });
-      const blocked = payload.error?.code === "moderation_blocked" || /safety|moderation/i.test(payload.error?.message ?? "");
-      if (blocked) return json({ error: "요청 내용이 이미지 생성 안전 기준에 걸렸어요. 표현을 바꿔 다시 시도해 주세요." }, 422);
-      if (response.status === 401) return json({ error: "OpenAI API 키가 올바르지 않습니다. 관리자에게 알려 주세요." }, 502);
-      if (response.status === 429) return json({ error: "OpenAI 사용 한도에 걸렸어요. 잠시 후 다시 시도해 주세요." }, 429);
-      return json({ error: "GPT가 그림을 만들지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
-    }
-    console.info("teacher_ai_figure_image", { userId: user.id, mode: input.mode, style: input.style, size, model, quality: env.OPENAI_IMAGE_QUALITY, seconds: Math.round((Date.now() - started) / 1000) });
-    return json({ image: `data:image/png;base64,${image}`, prompt, size, model });
-  } catch (error) {
-    if (request.signal.aborted) return json({ error: "요청을 취소했어요." }, 499);
-    console.error(`teacher_ai_figure_image_error ${error instanceof Error ? `${error.name}: ${error.message}` : "UnknownError"}`, { userId: user.id, model });
-    return json({ error: error instanceof Error && error.name === "TimeoutError" ? "그림을 만드는 데 너무 오래 걸렸어요. 크기를 줄이거나 다시 시도해 주세요." : "GPT에 연결하지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
+  // 선생님이 그린 그림이 있으면 참고 이미지로 보내 구조·글자·숫자를 그대로 따르게 합니다.
+  const result = await requestOpenAiImage({ prompt, size, signal: request.signal, reference: figure });
+  if (!result.ok) {
+    console.error("teacher_ai_figure_image_failure", { userId: user.id, model: env.OPENAI_IMAGE_MODEL_ID, ...result.detail });
+    return json({ error: result.error }, result.status);
   }
+  console.info("teacher_ai_figure_image", { userId: user.id, mode: input.mode, style: input.style, size, model: result.model, quality: env.OPENAI_IMAGE_QUALITY, seconds: Math.round((Date.now() - started) / 1000) });
+  return json({ image: result.image, prompt, size, model: result.model });
 }
