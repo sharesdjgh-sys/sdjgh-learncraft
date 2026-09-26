@@ -9,14 +9,19 @@ import { cn } from "@/lib/utils";
 import { copyToClipboard, PrintablePage } from "./hanmun-sheet";
 import { Segmented, Toggle } from "./tool-panel";
 
-/* 교사 지원실 · 과학의 하위 탭(실험 그림, 통합·탐구, 물리학, 화학, 생명과학, 지구과학)이 함께 쓰는 조각입니다. */
+/* 교사 지원실 · 과학의 하위 탭(실험 그림, 통합·탐구, 물리학, 화학, 생명과학, 지구과학)이 함께 쓰는 조각입니다. 사회 교과 도구(역사·지리·정치·법·경제·윤리)도 area만 바꿔 같이 씁니다. */
 
-export function ScienceHeader({ subject, title, description, tabs }: { subject: string; title: string; description: string; tabs?: React.ReactNode }) {
+/** 교과 묶음(과학·사회)의 이름·아이콘과 브라우저 저장 키 앞부분입니다. */
+export type LabArea = { name: string; icon: typeof Atom; storage: string };
+export const SCIENCE_AREA: LabArea = { name: "과학", icon: FlaskConical, storage: "learncraft_science" };
+
+export function ScienceHeader({ subject, title, description, tabs, area = SCIENCE_AREA }: { subject: string; title: string; description: string; tabs?: React.ReactNode; area?: LabArea }) {
+  const AreaIcon = area.icon;
   return (
     <>
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><FlaskConical size={16} /> 교사 지원실 · 과학 · {subject}</p>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><AreaIcon size={16} /> 교사 지원실 · {area.name} · {subject}</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">{title}</h1>
           <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">{description}</p>
         </div>
@@ -191,16 +196,17 @@ export function HtmlView({ html, className }: { html: string; className?: string
 
 export type SubjectView = { value: string; label: string; icon: typeof Atom; note: string; render: () => React.ReactNode };
 /** 과목 탭 하나: 머리글 + 보기 탭 + 고른 보기. 마지막에 본 보기를 기억합니다. */
-export function SubjectLab({ id, subject, title, description, tabs, views }: { id: string; subject: string; title: string; description: string; tabs?: React.ReactNode; views: SubjectView[] }) {
-  return <Hydrated label={`${subject} 도구`}>{() => <SubjectBody id={id} subject={subject} title={title} description={description} tabs={tabs} views={views} />}</Hydrated>;
+type SubjectLabProps = { id: string; subject: string; title: string; description: string; tabs?: React.ReactNode; views: SubjectView[]; area?: LabArea };
+export function SubjectLab(props: SubjectLabProps) {
+  return <Hydrated label={`${props.subject} 도구`}>{() => <SubjectBody {...props} />}</Hydrated>;
 }
 const viewSchema = z.object({ view: z.string().catch("") });
-function SubjectBody({ id, subject, title, description, tabs, views }: { id: string; subject: string; title: string; description: string; tabs?: React.ReactNode; views: SubjectView[] }) {
-  const [state, update] = useStored(`learncraft_science_${id}_view`, viewSchema);
+function SubjectBody({ id, subject, title, description, tabs, views, area = SCIENCE_AREA }: SubjectLabProps) {
+  const [state, update] = useStored(`${area.storage}_${id}_view`, viewSchema);
   const current = views.find(view => view.value === state.view) ?? views[0];
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <ScienceHeader subject={subject} title={title} description={description} tabs={tabs} />
+      <ScienceHeader subject={subject} title={title} description={description} tabs={tabs} area={area} />
       <ViewTabs label={`${subject} 보기`} value={current.value} onChange={view => update({ view })} options={views.map(({ value, label, icon }) => ({ value, label, icon }))} />
       <p className="mt-2 break-keep px-1 text-[.8rem] leading-5 text-ink-4">{current.note}</p>
       <div key={current.value}>{current.render()}</div>

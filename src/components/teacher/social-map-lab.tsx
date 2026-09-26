@@ -85,12 +85,12 @@ function Swatches({ value, onChange, label = "색" }: { value?: number; onChange
 function MapButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return <button type="button" title={label} aria-label={label} onClick={onClick} className="grid size-9 place-items-center rounded-lg text-ink-3 transition-colors hover:bg-brand-page hover:text-brand-dark">{children}</button>;
 }
-export function SocialMapLab() {
+export function SocialMapLab({ tabs }: { tabs?: React.ReactNode }) {
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
-  return hydrated ? <SocialMapEditor initial={readDraft()} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 지도 도구를 준비하는 중…</div>;
+  return hydrated ? <SocialMapEditor initial={readDraft()} tabs={tabs} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 지도 도구를 준비하는 중…</div>;
 }
 
-function SocialMapEditor({ initial }: { initial: MapDoc }) {
+function SocialMapEditor({ initial, tabs }: { initial: MapDoc; tabs?: React.ReactNode }) {
   const [doc, setDoc] = useState(initial);
   const [past, setPast] = useState<MapDoc[]>([]);
   const [future, setFuture] = useState<MapDoc[]>([]);
@@ -283,12 +283,13 @@ function SocialMapEditor({ initial }: { initial: MapDoc }) {
 @media print{body *:not(:has(#social-map-print)):not(#social-map-print):not(#social-map-print *){display:none!important}body *:has(#social-map-print),#social-map-print{display:block!important;position:static!important;height:auto!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;max-width:none!important;background:#fff!important;aspect-ratio:auto!important}#social-map-print svg{width:100%!important;height:auto!important}#social-map-print [data-export='skip']{display:none!important}@page{size:A4 landscape;margin:10mm}}`}</style>
     <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
       <div>
-        <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><MapIcon size={16} /> 교사 지원실 · 사회</p>
+        <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><MapIcon size={16} /> 교사 지원실 · 사회 · 지도 제작</p>
         <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수업용 사회 지도</h1>
         <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">한국사·지리·세계사 수업용 지도를 확대해 보고, 색칠하고 화살표·지점을 그린 뒤 그림으로 저장하거나 인쇄합니다.</p>
       </div>
       <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
     </header>
+    {tabs}
 
     <section className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start">
       <div className="scrollbar-subtle space-y-4 xl:sticky xl:top-24 xl:-m-1 xl:h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:p-1">
