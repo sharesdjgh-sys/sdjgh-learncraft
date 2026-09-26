@@ -11,6 +11,8 @@
     "test:ai-lab": "tsx scripts/verify-ai-lab.ts",
     "test:pe": "tsx scripts/verify-pe-tactics.ts && tsx scripts/verify-pe-league.ts",
     "test:art-works": "tsx scripts/verify-art-works.ts",
+    "test:hanmun": "tsx scripts/verify-hanmun.ts && tsx scripts/verify-hanja.ts",
+    "hanja:data": "tsx scripts/build-hanja-data.ts",
     "maps:history": "tsx scripts/build-historical-maps.ts",
     "dev": "next dev",
     "build": "next build",
