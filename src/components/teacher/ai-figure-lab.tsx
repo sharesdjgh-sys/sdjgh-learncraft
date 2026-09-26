@@ -70,10 +70,27 @@ async function copyImage(blob: Promise<Blob> | Blob) {
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }
 const dataUrlToBlob = async (url: string) => (await fetch(url)).blob();
+// 클립보드는 PNG만 받는 브라우저가 많아, Gemini가 준 JPEG·WebP도 PNG로 바꿔 복사합니다.
+async function toPngBlob(url: string) {
+  const blob = await dataUrlToBlob(url);
+  if (blob.type === "image/png") return blob;
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob(png => png ? resolve(png) : reject(new Error("PNG conversion failed")), "image/png"));
+}
+const fileExtension = (url: string) => url.startsWith("data:image/jpeg") ? "jpg" : url.startsWith("data:image/webp") ? "webp" : "png";
+// 버튼을 누를 때만 부르는 시계입니다. 렌더 중에 부르지 않습니다.
+const clock = () => Date.now();
 
-type Generated = { id: number; url: string; prompt: string; size: string; mode: ImageMode; style: ImageStyle; request: string; seconds: number };
+const imageProviders = { gpt: "GPT", gemini: "Gemini" } as const;
+type ImageProvider = keyof typeof imageProviders;
+const geminiSizes: Record<ImageSize, string> = { landscape: "3:2", square: "1:1", portrait: "2:3" };
+type Generated = { id: number; provider: ImageProvider; url: string; prompt: string; size: string; mode: ImageMode; style: ImageStyle; request: string; seconds: number };
 
-export function AiFigureLab({ gptReady }: { gptReady: boolean }) {
+export function AiFigureLab({ imageReady }: { imageReady: Record<ImageProvider, boolean> }) {
   const [doc, setDoc] = useState(readDraft);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<"" | "png" | "copy">("");
@@ -203,7 +220,7 @@ export function AiFigureLab({ gptReady }: { gptReady: boolean }) {
         <AiFigureSvg doc={doc} svgRef={svgRef} fit={1.5} className="max-h-[68vh]" />
       </div>
       <p role="status" className="min-h-5 px-1 text-[.8rem] font-semibold text-brand-dark">{message}</p>
-      <GptImagePanel doc={doc} svgRef={svgRef} ready={gptReady} />
+      <AiImagePanel doc={doc} svgRef={svgRef} ready={imageReady} />
     </div>
   </section>;
 }
@@ -380,15 +397,15 @@ function ActivationSettingsPanel({ doc, setPart }: PanelProps) {
   </div>;
 }
 
-/* ───── GPT 그림 만들기 ───── */
+/* ───── AI 그림 만들기 (GPT · Gemini) ───── */
 
-function GptImagePanel({ doc, svgRef, ready }: { doc: AiFigureDoc; svgRef: React.RefObject<SVGSVGElement | null>; ready: boolean }) {
+function AiImagePanel({ doc, svgRef, ready }: { doc: AiFigureDoc; svgRef: React.RefObject<SVGSVGElement | null>; ready: Record<ImageProvider, boolean> }) {
   const [mode, setMode] = useState<ImageMode>("figure");
   const [style, setStyle] = useState<ImageStyle>("textbook");
   const [size, setSize] = useState<ImageSize>("landscape");
   const [large, setLarge] = useState(false);
   const [request, setRequest] = useState("");
-  const [running, setRunning] = useState<{ started: number; controller: AbortController } | null>(null);
+  const [running, setRunning] = useState<{ provider: ImageProvider; started: number; controller: AbortController } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [results, setResults] = useState<Generated[]>([]);
@@ -406,15 +423,16 @@ function GptImagePanel({ doc, svgRef, ready }: { doc: AiFigureDoc; svgRef: React
     return () => window.clearTimeout(timer);
   }, [note]);
 
-  async function generate() {
+  async function generate(provider: ImageProvider) {
     if (running) return;
     setError("");
     const controller = new AbortController();
-    const started = Date.now();
+    const started = clock();
     setElapsed(0);
-    setRunning({ started, controller });
+    setRunning({ provider, started, controller });
     try {
       const form = new FormData();
+      form.append("provider", provider);
       form.append("mode", mode);
       form.append("style", style);
       form.append("size", size);
@@ -427,25 +445,25 @@ function GptImagePanel({ doc, svgRef, ready }: { doc: AiFigureDoc; svgRef: React
       }
       const response = await fetch("/api/teacher/ai-figure-image", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json().catch(() => ({})) as { image?: string; prompt?: string; size?: string; error?: string };
-      if (!response.ok || !payload.image) throw new Error(payload.error ?? "GPT가 그림을 만들지 못했어요.");
+      if (!response.ok || !payload.image) throw new Error(payload.error ?? `${imageProviders[provider]}가 그림을 만들지 못했어요.`);
       counter.current += 1;
-      const item: Generated = { id: counter.current, url: payload.image, prompt: payload.prompt ?? "", size: payload.size ?? "", mode, style, request, seconds: Math.round((Date.now() - started) / 1000) };
+      const item: Generated = { id: counter.current, provider, url: payload.image, prompt: payload.prompt ?? "", size: payload.size ?? "", mode, style, request, seconds: Math.round((clock() - started) / 1000) };
       setResults((current) => [item, ...current].slice(0, 8));
     } catch (caught) {
-      setError(controller.signal.aborted ? "그림 만들기를 취소했어요." : caught instanceof Error ? caught.message : "GPT가 그림을 만들지 못했어요.");
+      setError(controller.signal.aborted ? "그림 만들기를 취소했어요." : caught instanceof Error ? caught.message : `${imageProviders[provider]}가 그림을 만들지 못했어요.`);
     } finally { setRunning(null); }
   }
 
   const styleName = (id: ImageStyle) => imageStyles.find((item) => item.id === id)?.name ?? "";
-  const baseName = (item: Generated) => `${(doc.title.trim() || figureKindInfo[doc.kind].name).replace(/[\\/:*?"<>|]+/g, " ").slice(0, 50)} GPT ${item.id}`;
+  const baseName = (item: Generated) => `${(doc.title.trim() || figureKindInfo[doc.kind].name).replace(/[\\/:*?"<>|]+/g, " ").slice(0, 50)} ${imageProviders[item.provider]} ${item.id}`;
 
   return <section className="rounded-[18px] border border-brand/20 bg-gradient-to-b from-brand-page to-surface p-4 shadow-[var(--lift-1)]">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
-        <h2 className="flex items-center gap-1.5 text-[.95rem] font-extrabold text-ink"><Sparkles size={17} className="text-brand" /> GPT로 선명한 그림 만들기</h2>
-        <p className="mt-1 break-keep text-[.78rem] leading-5 text-ink-3">위에서 만든 그림을 GPT가 교과서 삽화처럼 다시 그리거나, 원하는 장면을 글로 적어 새 그림을 만들어요.</p>
+        <h2 className="flex items-center gap-1.5 text-[.95rem] font-extrabold text-ink"><Sparkles size={17} className="text-brand" /> AI로 선명한 그림 만들기 (GPT · Gemini)</h2>
+        <p className="mt-1 break-keep text-[.78rem] leading-5 text-ink-3">위에서 만든 그림을 교과서 삽화처럼 다시 그리거나, 원하는 장면을 글로 적어 새 그림을 만들어요. 같은 설명으로 GPT와 Gemini 중 골라 만들어 비교할 수 있어요.</p>
       </div>
-      {!ready && <span className="rounded-full border border-[#f59f00]/30 bg-[#fff9db] px-3 py-1 text-[.72rem] font-bold text-[#8a5a00]">서버에 OpenAI API 키가 없어 지금은 쓸 수 없어요</span>}
+      {(!ready.gpt || !ready.gemini) && <span className="rounded-full border border-[#f59f00]/30 bg-[#fff9db] px-3 py-1 text-[.72rem] font-bold text-[#8a5a00]">{!ready.gpt && !ready.gemini ? "서버에 그림 AI 키가 없어 지금은 쓸 수 없어요" : !ready.gpt ? "서버에 OpenAI API 키가 없어 GPT는 쓸 수 없어요" : "서버 설정 때문에 Gemini 그림은 쓸 수 없어요"}</span>}
     </div>
 
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -475,35 +493,37 @@ function GptImagePanel({ doc, svgRef, ready }: { doc: AiFigureDoc; svgRef: React
             <p className="mb-1 text-xs font-semibold text-ink-4">그림 방향</p>
             <Segmented label="그림 방향" value={size} onChange={setSize} options={(Object.keys(imageSizes) as ImageSize[]).map((value) => ({ value, label: imageSizes[value].name }))} />
           </div>
-          <Toggle label="크게 (2048px)" checked={large} onChange={setLarge} help="더 선명하지만 시간이 더 걸리고 비용이 커요. 인쇄용 큰 그림이 필요할 때 켜세요." />
+          <Toggle label="크게 (2K)" checked={large} onChange={setLarge} help="더 선명하지만 시간이 더 걸리고 비용이 커요. 인쇄용 큰 그림이 필요할 때 켜세요." />
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button onClick={() => void generate()} disabled={!ready || Boolean(running) || (mode === "free" && request.trim().length < 4)} className="min-w-44">
-            {running ? <><LoaderCircle size={15} className="animate-spin" /> 만드는 중… {elapsed}초</> : <><ImagePlus size={15} /> GPT로 그림 만들기</>}
-          </Button>
+          {(Object.keys(imageProviders) as ImageProvider[]).map((provider) => (
+            <Button key={provider} variant={provider === "gpt" ? "primary" : "secondary"} onClick={() => void generate(provider)} disabled={!ready[provider] || Boolean(running) || (mode === "free" && request.trim().length < 4)} className="min-w-40">
+              {running?.provider === provider ? <><LoaderCircle size={15} className="animate-spin" /> 만드는 중… {elapsed}초</> : <><ImagePlus size={15} /> {imageProviders[provider]}로 그림 만들기</>}
+            </Button>
+          ))}
           {running && <Button variant="ghost" size="sm" onClick={() => running.controller.abort()}>취소</Button>}
-          <span className="text-[.7rem] text-ink-5">{imageSizes[size][large ? "large" : "normal"].replace("x", " × ")} · 보통 30초~2분</span>
         </div>
+        <p className="text-[.7rem] leading-5 text-ink-5">GPT {imageSizes[size][large ? "large" : "normal"].replace("x", " × ")} · 보통 30초~2분 / Gemini {geminiSizes[size]} 비율 {large ? "2K" : "1K"} · 보통 20초~1분</p>
       </div>
     </div>
     {error && <p role="alert" className="mt-3 rounded-lg bg-[#fff5f5] px-3 py-2 text-[.8rem] font-semibold text-danger">{error}</p>}
-    <p className="mt-3 break-keep text-[.7rem] leading-5 text-ink-5">AI가 만든 그림은 글자·숫자·연결이 틀릴 수 있어요. 수업에 쓰기 전에 꼭 확인하고, 정확해야 하는 시험 그림은 위의 PNG·SVG 저장을 쓰세요. 만든 그림은 이 화면을 닫으면 사라지니 필요한 것은 저장해 두세요.</p>
+    <p className="mt-3 break-keep text-[.7rem] leading-5 text-ink-5">GPT·Gemini가 만든 그림은 글자·숫자·연결이 틀릴 수 있어요. 수업에 쓰기 전에 꼭 확인하고, 정확해야 하는 시험 그림은 위의 PNG·SVG 저장을 쓰세요. 만든 그림은 이 화면을 닫으면 사라지니 필요한 것은 저장해 두세요.</p>
 
     {results.length > 0 && <div className="mt-4 space-y-4">
       <p role="status" className="min-h-5 text-[.8rem] font-semibold text-brand-dark">{note}</p>
       {results.map((item) => <figure key={item.id} className="overflow-hidden rounded-2xl border border-line bg-white">
-        {/* eslint-disable-next-line @next/next/no-img-element -- GPT가 만든 base64 그림은 next/image 최적화 대상이 아닙니다. */}
-        <img src={item.url} alt={`GPT가 만든 그림 ${item.id}`} className="mx-auto max-h-[70vh] w-auto max-w-full" />
+        {/* eslint-disable-next-line @next/next/no-img-element -- GPT·Gemini가 만든 base64 그림은 next/image 최적화 대상이 아닙니다. */}
+        <img src={item.url} alt={`${imageProviders[item.provider]}가 만든 그림 ${item.id}`} className="mx-auto max-h-[70vh] w-auto max-w-full" />
         <figcaption className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2 px-3 py-2">
-          <span className="text-[.74rem] font-bold text-ink-2">#{item.id} · {item.mode === "figure" ? "그림 다시 그리기" : "글로 만들기"} · {styleName(item.style)} · {item.size} · {item.seconds}초</span>
+          <span className="text-[.74rem] font-bold text-ink-2"><span className={cn("mr-1.5 rounded-full px-2 py-0.5 text-[.68rem]", item.provider === "gpt" ? "bg-brand-soft text-brand-dark" : "bg-[#e6f4ea] text-[#1e6b3a]")}>{imageProviders[item.provider]}</span>#{item.id} · {item.mode === "figure" ? "그림 다시 그리기" : "글로 만들기"} · {styleName(item.style)} · {item.size} · {item.seconds}초</span>
           <div className="ml-auto flex flex-wrap gap-1">
-            <Button variant="secondary" size="sm" onClick={async () => { download(await dataUrlToBlob(item.url), `${baseName(item)}.png`); setNote("PNG로 저장했어요."); }}><Download size={14} /> PNG</Button>
-            <Button variant="secondary" size="sm" onClick={async () => { try { await copyImage(dataUrlToBlob(item.url)); setNote("그림을 복사했어요. 한글·PPT에 붙여 넣으세요."); } catch { setNote("이 브라우저에서는 그림 복사를 쓸 수 없어요. PNG 저장을 이용해 주세요."); } }}><ClipboardCopy size={14} /> 복사</Button>
+            <Button variant="secondary" size="sm" onClick={async () => { download(await dataUrlToBlob(item.url), `${baseName(item)}.${fileExtension(item.url)}`); setNote("PNG로 저장했어요."); }}><Download size={14} /> PNG</Button>
+            <Button variant="secondary" size="sm" onClick={async () => { try { await copyImage(toPngBlob(item.url)); setNote("그림을 복사했어요. 한글·PPT에 붙여 넣으세요."); } catch { setNote("이 브라우저에서는 그림 복사를 쓸 수 없어요. PNG 저장을 이용해 주세요."); } }}><ClipboardCopy size={14} /> 복사</Button>
             <Button variant="ghost" size="sm" className="px-2" title="새 창에서 크게 보기" aria-label="새 창에서 크게 보기" onClick={async () => { const url = URL.createObjectURL(await dataUrlToBlob(item.url)); window.open(url, "_blank"); setTimeout(() => URL.revokeObjectURL(url), 60_000); }}><ExternalLink size={15} /></Button>
             <Button variant="ghost" size="sm" className="px-2" title="이 그림 지우기" aria-label="이 그림 지우기" onClick={() => setResults((current) => current.filter((other) => other.id !== item.id))}><Trash2 size={15} /></Button>
           </div>
           {item.request && <p className="w-full break-keep text-[.72rem] text-ink-4">요청: {item.request}</p>}
-          <details className="w-full text-[.72rem] text-ink-4"><summary className="cursor-pointer font-semibold">GPT에 보낸 설명 보기</summary><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 font-mono text-[.68rem] leading-5">{item.prompt}</pre></details>
+          <details className="w-full text-[.72rem] text-ink-4"><summary className="cursor-pointer font-semibold">{imageProviders[item.provider]}에 보낸 설명 보기</summary><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 font-mono text-[.68rem] leading-5">{item.prompt}</pre></details>
         </figcaption>
       </figure>)}
     </div>}

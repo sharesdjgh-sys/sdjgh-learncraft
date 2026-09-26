@@ -22,16 +22,18 @@ const MAX_RESPONSE_BYTES = 24 * 1024 * 1024;
 
 export const isGeminiImageReady = () => Boolean(env.GEMINI_API_KEY) && env.GEMINI_IMAGE_ENABLED === "true" && /^gemini-[a-z0-9.-]+image(?:-preview)?$/.test(env.GEMINI_IMAGE_MODEL_ID);
 
-export async function requestGeminiImage({ prompt, aspect, large, signal }: { prompt: string; aspect: GeminiAspect; large: boolean; signal: AbortSignal }): Promise<OpenAiImageResult> {
+/** reference가 있으면 그 그림을 참고 이미지로 함께 보냅니다(선생님이 그린 그림을 다시 그리기). */
+export async function requestGeminiImage({ prompt, aspect, large, signal, reference }: { prompt: string; aspect: GeminiAspect; large: boolean; signal: AbortSignal; reference?: File | null }): Promise<OpenAiImageResult> {
   const model = env.GEMINI_IMAGE_MODEL_ID;
   if (!isGeminiImageReady()) return { ok: false, status: 503, error: "서버에서 Gemini 그림 만들기를 쓸 수 없습니다(GEMINI_API_KEY·GEMINI_IMAGE_ENABLED 확인)." };
   try {
+    const image = reference ? { inlineData: { mimeType: reference.type || "image/png", data: Buffer.from(await reference.arrayBuffer()).toString("base64") } } : null;
     const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": env.GEMINI_API_KEY!, "Content-Type": "application/json" },
       signal: AbortSignal.any([signal, AbortSignal.timeout(150_000)]),
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts: image ? [image, { text: prompt }] : [{ text: prompt }] }],
         generationConfig: { responseModalities: ["IMAGE"], candidateCount: 1, imageConfig: { imageSize: large ? "2K" : "1K", aspectRatio: geminiAspectRatios[aspect] } },
       }),
     });

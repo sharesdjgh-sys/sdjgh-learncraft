@@ -5,6 +5,7 @@ import { NeuralNetworkLab } from "@/components/teacher/ai-lab-nn";
 import { ReinforcementLearningLab } from "@/components/teacher/ai-lab-rl";
 import { SearchAlgorithmLab } from "@/components/teacher/ai-lab-search";
 import { isOpenAiImageConfigured } from "@/lib/env";
+import { isGeminiImageReady } from "@/lib/gemini-image";
 
 export const metadata = { title: "AI 원리 체험" };
 
@@ -18,6 +19,6 @@ export default async function TeacherAiLabPage({ searchParams }: { searchParams:
       : current === "rl" ? <ReinforcementLearningLab />
         : current === "search" ? <SearchAlgorithmLab />
           : current === "nn" ? <NeuralNetworkLab />
-            : <AiFigureLab gptReady={isOpenAiImageConfigured} />}
+            : <AiFigureLab imageReady={{ gpt: isOpenAiImageConfigured, gemini: isGeminiImageReady() }} />}
   </AiLabShell>;
 }

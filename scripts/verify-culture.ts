@@ -144,6 +144,15 @@ void (async () => {
   assert.deepEqual(ok, { ok: true, image: "data:image/jpeg;base64,iVBORw0KGgo=", model: "gemini-3.1-flash-image" }, "생각 중 그림은 건너뜀");
   assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-image:generateContent");
   assert.deepEqual({ ...calls[0].body.generationConfig.imageConfig }, { imageSize: "2K", aspectRatio: "2:3" });
+  // 선생님이 그린 그림(참고 이미지)은 글 앞에 inlineData로 함께 보냅니다(AI 수업 그림의 ‘지금 그림을 다시 그리기’).
+  const withReference = async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = reply(200, { candidates: [{ finishReason: "STOP", content: { parts: [{ inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }] } }] }) as unknown as typeof fetch;
+    try { return structuredClone(await gemini.requestGeminiImage({ prompt: "redraw", aspect: "square", large: false, signal: new AbortController().signal, reference: new File([new Uint8Array([137, 80, 78, 71])], "figure.png", { type: "image/png" }) })); } finally { globalThis.fetch = original; }
+  };
+  assert((await withReference()).ok);
+  const sentParts = (calls.at(-1)!.body as unknown as { contents: { parts: ({ text?: string; inlineData?: { mimeType: string; data: string } })[] }[] }).contents[0].parts;
+  assert.deepEqual(sentParts.map(part => part.inlineData ? `image:${part.inlineData.mimeType}:${part.inlineData.data}` : `text:${part.text}`), ["image:image/png:iVBORw==", "text:redraw"], "참고 그림을 글 앞에 보냄");
   const blocked = await run(reply(200, { candidates: [{ finishReason: "IMAGE_SAFETY" }] }));
   assert(!blocked.ok && blocked.status === 422);
   const limited = await run(reply(429, { error: { message: "quota", status: "RESOURCE_EXHAUSTED" } }));
