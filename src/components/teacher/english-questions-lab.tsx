@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "rea
 import { z } from "zod";
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, ClipboardCheck, Copy, Eye, EyeOff, FileQuestion, Lightbulb, ListChecks, LoaderCircle, PencilLine, ShieldCheck, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
   circled, combinedReviewSchema, difficultyLabels, formatIssues, MAX_TYPES_PER_REQUEST, questionClipboard, questionSchema, questionTypeKeys, questionTypes, reviewDifficultyLabels, splitUnderlines,
@@ -269,6 +270,7 @@ function EnglishQuestionsEditor({ initial, tabs }: { initial: Stored; tabs?: Rea
   const [draftReview, setDraftReview] = useState<ReviewState>({ loading: false, review: initial.draftReview ?? undefined });
   const textScale = useSyncExternalStore(subscribeTextScale, readTextScale, () => defaultTextScale);
   const controllers = useRef(new Set<AbortController>());
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     // 진행 중이던 요청이나 오류는 저장하지 않고 완료된 검토 결과만 남깁니다.
@@ -492,7 +494,9 @@ function EnglishQuestionsEditor({ initial, tabs }: { initial: Stored; tabs?: Rea
             </div>
             {mode === "make" && questions.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                <Button variant="ghost" size="sm" disabled={generating || reviewingAll} onClick={() => { if (window.confirm("만든 문제와 검토 결과를 지울까요? 입력한 지문은 그대로 남아요.")) { setQuestions([]); setReviews({}); setGenerateError(""); } }}><Trash2 size={15} /> 결과 지우기</Button>
+                <Button variant="ghost" size="sm" disabled={generating || reviewingAll} onClick={async () => {
+                  if (await confirm({ eyebrow: "변형 문제", title: "만든 문제를 지울까요?", tone: "danger", confirmLabel: "결과 지우기", description: `만든 문제 ${questions.length}개와 성립 검토 결과를 지웁니다.`, note: "입력한 지문과 출처 메모는 그대로 남아요. 지운 문제는 되돌릴 수 없어요." })) { setQuestions([]); setReviews({}); setGenerateError(""); }
+                }}><Trash2 size={15} /> 결과 지우기</Button>
                 <Button variant="secondary" size="sm" onClick={() => void copyToClipboard(joinClipboard(questions))}><Copy size={15} /> 전체 복사</Button>
                 <Button variant="secondary" size="sm" disabled={reviewingAll} onClick={() => questions.forEach(question => void reviewGenerated(question))}>{reviewingAll ? <LoaderCircle size={15} className="animate-spin" /> : <ListChecks size={15} />} 모두 검토</Button>
               </div>
@@ -522,6 +526,7 @@ function EnglishQuestionsEditor({ initial, tabs }: { initial: Stored; tabs?: Rea
           </div>
         </div>
       </section>
+      {confirmDialog}
     </div>
   );
 }

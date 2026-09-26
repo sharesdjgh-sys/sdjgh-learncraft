@@ -14,6 +14,15 @@
 - 오류가 발생하면 바로 사용자에게 묻지 말고 먼저 원인을 조사하고 수정해본다.
 - 작업이 가능한데도 분석만 하고 멈추지 않는다.
 
+## UI 규칙
+
+- 브라우저 기본 창(`window.confirm`, `window.alert`, `window.prompt`)은 쓰지 않는다. 확인이 필요하면 `src/components/ui/confirm-dialog.tsx`의 `useConfirm()` 팝업을 쓴다.
+  - 사용법: `const [confirm, confirmDialog] = useConfirm();` → `if (!await confirm({ title, description, confirmLabel, tone, eyebrow, note })) return;` → 컴포넌트 JSX에 `{confirmDialog}`를 그린다.
+  - `description`에는 무엇이 바뀌는지 적고(개수 포함), 사라지는 것이나 남는 것은 `note`에 따로 적는다.
+  - 지우거나 덮어써서 되돌릴 수 없는 작업은 `tone: "danger"`로 한다.
+  - 알림은 `alert` 대신 화면 안 문구(`role="status"`/`role="alert"`)로 보여 준다.
+- ESLint `no-alert` 규칙이 이를 막으므로 `npm run lint`로 확인한다.
+
 ## 질문이 필요한 경우
 
 다음과 같은 경우에만 질문한다.

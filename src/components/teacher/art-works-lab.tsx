@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BookOpenText, BookmarkCheck, Brush, BookmarkPlus, Columns2, Copy, Library, Lightbulb, LoaderCircle, Lock, Palette, Presentation, Printer, Search, ShieldCheck, Sparkles, Tags, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { CommonsImage } from "@/lib/commons-media";
 import { artGroups, artMovements, artTerms, artWorks, findTerm, findWork, termCategories, termDetails, worksForTerm, type ArtTerm, type CatalogWork, type TermCategory } from "@/lib/art-works/catalog";
@@ -298,6 +299,7 @@ function CollectionPanel({ onOpen, onShow }: { onOpen: (item: ArtItem) => void; 
   const getImage = useArtImages(items.map(item => item.file));
   const [sheetTitle, setSheetTitle] = useState("작품 감상 활동지");
   const [copied, setCopied] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   function move(index: number, delta: number) {
     const next = [...items];
     const [moved] = next.splice(index, 1);
@@ -346,10 +348,11 @@ function CollectionPanel({ onOpen, onShow }: { onOpen: (item: ArtItem) => void; 
         </div>
         <div className="flex gap-2 border-t border-line pt-3">
           <Button className="flex-1" variant="secondary" size="sm" onClick={() => void copyText(items.map((item, index) => `${index + 1}. ${creditText(item, getImage(item.file))}`).join("\n")).then(ok => { setCopied(ok); setTimeout(() => setCopied(false), 1600); })}><Copy size={14} /> {copied ? "복사했어요" : "출처 목록 복사"}</Button>
-          <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("수업 자료함을 모두 비울까요?")) collectionStore.write([]); }}><Trash2 size={14} /> 비우기</Button>
+          <Button variant="ghost" size="sm" onClick={async () => { if (await confirm({ eyebrow: "수업 자료함", title: "수업 자료함을 모두 비울까요?", tone: "danger", confirmLabel: "모두 비우기", description: `담아 둔 작품 ${items.length}점을 자료함에서 뺍니다.`, note: "비운 자료함은 되돌릴 수 없어요. 작품은 다시 찾아 담을 수 있어요." })) collectionStore.write([]); }}><Trash2 size={14} /> 비우기</Button>
         </div>
       </aside>
       <ArtWorksheet items={items} title={sheetTitle} />
+      {confirmDialog}
     </div>
   );
 }
