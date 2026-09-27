@@ -477,6 +477,31 @@ export const quizMistakes = pgTable(
   ],
 );
 
+export const learningReflections = pgTable("learning_reflections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id).notNull(),
+  studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  unitId: uuid("unit_id").references(() => units.id).notNull(),
+  learningDate: date("learning_date").notNull(),
+  minutes: integer("minutes").notNull(),
+  confidence: integer("confidence").notNull(),
+  learned: text("learned").notNull(),
+  difficulty: text("difficulty").default("").notNull(),
+  nextStep: text("next_step").notNull(),
+  ...timestamps,
+}, (table) => [uniqueIndex("learning_reflection_student_unit_date_idx").on(table.studentId, table.schoolId, table.unitId, table.learningDate)]);
+
+export const learningReports = pgTable("learning_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id).notNull(),
+  studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  reportDate: date("report_date").notNull(),
+  days: integer("days").notNull(),
+  report: jsonb("report").$type<import("@/features/learning-progress/model").LearningReport>(),
+  modelId: text("model_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("learning_report_student_date_period_idx").on(table.studentId, table.schoolId, table.reportDate, table.days)]);
+
 export const dailyUsage = pgTable(
   "daily_usage",
   {

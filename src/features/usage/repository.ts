@@ -11,7 +11,7 @@ import { getUnit } from "@/data/curriculum";
 import { periodDates, summarizeUsage, type StudentUsageInsights, type UsageActivity, type UsagePeriod } from "./insights";
 
 type DemoUsageStatus = "RESERVED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
-type DemoActivity = UsageActivity & { studentId: string; schoolId: string };
+type DemoActivity = UsageActivity & { studentId: string; schoolId: string; unitId?: string; unitTitle?: string };
 
 declare global {
   var __learncraftDemoUsageEvents: Map<string, DemoUsageStatus> | undefined;
@@ -20,6 +20,12 @@ declare global {
 
 const demoUsageEvents = globalThis.__learncraftDemoUsageEvents ??= new Map<string, DemoUsageStatus>();
 const demoActivity = globalThis.__learncraftDemoActivity ??= new Map<string, DemoActivity>();
+
+export function getDemoLearningActivity(user: SessionUser, dates: string[]) {
+  return [...demoActivity].filter(([key, activity]) => activity.studentId === user.id && activity.schoolId === user.schoolId
+    && dates.includes(activity.date) && demoUsageEvents.get(key) === "SUCCEEDED")
+    .map(([, activity]) => activity);
+}
 
 function demoEventKey(user: SessionUser, requestId: string) {
   return `${user.id}:${requestId}`;
@@ -184,7 +190,7 @@ export async function reserveAiUsage(input: { user: SessionUser; requestId: stri
       demoActivity.set(key, {
         studentId: input.user.id, schoolId: input.user.schoolId, date: today(),
         courseId: unit?.courseCode ?? input.unitId, courseTitle: unit?.courseTitle ?? "과목 정보 없음",
-        subjectTitle: unit?.subjectTitle ?? "기타", count: 1,
+        subjectTitle: unit?.subjectTitle ?? "기타", count: 1, unitId: input.unitId, unitTitle: unit?.title ?? "단원",
       });
     }
     return { ...reservation, duplicate: false };

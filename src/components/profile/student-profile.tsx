@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { StudentUsageInsights, UsagePeriod } from "@/features/usage/insights";
 import type { SessionUser } from "@/types";
 import { cn } from "@/lib/utils";
+import { LearningProgress } from "./learning-progress";
 
 const chartColors = ["#7959dc", "#4698b0", "#b185cd", "#70a994", "#d09a66", "#8b96ba"];
 const number = (value: number | undefined) => value === undefined ? "—" : value.toLocaleString("ko-KR");
@@ -68,8 +69,8 @@ export function StudentProfile({ user }: { user: SessionUser }) {
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-7">
         <div>
           <p className="flex items-center gap-2 text-[.78rem] font-bold text-brand"><Activity size={16} /> 나만의 학습 공간</p>
-          <h1 className="font-learning mt-3 text-[2rem] font-bold tracking-[-0.045em]">내 정보와 학습 기록</h1>
-          <p className="mt-2 text-[.88rem] leading-6 text-ink-3">어떤 과목에 질문이 쌓였는지, 나의 학습 흐름을 확인해 보세요.</p>
+          <h1 className="font-learning mt-3 text-[2rem] font-bold tracking-[-0.045em]">기록에서 발견하는 나의 배움</h1>
+          <p className="mt-2 text-[.88rem] leading-6 text-ink-3">집중한 단원과 막힌 부분을 돌아보고, 다음 학습을 스스로 계획해 보세요.</p>
         </div>
         <button type="button" onClick={() => setAttempt((value) => value + 1)} disabled={loading} className="flex min-h-11 items-center gap-2 rounded-[11px] border border-line bg-surface px-4 text-[.8rem] font-bold text-ink-3 transition hover:bg-surface-2 disabled:opacity-50">
           <RefreshCw size={14} className={cn(loading && "animate-spin")} /> 새로고침
@@ -83,6 +84,7 @@ export function StudentProfile({ user }: { user: SessionUser }) {
 
       <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_270px]">
         <div className="min-w-0 space-y-7">
+          <LearningProgress days={days} attempt={attempt} onPeriodChange={setDays} />
           <section aria-labelledby="today-usage-title" className="rounded-[18px] border border-line bg-brand-page p-5 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="today-usage-title" className="flex items-center gap-2 text-[.92rem] font-bold"><Sparkles size={17} className="text-brand" /> 오늘의 AI 질문</h2>
@@ -152,9 +154,9 @@ export function StudentProfile({ user }: { user: SessionUser }) {
           </section>
           <section className="rounded-[16px] bg-surface-2 p-5">
             <LockKeyhole size={19} className="text-brand" />
-            <h2 className="mt-3 text-[.9rem] font-bold">내 대화는 나에게만</h2>
-            <p className="mt-2 text-[.78rem] leading-6 text-ink-3">이 통계는 질문 내용이 아닌 사용 횟수로 만들어요. 일반 질문과 답변의 텍스트는 서버에 저장하지 않습니다. 생성 그림도 북마크할 때만 답변과 함께 저장합니다.</p>
-            <details className="mt-4 border-t border-line pt-3"><summary className="cursor-pointer py-1 text-[.76rem] font-semibold text-brand">학습 데이터 보관 안내</summary><p className="mt-2 text-[.75rem] leading-6 text-ink-4">단원별 사용 횟수, 모델 토큰과 예상 비용을 운영 목적으로 기록해요. 직접 고른 답변만 학습 북마크에 남으며, 관리자와 교사는 북마크 내용을 볼 수 없어요.</p></details>
+            <h2 className="mt-3 text-[.9rem] font-bold">나의 기록과 분석은 나에게만</h2>
+            <p className="mt-2 text-[.78rem] leading-6 text-ink-3">단원별 질문 이력과 직접 저장한 오답·성찰로 학습 흐름을 살펴봐요. 성찰에는 학습 시간, 이해도, 배운 것과 다음 목표가 저장되며 언제든 수정하거나 삭제할 수 있어요. 일반 질문과 답변의 텍스트는 서버에 저장하지 않습니다.</p>
+            <details className="mt-4 border-t border-line pt-3"><summary className="cursor-pointer py-1 text-[.76rem] font-semibold text-brand">학습 데이터 보관 안내</summary><p className="mt-2 text-[.75rem] leading-6 text-ink-4">단원별 사용 횟수, 모델 토큰과 예상 비용을 운영 목적으로 기록해요. AI 분석을 요청하면 계정 정보를 제외한 본인의 학습 집계와 성찰을 Gemini로 보내요. 분석 결과는 저장되며, 이 서비스에서 본인만 조회할 수 있어요. 다른 학생이나 교사에게 분석을 공유하는 기능은 제공하지 않아요.</p></details>
           </section>
         </aside>
       </div>

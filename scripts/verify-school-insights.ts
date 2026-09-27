@@ -69,7 +69,7 @@ async function verifyApi(baseUrl: string) {
   const cookie = login.headers.get("set-cookie")?.split(";")[0];
   assert.ok(cookie);
   for (const query of ["days=1", "days=7", "days=30", "days=365", "start=2026-02-30&end=2026-03-01", "end=invalid"]) {
-    const response = await fetch(`${baseUrl}/api/admin/metrics?${query}`, { headers: { Cookie: cookie } });
+    const response: Response = await fetch(`${baseUrl}/api/admin/metrics?${query}`, { headers: { Cookie: cookie } });
     const valid = ["days=1", "days=7", "days=30"].includes(query);
     assert.equal(response.status, valid ? 200 : 400, query);
     if (valid) {
