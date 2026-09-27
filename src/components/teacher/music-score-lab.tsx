@@ -94,12 +94,12 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
   </div>;
 }
 
-export function MusicScoreLab() {
+export function MusicScoreLab({ tabs }: { tabs?: React.ReactNode }) {
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
-  return hydrated ? <MusicScoreEditor initial={readDraft()} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 악보 도구를 준비하는 중…</div>;
+  return hydrated ? <MusicScoreEditor initial={readDraft()} tabs={tabs} /> : <div className="flex min-h-[60vh] items-center justify-center text-sm text-ink-4"><LoaderCircle size={18} className="mr-2 animate-spin" /> 악보 도구를 준비하는 중…</div>;
 }
 
-function MusicScoreEditor({ initial }: { initial: Draft }) {
+function MusicScoreEditor({ initial, tabs }: { initial: Draft; tabs?: React.ReactNode }) {
   const [text, setText] = useState(initial.text);
   const [settings, setSettings] = useState<ScoreSettings>(initial.settings);
   const [duration, setDuration] = useState<ScoreNote["duration"]>(4);
@@ -515,6 +515,7 @@ ${example}` : example;
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>
+      {tabs}
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
         <div className="scrollbar-subtle space-y-4 xl:sticky xl:top-24 xl:-m-1 xl:h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:p-1">

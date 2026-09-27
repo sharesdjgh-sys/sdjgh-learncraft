@@ -17,7 +17,7 @@ const links: readonly ConsoleLink[] = [
   { href: "/teacher/social", subject: "사회", label: "지도·교과", icon: MapIcon, tone: { color: "#976012", soft: "#fff1d8" } },
   { href: "/teacher/science", subject: "과학", label: "실험 그림·교과", icon: FlaskConical, tone: { color: "#277a45", soft: "#e4f4e8" } },
   { href: "/teacher/ai-lab", subject: "AI", label: "원리 체험", icon: BrainCircuit, tone: { color: "#6943b9", soft: "#eee7fb" } },
-  { href: "/teacher/music-score", subject: "음악", label: "악보 제작", icon: Music, tone: { color: "#a13e85", soft: "#f9e7f4" } },
+  { href: "/teacher/music-score", subject: "음악", label: "악보·수업 활동", icon: Music, tone: { color: "#a13e85", soft: "#f9e7f4" } },
   { href: "/teacher/art-works", subject: "미술", label: "작품 감상", icon: Palette, tone: { color: "#ad4e22", soft: "#fff0e5" } },
   { href: "/teacher/pe", subject: "체육", label: "경기 도구", icon: Trophy, tone: { color: "#55751c", soft: "#eef5dc" } },
   { href: "/teacher/hanmun", subject: "한문", label: "학습지 제작", icon: ScrollText, tone: { color: "#806044", soft: "#f4ece2" } },
