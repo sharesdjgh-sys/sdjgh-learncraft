@@ -1,0 +1,79 @@
+/* 교사 지원실 내부의 색상만 조정합니다. 크기·간격·배치·아이콘은 기존 값을 유지합니다. */
+.scope {
+  --view-color: var(--brand-dark);
+  --view-soft: var(--brand-soft);
+}
+
+/* 과목 안의 영역 탭: 옅은 배경으로 구분하고 현재 영역만 진하게 채웁니다. */
+.scope [data-tool-tabs] > a {
+  --tab-color: var(--brand-dark);
+  --tab-soft: var(--brand-soft);
+  color: var(--tab-color);
+  background-color: var(--tab-soft);
+}
+.scope [data-tool-tabs] > a:nth-child(2) { --tab-color: #245ac1; --tab-soft: #e7efff; }
+.scope [data-tool-tabs] > a:nth-child(3) { --tab-color: #087573; --tab-soft: #e0f4f1; }
+.scope [data-tool-tabs] > a:nth-child(4) { --tab-color: #6943b9; --tab-soft: #eee7fb; }
+.scope [data-tool-tabs] > a:nth-child(5) { --tab-color: #976012; --tab-soft: #fff1d8; }
+.scope [data-tool-tabs] > a:nth-child(6) { --tab-color: #277a45; --tab-soft: #e4f4e8; }
+.scope [data-tool-tabs] > a:nth-child(7) { --tab-color: #a33758; --tab-soft: #fbe9ef; }
+.scope [data-tool-tabs] > a[aria-current="page"] {
+  color: #fff;
+  background-color: var(--tab-color);
+}
+.scope [data-tool-tabs] > a:not([aria-current="page"]):hover {
+  box-shadow: inset 0 0 0 1px var(--tab-color);
+}
+
+/* 기존 도구 선택 탭의 선택 표시는 배경과 안쪽 밑줄로 보강합니다. */
+.scope nav:not([data-tool-tabs]) button[aria-pressed="true"] {
+  color: var(--view-color);
+  background-color: var(--view-soft);
+  box-shadow: inset 0 -2px 0 var(--view-color);
+}
+.scope nav:not([data-tool-tabs]) button:not([aria-pressed="true"]):hover {
+  color: var(--view-color);
+  background-color: var(--view-soft);
+}
+.scope[data-subject="수학"] { --view-color: #086b79; --view-soft: #e0f3f4; }
+
+/* 생성·실행 버튼에는 해당 과목의 강조색을 사용합니다. 위험 동작 색은 유지합니다. */
+.scope button[data-ui-variant="primary"] {
+  color: var(--brand-dark);
+  border-color: color-mix(in srgb, var(--brand) 35%, white);
+  background: linear-gradient(135deg, #fff 0%, var(--brand-page) 48%, var(--brand-soft) 100%);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--brand) 14%, transparent), inset 0 1px 0 #ffffffe6;
+}
+.scope button[data-ui-variant="primary"]:hover {
+  color: var(--brand-dark);
+  border-color: var(--brand);
+  background: linear-gradient(135deg, #fff 0%, var(--brand-soft) 65%);
+  box-shadow: 0 11px 24px color-mix(in srgb, var(--brand) 20%, transparent), inset 0 1px 0 #fffffff2;
+}
+
+/* 기존 아이콘을 기준으로 복사·인쇄·저장을 구분합니다. 복사 완료 상태도 같은 색입니다. */
+.scope button:is([data-sheet-action="copy"], :has(svg:global(.lucide-copy)), :has(svg:global(.lucide-clipboard-check))) {
+  color: #245ac1;
+  border-color: #bfd0ee;
+  background: #f1f6ff;
+}
+.scope button:is([data-sheet-action="copy"], :has(svg:global(.lucide-copy)), :has(svg:global(.lucide-clipboard-check))):hover {
+  color: #19499f;
+  background: #e7efff;
+}
+.scope button:is([data-sheet-action="print"], :has(svg:global(.lucide-printer))) {
+  color: #fff;
+  border-color: #227454;
+  background: #227454;
+}
+.scope button:is([data-sheet-action="print"], :has(svg:global(.lucide-printer))):hover {
+  color: #fff;
+  border-color: #185e43;
+  background: #185e43;
+}
+.scope button:has(svg:global(.lucide-download)) {
+  color: #805012;
+  border-color: #e3c899;
+  background: #fff4df;
+}
+.scope button:has(svg:global(.lucide-download)):hover { color: #6d420e; background: #ffebc6; }

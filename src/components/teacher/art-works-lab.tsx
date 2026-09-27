@@ -64,7 +64,7 @@ function MovementsPanel({ onOpen }: { onOpen: (opened: Opened) => void }) {
   const getImage = useArtImages(shown.slice(0, 48).map(work => work.file));
   return (
     <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
-      <nav aria-label="시대와 사조" className="rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)] lg:sticky lg:top-24">
+      <nav aria-label="시대와 사조" className="min-w-0 rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)] lg:sticky lg:top-24">
         <label className="mb-3 flex min-h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/10">
           <Search size={15} className="text-ink-4" aria-hidden="true" />
           <input value={query} onChange={event => setQuery(event.target.value)} maxLength={40} placeholder="작품·작가 찾기 (예: 고흐)" aria-label="작품이나 작가 이름 찾기" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4" />

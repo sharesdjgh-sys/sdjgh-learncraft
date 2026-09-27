@@ -105,8 +105,8 @@ export function SheetPreview({ id, html, clipboard, empty, extra }: { id: string
     <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {extra}
-        {clipboard && <Button variant="secondary" size="sm" disabled={!html} onClick={() => void copy()} title="한글·워드에 붙여 넣을 수 있게 복사해요(그림은 빠져요)">{copied ? <ClipboardCheck size={15} /> : <Copy size={15} />} {copied ? "복사됨" : "한글에 붙여 넣기용 복사"}</Button>}
-        <Button variant="secondary" size="sm" disabled={!html} onClick={() => window.print()} title="A4 세로로 인쇄해요"><Printer size={15} /> 인쇄</Button>
+        {clipboard && <Button data-sheet-action="copy" variant="secondary" size="sm" disabled={!html} onClick={() => void copy()} title="한글·워드에 붙여 넣을 수 있게 복사해요(그림은 빠져요)">{copied ? <ClipboardCheck size={15} /> : <Copy size={15} />} {copied ? "복사됨" : "한글에 붙여 넣기용 복사"}</Button>}
+        <Button data-sheet-action="print" variant="secondary" size="sm" disabled={!html} onClick={() => window.print()} title="A4 세로로 인쇄해요"><Printer size={15} /> 인쇄</Button>
       </div>
       {html ? <PrintablePage id={id} html={html} /> : <p className="rounded-2xl border border-dashed border-line bg-surface-2 px-6 py-16 text-center text-[.9rem] text-ink-3">{empty ?? "학습지에 넣을 문항을 골라 주세요."}</p>}
     </div>

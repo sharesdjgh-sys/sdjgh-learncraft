@@ -13,7 +13,7 @@ export type ChineseTool = (typeof tools)[number]["key"];
 
 export function ChineseToolTabs({ current }: { current: ChineseTool }) {
   return (
-    <nav aria-label="중국어 도구" className="mt-5 flex w-fit max-w-full flex-wrap gap-1 rounded-2xl border border-line bg-surface-2 p-1">
+    <nav data-tool-tabs aria-label="중국어 도구" className="mt-5 flex w-fit max-w-full flex-wrap gap-1 rounded-2xl border border-line bg-surface-2 p-1">
       {tools.map(({ key, label, icon: Icon }) => (
         <Link key={key} href={`/teacher/chinese?tool=${key}`} aria-current={current === key ? "page" : undefined}
           className={cn("flex min-h-10 items-center gap-1.5 rounded-xl px-4 text-[.86rem] font-bold transition-colors", current === key ? "bg-surface text-brand-dark shadow-[var(--lift-1)]" : "text-ink-3 hover:text-brand-dark")}>

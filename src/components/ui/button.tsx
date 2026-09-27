@@ -9,6 +9,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export function Button({ className, variant = "primary", size = "md", ...props }: ButtonProps) {
   return (
     <button
+      data-ui-variant={variant}
       className={cn(
         "inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-[11px] font-semibold transition-[transform,box-shadow,border-color,background-color,color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:active:scale-100 motion-reduce:hover:transform-none",
         variant === "primary" && "border border-brand/20 bg-[linear-gradient(135deg,#ffffff_0%,#f0edff_48%,#e8e2ff_100%)] text-brand-dark shadow-[0_7px_18px_rgba(86,58,194,.14),inset_0_1px_0_rgba(255,255,255,.9)] hover:border-brand/35 hover:bg-[linear-gradient(135deg,#ffffff_0%,#ebe6ff_45%,#ddd5ff_100%)] hover:text-[#3f27aa] hover:shadow-[0_11px_24px_rgba(86,58,194,.2),inset_0_1px_0_rgba(255,255,255,.95)]",

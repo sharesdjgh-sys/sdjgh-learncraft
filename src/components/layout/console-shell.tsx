@@ -11,12 +11,12 @@ import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types";
 
 /** subject: optional small badge (e.g. "국어") shown before the tool label so tools read differently from subject names. */
-export type ConsoleLink = { href: Route; label: string; icon: LucideIcon; subject?: string };
+export type ConsoleLink = { href: Route; label: string; icon: LucideIcon; subject?: string; tone?: { color: string; soft: string } };
 
 // alone: 도구 이름 없이 배지만 보여 줄 때는 배지를 조금 크게 그립니다.
-function SubjectBadge({ subject, active, stacked = false, alone = false }: { subject: string; active: boolean; stacked?: boolean; alone?: boolean }) {
+function SubjectBadge({ subject, active, stacked = false, alone = false, tone }: { subject: string; active: boolean; stacked?: boolean; alone?: boolean; tone?: ConsoleLink["tone"] }) {
   return (
-    <span className={cn(
+    <span style={tone ? { backgroundColor: active ? tone.color : tone.soft, color: active ? "#fff" : tone.color } : undefined} className={cn(
       "shrink-0 whitespace-nowrap rounded-[6px] font-bold leading-none",
       alone ? stacked ? "px-2 py-1.5 text-[.72rem]" : "px-2.5 py-1.5 text-[.8rem]" : stacked ? "px-1.5 py-[3px] text-[.62rem] sm:text-[.66rem]" : "px-1.5 py-1 text-[.68rem]",
       active ? "bg-[#3217c9] text-white" : "bg-brand-soft text-brand-dark",
@@ -60,7 +60,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
         <div className="flex min-w-0 items-center gap-4 xl:gap-7">
           <Logo />
           <nav className={cn("hidden items-center min-[1024px]:flex", crowded ? "gap-0.5 xl:gap-1.5 2xl:gap-3" : links.some((link) => link.subject) ? "gap-0.5 min-[1160px]:gap-1.5 xl:gap-2 2xl:gap-5" : "gap-0.5 xl:gap-1")} aria-label={menuLabel}>
-            {links.map(({ href, label, icon: Icon, subject }) => {
+            {links.map(({ href, label, icon: Icon, subject, tone }) => {
               const active = pathname.startsWith(href);
               return (
                 <Link
@@ -69,6 +69,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
                   aria-current={active ? "page" : undefined}
                   aria-label={subject ? `${subject} ${label}` : undefined}
                   title={subject ? `${subject} ${label}` : undefined}
+                  style={tone ? { color: tone.color, borderBottomColor: active ? tone.color : "transparent" } : undefined}
                   className={cn(
                     "flex items-center border-b-2 text-sm font-semibold transition-[border-color,color] duration-200 active:scale-[.98]",
                     // Badge+label tools always stack (badge above label) so many tools fit with room between them.
@@ -79,7 +80,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
                   )}
                 >
                   {subject
-                    ? <SubjectBadge subject={subject} active={active} alone={crowded} />
+                    ? <SubjectBadge subject={subject} active={active} alone={crowded} tone={tone} />
                     : <Icon size={17} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />}
                   {!(subject && crowded) && <span className="whitespace-nowrap">{label}</span>}
                 </Link>
@@ -107,13 +108,14 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
         style={scrollable ? undefined : { gridTemplateColumns: `repeat(${Math.max(links.length, 1)}, minmax(0, 1fr))` }}
         aria-label={`모바일 ${menuLabel}`}
       >
-        {links.map(({ href, label, icon: Icon, subject }) => {
+        {links.map(({ href, label, icon: Icon, subject, tone }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
+              style={tone ? { color: tone.color, borderBottomColor: active ? tone.color : "transparent" } : undefined}
                   aria-label={subject ? `${subject} ${label}` : undefined}
               className={cn(
                 "flex min-h-13 flex-col items-center justify-center gap-1 border-b-2 text-[.72rem] font-semibold transition-[border-color,color] duration-200 active:scale-[.98] sm:text-[.78rem]",
@@ -123,7 +125,7 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
               )}
             >
               {subject
-                ? <SubjectBadge subject={subject} active={active} stacked alone={crowded} />
+                ? <SubjectBadge subject={subject} active={active} stacked alone={crowded} tone={tone} />
                 : <Icon size={18} strokeWidth={active ? 2.25 : 1.8} aria-hidden="true" />}
               {!(subject && crowded) && <span className={cn(subject && "whitespace-nowrap text-[.68rem] sm:text-[.76rem]")}>{label}</span>}
             </Link>
