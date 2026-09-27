@@ -123,7 +123,7 @@ function EtymologyCard({ term, card }: { term: string; card: KoreanEtymology }) 
   );
 }
 
-export function KoreanVocabularyLab() {
+export function KoreanVocabularyLab({ tabs }: { tabs?: React.ReactNode }) {
   const [courses, setCourses] = useState<Course[] | null>(null);
   const [course, setCourse] = useState("");
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -195,12 +195,13 @@ export function KoreanVocabularyLab() {
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><BookA size={16} /> 교사 지원실 · 국어</p>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><BookA size={16} /> 교사 지원실 · 국어 · 어휘 카드</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">국어 어휘 어원 카드</h1>
           <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">교과 핵심 어휘나 궁금한 단어를 고르면 어원, 뜻의 변화, 오늘날 쓰임, 함께 볼 단어를 수업에서 바로 쓸 수 있게 정리합니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> 교사·관리자에게만 표시됨</span>
       </header>
+      {tabs}
 
       <section className="mt-6 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
         <aside className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--lift-1)] lg:sticky lg:top-24">

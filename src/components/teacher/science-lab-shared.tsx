@@ -113,13 +113,13 @@ export function SheetPreview({ id, html, clipboard, empty, extra }: { id: string
   );
 }
 
-/** 문제 묶음(SheetSection)으로 된 학습지를 미리보기합니다. */
-export function ProblemSheet({ id, sections: raw, options, extra }: { id: string; sections: SheetSection[]; options: SheetOptions; extra?: React.ReactNode }) {
+/** 문제 묶음(SheetSection)으로 된 학습지를 미리보기합니다. clipboard는 한글에 붙여 넣을 HTML을 한 번 더 고칩니다(예: 수식을 글로). */
+export function ProblemSheet({ id, sections: raw, options, extra, clipboard = html => html }: { id: string; sections: SheetSection[]; options: SheetOptions; extra?: React.ReactNode; clipboard?: (html: string) => string }) {
   // 무작위로 만든 문제가 똑같이 나오면 한 번만 싣습니다.
   const seen = new Set<string>();
   const sections = raw.map(section => ({ ...section, problems: section.problems.filter(problem => !seen.has(problem.text) && Boolean(seen.add(problem.text))) }));
   const has = sections.some(section => section.problems.length || section.intro);
-  return <SheetPreview id={id} extra={extra} html={has ? problemSheetHtml(sections, options, "screen") : null} clipboard={() => ({ text: problemSheetText(sections, options), html: problemSheetHtml(sections, options, "clipboard") })} />;
+  return <SheetPreview id={id} extra={extra} html={has ? problemSheetHtml(sections, options, "screen") : null} clipboard={() => ({ text: problemSheetText(sections, options), html: clipboard(problemSheetHtml(sections, options, "clipboard")) })} />;
 }
 
 /** SVG 문자열을 그대로 보여 줍니다. 모든 글은 만드는 쪽에서 이스케이프합니다. */

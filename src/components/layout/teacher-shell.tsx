@@ -8,9 +8,9 @@ import type { SessionUser } from "@/types";
 
 // 과목별 교사 지원 도구가 늘어나면 이 목록에 추가합니다. subject는 과목 배지, label은 도구 이름입니다.
 const links: readonly ConsoleLink[] = [
-  { href: "/teacher/korean-vocabulary", subject: "국어", label: "어휘 카드", icon: BookA },
-  { href: "/teacher/english", subject: "영어", label: "독해 문제", icon: Languages },
-  { href: "/teacher/math-figures", subject: "수학", label: "도형 제작", icon: DraftingCompass },
+  { href: "/teacher/korean", subject: "국어", label: "어휘·교과", icon: BookA },
+  { href: "/teacher/english", subject: "영어", label: "독해·교과", icon: Languages },
+  { href: "/teacher/math", subject: "수학", label: "도형·교과", icon: DraftingCompass },
   { href: "/teacher/social", subject: "사회", label: "지도·교과", icon: MapIcon },
   { href: "/teacher/science", subject: "과학", label: "실험 그림·교과", icon: FlaskConical },
   { href: "/teacher/ai-lab", subject: "AI", label: "원리 체험", icon: BrainCircuit },

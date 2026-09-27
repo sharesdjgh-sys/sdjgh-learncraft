@@ -474,7 +474,7 @@ const mathInputSnippets = [
 ] as const;
 
 
-export function MathFigureLab({ audience = "admin" }: { audience?: "admin" | "teacher" }) {
+export function MathFigureLab({ audience = "admin", tabs }: { audience?: "admin" | "teacher"; tabs?: React.ReactNode }) {
   const [sourcePanel, setSourcePanel] = useState<"image" | "calculation">("image");
   const [mode, setMode] = useState<Mode>("clean");
   const [file, setFile] = useState<File | null>(null);
@@ -890,12 +890,13 @@ export function MathFigureLab({ audience = "admin" }: { audience?: "admin" | "te
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="grid gap-4 border-b border-line pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> {audience === "teacher" ? "교사 지원실 · 수학" : "관리자 전용 실험 기능"}</p>
+          <p className="flex items-center gap-2 text-[.82rem] font-bold text-brand"><DraftingCompass size={16} /> {audience === "teacher" ? "교사 지원실 · 수학 · 도형 제작" : "관리자 전용 실험 기능"}</p>
           <h1 className="mt-2 text-[1.85rem] font-extrabold tracking-[-0.04em]">수학 그림 문제 제작 AI</h1>
           <p className="mt-2 break-keep text-[.86rem] leading-6 text-ink-3">교재 도형을 벡터로 복원하고, 미리보기를 보면서 필요한 표시를 바로 다듬습니다.</p>
         </div>
         <span className="flex w-fit items-center gap-2 rounded-full border border-brand/15 bg-brand-page px-3 py-2 text-[.78rem] font-bold text-brand-dark"><ShieldCheck size={15} /> {audience === "teacher" ? "교사·관리자에게만 표시됨" : "관리자에게만 표시됨"}</span>
       </header>
+      {tabs}
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
