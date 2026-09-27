@@ -677,7 +677,7 @@ export function AdminCurriculum() {
           <p className="text-[.72rem] font-bold text-ink-4">교육과정 버전</p>
           <div className="mt-3 max-h-32 space-y-1 overflow-y-auto">
             {state.versions.length ? state.versions.map((version) => (
-              <button key={version.id} type="button" onClick={() => void chooseVersion(version.id)} className={cn("flex w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-left transition", selectedVersion?.id === version.id ? "bg-brand-soft text-brand-dark" : "hover:bg-surface-2")}>
+              <button key={version.id} data-admin-choice aria-pressed={selectedVersion?.id === version.id} type="button" onClick={() => void chooseVersion(version.id)} className={cn("flex w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-left transition", selectedVersion?.id === version.id ? "bg-brand-soft text-brand-dark" : "hover:bg-surface-2")}>
                 {version.status === "PUBLISHED" ? <CheckCircle2 size={14} className="text-ok" /> : version.status === "ARCHIVED" ? <Archive size={14} className="text-ink-5" /> : <FileCheck2 size={14} className="text-brand" />}
                 <span className="min-w-0 flex-1 truncate text-[.74rem] font-bold">{version.academicYear}학년도 · {version.revision}차</span>
                 <span className="text-[.62rem] text-ink-5">{statusLabel[version.status]}</span>
@@ -753,12 +753,12 @@ export function AdminCurriculum() {
             <div className="grid min-h-[32rem] lg:grid-cols-[13rem_1fr]">
               <aside className="border-b border-line bg-surface-2 p-4 lg:border-b-0 lg:border-r">
                 <div className="grid grid-cols-3 gap-1 rounded-[11px] border border-line bg-surface-3 p-1">
-                  {([1, 2, 3] as const).map((item) => <button key={item} type="button" onClick={() => changeGrade(item)} className={cn("min-h-9 rounded-[8px] text-[.76rem] font-bold transition", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
+                  {([1, 2, 3] as const).map((item) => <button key={item} data-admin-choice aria-pressed={grade === item} type="button" onClick={() => changeGrade(item)} className={cn("min-h-9 rounded-[8px] text-[.76rem] font-bold transition", grade === item ? "bg-surface text-ink shadow-[var(--lift-1)]" : "text-ink-4 hover:text-ink")}>{item}학년</button>)}
                 </div>
                 <nav className="mt-4 grid grid-cols-3 gap-1.5 lg:grid-cols-1">
                   {subjects.map((subject) => {
                     const count = items.filter((item) => item.grade === grade && item.subjectCode === subject.code && item.enabled).length;
-                    return <button key={subject.code} type="button" onClick={() => setSubjectCode(subject.code)} className={cn("flex min-h-10 items-center justify-between rounded-[9px] px-3 text-[.77rem] font-bold transition", subjectCode === subject.code ? "bg-brand-soft text-brand-dark" : "text-ink-3 hover:bg-surface hover:text-ink")}><span>{subject.title}</span><span className="figure text-[.66rem] text-ink-5">{count}</span></button>;
+                    return <button key={subject.code} data-admin-choice aria-pressed={subjectCode === subject.code} type="button" onClick={() => setSubjectCode(subject.code)} className={cn("flex min-h-10 items-center justify-between rounded-[9px] px-3 text-[.77rem] font-bold transition", subjectCode === subject.code ? "bg-brand-soft text-brand-dark" : "text-ink-3 hover:bg-surface hover:text-ink")}><span>{subject.title}</span><span className="figure text-[.66rem] text-ink-5">{count}</span></button>;
                   })}
                 </nav>
               </aside>
