@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:school-insights": "tsx scripts/verify-school-insights.ts",
     "test:vocabulary": "tsx scripts/verify-vocabulary.ts",
     "test:english-questions": "tsx scripts/verify-english-questions.ts",
     "test:music-score": "tsx scripts/verify-music-score.ts",
