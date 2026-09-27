@@ -35,10 +35,12 @@ const phonologySchema = z.object({
 });
 function PhonologyView() {
   const [state, update] = useStored("learncraft_korean_phonology_v1", phonologySchema);
-  const result = pronounce(state.word, { verb: state.verb });
+  const known = PHONOLOGY_WORDS.find(item => item.input === state.word.trim() || item.word === state.word.trim());
+  // 표시 없이 예시어를 넣어도(솜이불) 예시어 자료의 표시(솜+이불)로 계산해야 표준 발음과 변동 과정이 맞습니다.
+  const useKnown = !!known && !state.verb && known.input !== state.word.trim();
+  const result = pronounce(useKnown ? known.input : state.word, { verb: state.verb });
   const custom = state.custom.split("\n").map(line => line.trim()).filter(Boolean).slice(0, 30);
   const pool = phonologyPool(state.groups, custom);
-  const known = PHONOLOGY_WORDS.find(item => item.input === state.word.trim() || item.word === state.word.trim());
   return (
     <ToolLayout aside={<>
       <Card title="낱말 넣기" help="형태소 경계가 필요한 규칙은 표시해 주세요. + 합성어·파생어 경계(솜+이불), ~ 용언 어간과 어미(신~고, 맑~게), * 뒤 글자가 된소리(갈*등, 문+*고리, 할 *것), ' 받침 ㅅ이 사이시옷(냇'가). 표시가 없으면 조사·어미·접미사 앞으로 봐요.">
@@ -82,6 +84,7 @@ function PhonologyView() {
               {!result.steps.length && <li className="text-ink-4">음운 변동이 일어나지 않아요.</li>}
             </ol>
             {known?.note && <p className="text-[.8rem] text-ink-3">참고: {known.note}</p>}
+            {useKnown && <p className="text-[.76rem] text-ink-4">표준 발음법 예시어라서 경계 표시를 넣은 ‘{known.input}’로 계산했어요.</p>}
             {result.verbGuess && <p className="text-[.76rem] text-ink-4">첫 음절을 용언 어간으로 보았어요. 어간이 더 길면 ~로 경계를 표시해 주세요.</p>}
             <p className="text-[.74rem] leading-5 text-ink-4">첫소리 ㅇ은 음운으로 세지 않고, 겹받침은 두 개로, 이중 모음은 하나로 셉니다. 교과서에 따라 단계를 묶어 설명하기도 해요.</p>
           </>}

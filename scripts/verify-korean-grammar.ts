@@ -4,7 +4,7 @@ import { compose, decompose, phonemeCount } from "../src/features/korean/hangul"
 import { changeRules, parseWord, pronounce } from "../src/features/korean/phonology";
 import { phonologyAsks, phonologyPool, phonologyProblems } from "../src/features/korean/phonology-sheet";
 import { phonologyGroups, PHONOLOGY_WORDS, type PhonologyGroup } from "../src/features/korean/phonology-words";
-import { CONSONANTS, DIPHTHONGS, soundAsks, soundProblems, VOWELS } from "../src/features/korean/sound-system";
+import { consonantTableHtml, CONSONANTS, DIPHTHONGS, soundAsks, soundProblems, VOWELS } from "../src/features/korean/sound-system";
 import { FORMATION_WORDS, POS_SENTENCES, RELATION_PAIRS, ROLE_SENTENCES, STRUCTURE_SENTENCES, wordAsks, wordProblems } from "../src/features/korean/word-sentence";
 import { elementAsks, elementProblems, HONOR_SENTENCES, VOICE_SENTENCES } from "../src/features/korean/grammar-elements";
 import { SPACING_ITEMS, SPELLING_ITEMS, spellingAsks, spellingProblems, spellingTopics } from "../src/features/korean/spelling";
@@ -123,6 +123,21 @@ check("훈민정음·중세 국어", () => {
   assert.equal(VOWEL_MAKING.flatMap(row => row.letters).length, 11, "중성 11자");
   assert.ok(MIDDLE_FEATURES.some(item => !item.true) && MIDDLE_FEATURES.some(item => item.true));
   for (const seed of seeds) sheetOk(middleProblems(keys(middleAsks), 3, seed), `중세 국어 ${seed}`);
+});
+
+check("음운 변동 보완: 있다 연음·구개음화·제5항·ㄹ의 비음화·자음 체계표", () => {
+  const cases: [string, string][] = [["맛+있다", "마딛따"], ["멋+있다", "머딛따"], ["값+있는", "가빈는"], ["닫혀", "다처"], ["굳혀", "구처"], ["붙여", "부처"], ["희망", "히망"], ["무늬", "무니"], ["가져", "가저"], ["몇+리", "면니"], ["의사", "의사"], ["솜+이불", "솜니불"]];
+  for (const [input, standard] of cases) {
+    const result = pronounce(input);
+    assert.ok(!("error" in result) && result.standard === standard, `${input} → [${standard}] (계산: ${"error" in result ? result.error : result.standard})`);
+  }
+  const tasty = pronounce("맛+있다");
+  assert.ok(!("error" in tasty) && tasty.allowed === "마싣따", "맛있다의 허용 발음 [마싣따]");
+  const pool = phonologyPool([], ["솜이불"]);
+  assert.equal(pool[0]?.result.standard, "솜니불", "표시 없이 넣은 예시어는 예시어 자료의 표시로 계산");
+  assert.ok(consonantTableHtml().includes("ㅎ"), "자음 체계표에 ㅎ");
+  // 19자를 모두 가리면 표에도 빈칸이 19개여야 합니다(ㅎ 칸이 없으면 18개).
+  assert.equal((consonantTableHtml(new Set(CONSONANTS.map(item => item.letter))).match(/\(&nbsp;&nbsp;&nbsp;\)/g) ?? []).length, CONSONANTS.length, "자음 체계표의 칸 수");
 });
 
 console.log(`\n국어 문법 도구 ${checks}개 항목 통과`);

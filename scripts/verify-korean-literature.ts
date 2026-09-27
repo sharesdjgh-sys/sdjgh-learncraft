@@ -7,7 +7,8 @@ import { formSheetHtml, formSheetsHtml, formSheetsText, type FormSheet } from ".
 import { debateForm, debateForms, debateMinutes, DEFAULT_DEBATE_STEPS, DIALOGUES, MAXIMS, negotiationForm, speechAsks, speechProblems, type DebateFormKey, type SpeechAsk } from "../src/features/korean/speech";
 import { APPEALS, argumentAsks, argumentForm, argumentProblems, FALLACIES, type ArgumentAsk } from "../src/features/korean/argument";
 import { writingForm, writingKinds, writingParts, type WritingKind, type WritingPart } from "../src/features/korean/writing";
-import { passageSheet, readingAsks, splitParagraphs, STRUCTURES, structureAsks, structureProblems, structureSvg, type ReadingAsk, type Structure, type StructureAsk } from "../src/features/korean/reading";
+import { passageSheet, readingAsks, splitParagraphs, STRUCTURES, structureAsks, structureDiagramSection, structureProblems, structureSvg, type ReadingAsk, type Structure, type StructureAsk } from "../src/features/korean/reading";
+import { normalizePassageAi } from "../src/features/korean/passage-ai";
 import { inquiryForms, inquirySheets, type InquiryForm } from "../src/features/korean/inquiry";
 import { problemSheetHtml, problemSheetText, type SheetSection } from "../src/features/korean/sheet";
 
@@ -120,7 +121,7 @@ check("논증과 설득·글쓰기 과정", () => {
 
 check("지문 분석·글 구조·주제 탐구", () => {
   assert.deepEqual(splitParagraphs("가\n나\n\n다"), ["가 나", "다"]);
-  assert.deepEqual(splitParagraphs("가\n나"), ["가", "나"]);
+  assert.deepEqual(splitParagraphs("가.\n나."), ["가.", "나."], "문장 부호로 끝난 줄은 문단");
   assert.deepEqual(splitParagraphs("  "), []);
   const passage = { title: "제목", origin: "", body: "첫째 [문단]이다.\n\n둘째 문단이다.\n\n셋째 [문단]이다.", summaries: ["요약 1"], words: "편향, 상관관계" };
   for (const seed of seeds) {
@@ -141,6 +142,31 @@ check("지문 분석·글 구조·주제 탐구", () => {
   for (const books of [1, 3, 6]) formOk(inquirySheets({ field: "과학", topic: "주제", forms: keys(inquiryForms) as InquiryForm[], books }), `탐구 ${books}`);
   assert.equal(inquirySheets({ field: "", topic: "", forms: [], books: 3 }).length, 0);
   assert.ok(formSheetsHtml(inquirySheets({ field: "a", topic: "b", forms: ["plan", "log"], books: 2 }), "screen").includes("break-before:page"), "양식마다 쪽 나눔");
+});
+
+check("화법·표현법·독서 보완: 지킨 사람·보기 중복·문단 잇기·구조도·AI 초안 검사", () => {
+  for (const seed of seeds) {
+    for (const problem of speechProblems(["keptBroken"], DIALOGUES.length, seed)[0].problems) {
+      const dialogue = DIALOGUES.find(item => problem.text.includes(item.lines[0][1].slice(0, 12)))!;
+      const who = dialogue.lines[dialogue.speaker ?? dialogue.lines.length - 1][0];
+      assert.ok(problem.text.includes(`‘${who}’`), `지키거나 어긴 사람을 가리켜요: ${who}`);
+    }
+    for (const problem of deviceProblems(["identify"], DEVICES, DEVICES.length, seed)[0].problems) {
+      const answer = problem.answerText.replace(/^[①-⑤] /, "").split(" — ")[0];
+      if (answer === "대조법") assert.ok(!problem.text.includes("대구법"), "대조법 문제에 대구법 보기를 넣지 않아요");
+      if (answer === "점층법") assert.ok(!problem.text.includes("반복법"), "점층법 문제에 반복법 보기를 넣지 않아요");
+    }
+  }
+  assert.deepEqual(splitParagraphs("첫 문단은 여기서 시작해서\n줄이 바뀌어도 이어진다.\n둘째 문단이다."), ["첫 문단은 여기서 시작해서 줄이 바뀌어도 이어진다.", "둘째 문단이다."]);
+  assert.deepEqual(splitParagraphs("가.\n\n나는\n다."), ["가.", "나는 다."], "빈 줄이 있으면 빈 줄로 나눠요");
+  const diagram = structureDiagramSection("claim", ["<b>주장</b>", "근거"]);
+  assert.ok(diagram.intro?.html.includes("<svg") && !diagram.intro.html.includes("<b>주장"), "채운 구조도(이스케이프)");
+  const input = { paragraphs: ["인공 지능은 편향된 데이터를 학습할 수 있다.", "따라서 알고리즘을 점검해야 한다."], summaries: true, words: true, questions: true };
+  const material = normalizePassageAi(input, { summaries: ["인공 지능의 편향 가능성을 말한다."], words: ["편향", "알고리즘", "지문에없는말"], questions: [{ kind: "사실적 읽기", text: "[1] 문단에서 인공 지능이 무엇을 학습할 수 있다고 했는지 쓰시오." }, { kind: "기타", text: "아무 질문이나 쓰시오." }] });
+  assert.deepEqual(material.summaries, ["인공 지능의 편향 가능성을 말한다.", ""], "요약은 문단 수에 맞춰요");
+  assert.deepEqual(material.words, ["편향", "알고리즘"], "지문에 있는 낱말만");
+  assert.deepEqual(material.questions.map(item => item.kind), ["사실적"]);
+  assert.equal(material.dropped, 2);
 });
 
 console.log(`\n국어 문학·화법·독서 검증 ${checks}개 통과`);

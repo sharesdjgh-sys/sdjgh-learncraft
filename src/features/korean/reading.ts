@@ -4,11 +4,13 @@ import { escapeHtml, plainText, problem, sheetTable, shuffled, svgText, svgWrap,
 
 /* ───── 지문 분석 ───── */
 
-/** 빈 줄(없으면 줄 바꿈)로 문단을 나눕니다. */
+/** 빈 줄(없으면 줄 바꿈)로 문단을 나눕니다. 빈 줄이 없을 때는 문장 부호로 끝나지 않은 줄을 다음 줄과 이어서,
+    PDF에서 복사해 문장 중간에서 줄이 바뀐 지문도 문단 단위로 나눕니다. */
 export function splitParagraphs(body: string) {
   const text = body.replace(/\r\n/g, "\n").trim();
   if (!text) return [];
-  return (/\n\s*\n/.test(text) ? text.split(/\n\s*\n/) : text.split("\n")).map(paragraph => paragraph.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
+  const pieces = /\n\s*\n/.test(text) ? text.split(/\n\s*\n/) : text.replace(/([^.?!…"”'’\n])[ \t]*\n(?=\S)/g, "$1 ").split("\n");
+  return pieces.map(paragraph => paragraph.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
 }
 
 export type ReadingAsk = "literal" | "inferential" | "critical" | "creative";
@@ -141,6 +143,13 @@ const STRUCTURE_EXAMPLES: { kind: Structure; text: string }[] = [
   { kind: "sequence", text: "김치를 담글 때는 먼저 배추를 소금물에 절인다. 다음으로 절인 배추를 깨끗이 씻어 물기를 뺀다. 그 뒤 양념을 만들어 배춧잎 사이사이에 바른다. 마지막으로 항아리에 담아 익힌다." },
   { kind: "claim", text: "청소년에게 투표권을 더 일찍 주어야 한다. 청소년도 사회 문제에 관심이 많고, 정책의 영향을 직접 받으며, 일찍 투표를 경험하면 민주 시민 의식이 자란다. 그러므로 선거 연령을 낮추는 것을 검토해야 한다." },
 ];
+/** 교사가 칸을 채운 구조도를 학습지 맨 앞에 싣는 묶음입니다(판서·정리 자료용). */
+export function structureDiagramSection(kind: Structure, texts: string[]): SheetSection {
+  const info = STRUCTURES[kind];
+  const text = [`[${info.name} 구조도]`, ...info.labels.map((label, index) => `${label}: ${texts[index]?.trim() || "(          )"}`)].join("\n");
+  const html = `<div style="margin:1mm 0 2mm">${structureSvg(kind, texts)}</div><p style="margin:0 0 2mm;font-size:9.5pt;color:#444">${escapeHtml(info.meaning)} 자주 쓰는 표지: ${escapeHtml(info.signals)}</p>`;
+  return { heading: `${info.name} 구조도`, intro: { html, text }, problems: [] };
+}
 export function structureProblems(asks: StructureAsk[], count: number, seed: number): SheetSection[] {
   const sections: SheetSection[] = [];
   for (const ask of asks) {

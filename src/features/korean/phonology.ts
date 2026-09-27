@@ -7,13 +7,13 @@
    띄어 쓴 말은 대표음으로 바꾼 뒤 이어 발음합니다. 표시가 없는 경계는 조사·어미·접미사(형식 형태소) 앞으로 봅니다. */
 import { CLUSTERS, compose, decompose, isSyllable, phonemeCount } from "./hangul";
 
-export type RuleId = "coda" | "cluster" | "nasal" | "rNasal" | "lateral" | "palatal" | "tense" | "aspirate" | "hDrop" | "nInsert" | "sai" | "liaison";
+export type RuleId = "coda" | "cluster" | "nasal" | "rNasal" | "lateral" | "palatal" | "tense" | "aspirate" | "hDrop" | "nInsert" | "sai" | "vowel" | "liaison";
 export type ChangeType = "교체" | "탈락" | "첨가" | "축약" | "사잇소리" | "연음";
 export const RULES: Record<RuleId, { name: string; type: ChangeType; article: string; how: string }> = {
   coda: { name: "음절의 끝소리 규칙", type: "교체", article: "제8·9항", how: "받침은 ㄱ·ㄴ·ㄷ·ㄹ·ㅁ·ㅂ·ㅇ 일곱 소리로만 발음해요(ㄲ·ㅋ→ㄱ, ㅅ·ㅆ·ㅈ·ㅊ·ㅌ·ㅎ→ㄷ, ㅍ→ㅂ)." },
   cluster: { name: "자음군 단순화", type: "탈락", article: "제10·11항", how: "겹받침은 자음 앞이나 끝에서 둘 중 하나만 발음해요." },
   nasal: { name: "비음화", type: "교체", article: "제18항", how: "받침 ㄱ·ㄷ·ㅂ이 ㄴ·ㅁ 앞에서 ㅇ·ㄴ·ㅁ으로 바뀌어요." },
-  rNasal: { name: "ㄹ의 비음화", type: "교체", article: "제19항", how: "받침 ㅁ·ㅇ(과 ㄱ·ㅂ) 뒤의 ㄹ이 ㄴ으로 바뀌어요." },
+  rNasal: { name: "ㄹ의 비음화", type: "교체", article: "제19항", how: "받침 ㅁ·ㅇ(과 ㄱ·ㄷ·ㅂ) 뒤의 ㄹ이 ㄴ으로 바뀌어요." },
   lateral: { name: "유음화", type: "교체", article: "제20항", how: "ㄴ이 ㄹ의 앞이나 뒤에서 ㄹ로 바뀌어요." },
   palatal: { name: "구개음화", type: "교체", article: "제17항", how: "받침 ㄷ·ㅌ이 모음 ㅣ로 시작하는 조사·접미사 앞에서 ㅈ·ㅊ으로 바뀌어요." },
   tense: { name: "된소리되기", type: "교체", article: "제23~27항", how: "예사소리 ㄱ·ㄷ·ㅂ·ㅅ·ㅈ이 일정한 조건에서 ㄲ·ㄸ·ㅃ·ㅆ·ㅉ으로 바뀌어요." },
@@ -21,6 +21,7 @@ export const RULES: Record<RuleId, { name: string; type: ChangeType; article: st
   hDrop: { name: "ㅎ 탈락", type: "탈락", article: "제12항", how: "받침 ㅎ이 모음 앞이나 ㄴ·ㅅ 앞에서 소리 나지 않아요." },
   nInsert: { name: "ㄴ 첨가", type: "첨가", article: "제29항", how: "합성어·파생어에서 앞말이 자음으로 끝나고 뒷말이 이·야·여·요·유로 시작하면 ㄴ이 덧나요." },
   sai: { name: "사잇소리 현상", type: "사잇소리", article: "제28·30항", how: "합성어에서 뒷말의 첫소리가 된소리로 나거나 ㄴ 소리가 덧나요." },
+  vowel: { name: "이중 모음의 발음", type: "탈락", article: "제5항", how: "용언 활용형의 ‘져·쪄·쳐’는 [저·쩌·처]로, 자음을 첫소리로 가진 ‘ㅢ’는 [ㅣ]로 발음해요(반모음이 탈락)." },
   liaison: { name: "연음", type: "연음", article: "제13~16항", how: "받침이 모음으로 시작하는 뒤 음절의 첫소리로 옮겨 가요(음운 변동은 아니에요)." },
 };
 
@@ -109,8 +110,8 @@ const aspirate: Rule = syllables => {
     const last = parts ? parts[1] : syllable.jong;
     if (!ASPIRATE[last] || (parts && !["ㄺ", "ㄼ", "ㄵ"].includes(syllable.jong))) return;
     next.cho = ASPIRATE[last];
-    // ㄷ + 히는 [티]를 거쳐 [치]가 됩니다(닫히다[다치다]).
-    next.fromHi = last === "ㄷ" && next.jung === "ㅣ" && formal(next);
+    // ㄷ + 히·혀는 [티·텨]를 거쳐 [치·쳐]가 됩니다(닫히다[다치다], 닫혀[다처]).
+    next.fromHi = last === "ㄷ" && (next.jung === "ㅣ" || next.jung === "ㅕ") && formal(next);
     syllable.jong = parts ? parts[0] : "";
     changed = true;
   });
@@ -121,7 +122,8 @@ const palatal: Rule = syllables => {
   syllables.forEach((syllable, index) => {
     const next = syllables[index + 1];
     if (syllable.fromHi) { syllable.cho = "ㅊ"; syllable.fromHi = false; changed = true; }
-    if (!next || !formal(next) || next.cho !== "ㅇ" || next.jung !== "ㅣ" || !["ㄷ", "ㅌ", "ㄾ"].includes(syllable.jong)) return;
+    // 붙여(붙이어)처럼 ㅣ가 줄어든 ㅕ 앞에서도 일어납니다(붙여[부처]).
+    if (!next || !formal(next) || next.cho !== "ㅇ" || (next.jung !== "ㅣ" && next.jung !== "ㅕ") || !["ㄷ", "ㅌ", "ㄾ"].includes(syllable.jong)) return;
     next.cho = syllable.jong === "ㄷ" ? "ㅈ" : "ㅊ";
     syllable.jong = syllable.jong === "ㄾ" ? "ㄹ" : "";
     changed = true;
@@ -145,6 +147,8 @@ const nInsert: Rule = syllables => {
   syllables.forEach((syllable, index) => {
     const next = syllables[index + 1];
     if (!next || !syllable.jong || next.cho !== "ㅇ" || !Y_VOWELS.has(next.jung) || (next.before !== "+" && !syllable.sai)) return;
+    // ‘있다’가 붙은 맛있다·멋있다·값있는은 ㄴ이 덧나지 않고 대표음으로 바꾼 뒤 연음합니다(제15항: [마딛따], [가빈는]).
+    if (next.text === "있") return;
     next.cho = "ㄴ";
     changed = true;
   });
@@ -200,7 +204,7 @@ const rNasal: Rule = syllables => {
   syllables.forEach((syllable, index) => {
     const next = syllables[index + 1];
     if (next?.cho !== "ㄹ") return;
-    if (["ㅁ", "ㅇ", "ㄱ", "ㅂ"].includes(syllable.jong) || (syllable.jong === "ㄴ" && syllable.nrException)) { next.cho = "ㄴ"; changed = true; }
+    if (["ㅁ", "ㅇ", "ㄱ", "ㄷ", "ㅂ"].includes(syllable.jong) || (syllable.jong === "ㄴ" && syllable.nrException)) { next.cho = "ㄴ"; changed = true; }
   });
   return changed;
 };
@@ -221,6 +225,15 @@ const lateral: Rule = syllables => {
     if (syllable.jong === "ㄴ" && next.cho === "ㄹ") { syllable.jong = "ㄹ"; changed = true; }
     else if (syllable.jong === "ㄹ" && next.cho === "ㄴ") { next.cho = "ㄹ"; changed = true; }
   });
+  return changed;
+};
+/** 제5항 다만 1·3: 져·쪄·쳐 → [저·쩌·처], 자음 뒤 ㅢ → [ㅣ] */
+const vowel: Rule = syllables => {
+  let changed = false;
+  for (const syllable of syllables) {
+    if (syllable.jung === "ㅕ" && ["ㅈ", "ㅉ", "ㅊ"].includes(syllable.cho)) { syllable.jung = "ㅓ"; changed = true; }
+    else if (syllable.jung === "ㅢ" && syllable.cho !== "ㅇ") { syllable.jung = "ㅣ"; changed = true; }
+  }
   return changed;
 };
 const tenseRule = (starAsSai: boolean): Rule => syllables => {
@@ -270,10 +283,16 @@ export function pronounce(input: string, options: { verb?: boolean; keepSai?: bo
   run("lateral", lateral);
   run("sai", tenseRule(true));
   run("tense", tenseRule(false));
+  run("vowel", vowel);
   const standard = form(syllables);
   let allowed: string | null = null;
   if (!options.keepSai && syllables.some(syllable => syllable.sai)) {
     const other = pronounce(input, { ...options, keepSai: true });
+    if (!("error" in other) && other.standard !== standard) allowed = other.standard;
+  }
+  // 맛있다·멋있다는 [마싣따]·[머싣따]도 표준 발음으로 허용합니다(제15항 다만).
+  if (!allowed && /[맛멋]\+있/.test(input)) {
+    const other = pronounce(input.replace(/([맛멋])\+있/g, "$1있"), options);
     if (!("error" in other) && other.standard !== standard) allowed = other.standard;
   }
   return { input, surface, steps, standard, allowed, before: phonemeCount(surface), after: phonemeCount(standard), verbGuess };

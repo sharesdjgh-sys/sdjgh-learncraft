@@ -141,7 +141,7 @@ function DevicesView() {
         {!pool.length && <p className="text-[.84rem] text-ink-4">표현법 묶음을 하나 이상 골라 주세요.</p>}
         <p className="text-[.74rem] leading-5 text-ink-4">출전이 없는 예문은 교과서형으로 지은 예문이에요. 교과서마다 분류(예: 음성 상징어를 표현법에 넣는지)가 조금씩 다를 수 있어요.</p>
       </section>
-      <ProblemSheet id="korean-devices-print" sections={deviceProblems(state.asks, pool, state.sheet.count, state.sheet.seed)} options={{ title: state.sheet.title || "표현법 익히기", answers: state.sheet.answers }} />
+      <ProblemSheet id="korean-devices-print" sections={pool.length ? deviceProblems(state.asks, pool, state.sheet.count, state.sheet.seed) : []} options={{ title: state.sheet.title || "표현법 익히기", answers: state.sheet.answers }} />
     </ToolLayout>
   );
 }

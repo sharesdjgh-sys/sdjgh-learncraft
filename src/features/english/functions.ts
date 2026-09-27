@@ -173,7 +173,10 @@ export const functionAsks: Record<FunctionAsk, string> = { dialogue: "대화 빈
 const CONFLICTS: [string, string][] = [
   ["advice", "suggest"], ["advice", "worry"], ["opinion", "agree"], ["opinion", "certainty"], ["opinion", "reason"], ["agree", "certainty"],
   ["hope", "preference"], ["thanks", "worry"], ["request", "suggest"], ["check", "reason"], ["certainty", "reason"],
+  ["agree", "reason"], ["check", "request"], ["phone", "request"],
 ];
+// “다시 말해 줄래?” 같은 이해 확인 말은 어떤 말 뒤에도 자연스러워서 대화 빈칸의 오답 보기로 쓰지 않습니다.
+const ALWAYS_FITS = new Set(["check"]);
 /** 두 기능이 오답 보기로 함께 쓰기에 안전한지 봅니다. */
 export const distinctFunctions = (a: string, b: string) => a !== b && !CONFLICTS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 
@@ -190,7 +193,7 @@ export function functionSections(functions: SpeechFunction[], asks: FunctionAsk[
     const pool = mix(functions.flatMap(item => item.dialogues.map(dialogue => ({ item, dialogue })))).slice(0, count);
     const problems: SheetProblem[] = pool.map(({ item, dialogue }) => {
       const answer = dialogue.find(line => line.blank)!.text;
-      const wrong = mix(allBlanks.filter(blank => distinctFunctions(blank.key, item.key) && blank.text !== answer)).slice(0, 4).map(blank => blank.text);
+      const wrong = mix(allBlanks.filter(blank => distinctFunctions(blank.key, item.key) && !ALWAYS_FITS.has(blank.key) && blank.text !== answer)).slice(0, 4).map(blank => blank.text);
       const choices = mix([answer, ...wrong]);
       return problem(`대화의 빈칸에 들어갈 말로 가장 알맞은 것을 고르시오.<div style="margin:1mm 0 1mm 3mm">${dialogueHtml(dialogue, true)}</div>${choices.map((choice, index) => `<div>${circled(index)} ${escapeHtml(choice)}</div>`).join("")}`,
         `${circled(choices.indexOf(answer))} ${escapeHtml(answer)} <span style="color:#555">— ${escapeHtml(item.name)}</span>`);

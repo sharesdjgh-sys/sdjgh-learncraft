@@ -19,6 +19,9 @@ export function phonologyPool(groups: PhonologyGroup[], custom: string[]): Phono
     if (!("error" in result)) items.push({ word, result });
   }
   for (const input of custom) {
+    // 표시 없이 넣은 예시어(솜이불)는 예시어 자료의 표시로 계산합니다. 그대로 두면 [소미불] 같은 틀린 정답이 실려요.
+    const known = PHONOLOGY_WORDS.find(item => item.word === input && item.input !== input);
+    if (known) { const result = pronounce(known.input); if (!("error" in result)) items.push({ word: known, result }); continue; }
     const result = pronounce(input);
     if ("error" in result) continue;
     items.push({ word: { word: result.surface, input, standard: result.standard, allowed: result.allowed ?? undefined, group: "coda" }, result });

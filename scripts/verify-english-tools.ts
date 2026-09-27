@@ -1,11 +1,12 @@
 /* 영어 교과 도구(단어 시험지·문법·독해 학습지·쓰기·말하기)의 자료와 학습지를 확인합니다. npx tsx scripts/verify-english-tools.ts */
 import assert from "node:assert/strict";
-import { DEFAULT_WORDS, findWord, parseWordList, scramble, spellingBlank, wordAsks, wordLines, wordListHtml, wordListLayouts, wordTestSections, type WordAsk, type WordListLayout } from "../src/features/english/wordlist";
+import { DEFAULT_WORDS, findWord, parseWordList, WORD_LIMITS, scramble, spellingBlank, wordAsks, wordLines, wordListHtml, wordListLayouts, wordTestSections, type WordAsk, type WordListLayout } from "../src/features/english/wordlist";
 import { chooseOptions, countPhrase, GRAMMAR_TOPICS, grammarKinds, grammarSections, type GrammarKind } from "../src/features/english/grammar";
 import { IRREGULAR_VERBS, verbBlanks, verbPattern, verbSheetHtml, verbSheetText, type VerbBlank, type VerbPattern } from "../src/features/english/irregular-verbs";
 import { readingAsks, readingSections, SAMPLE_PASSAGE, splitSentences, vocabListHtml, wordFrequency, type ReadingAsk } from "../src/features/english/reading";
 import { DEFAULT_RUBRICS, rubricHtml, WRITING_GENRES, writingSheetHtml, writingSheetText } from "../src/features/english/writing";
 import { distinctFunctions, expressionCardsHtml, functionAsks, functionSections, roleplayHtml, SPEECH_FUNCTIONS, type FunctionAsk } from "../src/features/english/functions";
+import { normalizeWordFill } from "../src/features/english/word-fill";
 import { problemSheetHtml, problemSheetText, seededRandom, type SheetSection } from "../src/features/english/sheet";
 
 let checks = 0;
@@ -167,6 +168,39 @@ check("쓰기 틀·의사소통 표현·평가 기준표", () => {
     const html = rubricHtml({ title: "", kind, rows: DEFAULT_RUBRICS[kind], labels: ["상", "중", "하"], scores: [5, 3, 1], names: true }, "clipboard");
     pageOk(html, kind); assert.ok(html.includes(`만점 ${DEFAULT_RUBRICS[kind].length * 5}점`));
   }
+});
+
+check("단어 목록 형식·유형 간 중복·문장 나누기·빈도·AI 결과 검사", () => {
+  const [definition, spaced, mixed, long] = parseWordList(["consumer - a person who buys goods - Smart consumers compare prices.", "consumer 소비자", "compare: 비교하다 - She compared the two phones.", "x".repeat(100)].join("\n"));
+  assert.deepEqual(definition, { word: "consumer", meaning: "a person who buys goods", example: "Smart consumers compare prices." }, "영영 풀이는 뜻");
+  assert.deepEqual([spaced.word, spaced.meaning], ["consumer", "소비자"], "띄어 쓴 단어와 뜻");
+  assert.deepEqual([mixed.word, mixed.meaning, mixed.example], ["compare", "비교하다", "She compared the two phones."], "섞인 구분자");
+  assert.ok(long.word.length <= WORD_LIMITS.word, "저장 길이에 맞춰 자름");
+  for (const seed of seeds) {
+    const sections = wordTestSections(DEFAULT_WORDS, { asks: ["enKo", "koEn", "example", "choice"], count: 10, seed, distinct: true });
+    const words = sections.flatMap(section => section.problems.map(problem => DEFAULT_WORDS.find(entry => problem.answerText.includes(entry.word) || problem.answerText.includes(entry.meaning))?.word));
+    assert.equal(new Set(words).size, words.length, `유형끼리 단어가 겹치지 않아요 (seed ${seed})`);
+  }
+  assert.deepEqual(splitSentences("She said no. Then she left."), ["She said no.", "Then she left."]);
+  assert.deepEqual(splitSentences("Room No. 5 is open. Plan B. We met at 5 p.m. He was late."), ["Room No. 5 is open.", "Plan B.", "We met at 5 p.m.", "He was late."]);
+  assert.deepEqual(splitSentences("J. K. Rowling wrote it. Many people think that\nshopping is fun."), ["J. K. Rowling wrote it.", "Many people think that shopping is fun."]);
+  const frequency = wordFrequency("I don't know. You're right. Consumers like consumer goods.");
+  assert.ok(!frequency.some(item => item.word.includes("'")), "축약형은 빼요");
+  assert.equal(frequency.find(item => item.word === "consumer")?.count, 2, "복수형을 원형에 합쳐요");
+  const blanks = readingSections(Array.from({ length: 12 }, (_, index) => `Word [w${index}] here.`).join(" "), { asks: ["blank"], seed: 1, orderIntro: 1, insertAt: 0, irrelevant: "", irrelevantAfter: 3, vocabCount: 5, meanings: {} });
+  assert.ok(!problemSheetHtml(blanks, { title: "", answers: true }, "screen").includes("(("), "⑩ 뒤 번호에 괄호가 겹치지 않아요");
+  for (const seed of seeds) {
+    const sections = functionSections(SPEECH_FUNCTIONS.filter(item => item.key === "agree"), ["dialogue"], 6, seed);
+    for (const problem of sections[0]?.problems ?? []) assert.ok(!/say that again|Why do you think so/.test(problem.text), "동의 대화에 정답이 둘인 보기를 넣지 않아요");
+  }
+  const request = { words: ["reduce", "give up", "influence"], meaning: true, example: true };
+  const { items, rejected } = normalizeWordFill(request, [
+    { word: "reduce", meaning: "줄이다", example: "We should reduce plastic waste at school." },
+    { word: "give up", meaning: "quit", example: "Never give up on your dreams." },
+    { word: "influence", meaning: "영향; 영향을 주다", example: "This sentence lacks the target." },
+  ]);
+  assert.deepEqual(items.map(item => [item.meaning, Boolean(item.example)]), [["줄이다", true], ["", true], ["영향; 영향을 주다", false]]);
+  assert.equal(rejected, 2, "한글 없는 뜻, 단어 없는 예문은 버려요");
 });
 
 console.log(`\n영어 도구 검증 ${checks}개 항목 통과`);

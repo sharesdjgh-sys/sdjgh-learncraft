@@ -34,7 +34,7 @@ export const DEVICES: Device[] = [
   { id: "climax", name: "점층법", group: "emphasis", meaning: "말의 뜻이나 정도를 점점 크게, 강하게, 넓게 하여 뜻을 강조하는 방법",
     examples: [{ text: "이 몸이 죽고 죽어 일백 번 고쳐 죽어", source: "정몽주, 「이 몸이 죽고 죽어」" }, { text: "한 사람이 바뀌면 가정이 바뀌고, 가정이 바뀌면 나라가 바뀐다." }] },
   { id: "repetition", name: "반복법", group: "emphasis", meaning: "같은 낱말이나 구절, 문장을 되풀이하여 뜻을 강조하고 운율을 만드는 방법",
-    examples: [{ text: "가시는 걸음걸음 / 놓인 그 꽃을", source: "김소월, 「진달래꽃」" }, { text: "산에는 꽃이 피네. 꽃이 피네." }] },
+    examples: [{ text: "산에는 꽃 피네 / 꽃이 피네 / 갈 봄 여름 없이 / 꽃이 피네", source: "김소월, 「산유화」" }, { text: "살어리 살어리랏다 청산(靑山)애 살어리랏다", source: "「청산별곡」" }] },
   { id: "enumeration", name: "열거법", group: "emphasis", meaning: "비슷하거나 관련 있는 낱말·구절을 여러 개 늘어놓아 내용을 강조하는 방법",
     examples: [{ text: "시장에는 사과, 배, 감, 대추가 수북이 쌓여 있었다." }, { text: "웃음과 눈물과 땀과 노래가 이 마당에 모두 있다." }] },
   { id: "inversion", name: "도치법", group: "variation", meaning: "문장 성분의 순서를 바꾸어 강조하거나 변화를 주는 방법",
@@ -70,6 +70,10 @@ export const deviceAsks: Record<DeviceAsk, string> = { identify: "예문 → 표
 
 const exampleHtml = (example: Device["examples"][number]) => `<span style="display:block;margin:1mm 0 1mm 4mm;padding-left:2mm;border-left:2px solid #999">${escapeHtml(example.text)}${example.source ? ` <span style="font-size:9pt;color:#555">— ${escapeHtml(example.source)}</span>` : ""}</span>`;
 
+// 한 예문에 함께 쓰이기 쉬운 표현법 짝입니다. 고르기 문제에서 서로를 오답 보기로 쓰지 않습니다.
+const OVERLAPS: [string, string][] = [["parallelism", "contrast"], ["climax", "repetition"], ["climax", "enumeration"], ["repetition", "exclamation"], ["empathy", "correlative"], ["irony", "rhetorical"], ["personification", "animation"]];
+const overlaps = (a: string, b: string) => OVERLAPS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+
 export function deviceProblems(asks: DeviceAsk[], pool: Device[], perAsk: number, seed: number): SheetSection[] {
   const devices = pool.length >= 2 ? pool : DEVICES;
   const random = seededRandom(seed * 37 + 11);
@@ -81,8 +85,8 @@ export function deviceProblems(asks: DeviceAsk[], pool: Device[], perAsk: number
       const device = order[index];
       if (ask === "identify") {
         const example = device.examples[Math.floor(random() * device.examples.length)];
-        // 보기는 같은 묶음의 다른 표현법을 먼저 씁니다.
-        const others = shuffled(DEVICES.filter(item => item.id !== device.id), seed * 7 + index).sort((a, b) => Number(b.group === device.group) - Number(a.group === device.group)).slice(0, 4);
+        // 보기는 같은 묶음의 다른 표현법을 먼저 쓰되, 한 예문에 함께 쓰일 수 있는 표현법(대구·대조 등)은 빼서 정답이 둘이 되지 않게 합니다.
+        const others = shuffled(DEVICES.filter(item => item.id !== device.id && !overlaps(item.id, device.id)), seed * 7 + index).sort((a, b) => Number(b.group === device.group) - Number(a.group === device.group)).slice(0, 4);
         const choices = shuffled([device, ...others], seed * 3 + index * 5 + 2);
         const at = choices.indexOf(device);
         problems.push(problem(`다음에 쓰인 표현법으로 가장 알맞은 것은?${exampleHtml(example)}${choices.map((item, i) => `${circled(i)} ${escapeHtml(item.name)}`).join("&nbsp;&nbsp; ")}`,

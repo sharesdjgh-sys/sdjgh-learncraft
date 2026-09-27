@@ -23,24 +23,40 @@ export const DEFAULT_WORDS: WordEntry[] = [
 /* ───── 붙여 넣은 글 읽기 ───── */
 
 const SEPARATORS = ["\t", " - ", " – ", " — ", " : ", ":", " = ", "=", " / ", ","];
-/** 영어 낱말이 셋 이상인 조각은 예문으로 봅니다. */
-const looksLikeSentence = (text: string) => (text.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) ?? []).length >= 3 && !/[가-힣]/.test(text);
+// 뜻과 예문 사이에 다시 올 수 있는 구분자입니다(쉼표는 뜻 안에 자주 들어가서 뺍니다).
+const STRONG_SEPARATORS = ["\t", " - ", " – ", " — ", " = ", " / "];
+/** 저장 형식(단어 60자·뜻 120자·예문 300자)에 맞춰 자릅니다. 길이가 넘으면 다시 불러올 때 목록 전체가 예시로 바뀌기 때문입니다. */
+export const WORD_LIMITS = { word: 60, meaning: 120, example: 300 } as const;
+const fitEntry = (entry: WordEntry): WordEntry => ({ word: entry.word.slice(0, WORD_LIMITS.word).trim(), meaning: entry.meaning.slice(0, WORD_LIMITS.meaning).trim(), example: entry.example.slice(0, WORD_LIMITS.example).trim() });
+/** 영어 낱말이 셋 이상이고 대문자로 시작하거나 문장 부호로 끝나는 조각은 예문으로 봅니다(소문자 영영 풀이는 뜻으로 둡니다). */
+const looksLikeSentence = (text: string) => (text.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) ?? []).length >= 3 && !/[가-힣]/.test(text) && (/^["'“]?[A-Z]/.test(text) || /[.!?]["'”]?$/.test(text));
 
-/** 한 줄에 하나씩 ‘단어 - 뜻 - 예문(선택)’을 읽습니다. 구분자는 탭, -, :, =, /, 쉼표를 알아봅니다. 앞의 번호(1. 1) ①)는 뺍니다. */
+/** 한 줄에 하나씩 ‘단어 - 뜻 - 예문(선택)’을 읽습니다. 구분자는 탭, -, :, =, /, 쉼표를 알아봅니다. 앞의 번호(1. 1) ①)는 뺍니다.
+    구분자 없이 ‘consumer 소비자’처럼 띄어 쓴 줄은 한글이 시작하는 곳에서 나눕니다. */
 export function parseWordList(text: string): WordEntry[] {
   const entries: WordEntry[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/^\s*(?:\d+\s*[.)]|[①-⑳])\s*/, "").trim();
     if (!line) continue;
-    const separator = SEPARATORS.find(item => line.includes(item));
-    if (!separator) { entries.push({ word: line, meaning: "", example: "" }); continue; }
-    const parts = line.split(separator).map(part => part.trim()).filter(Boolean);
+    // 탭(엑셀 표)이 있으면 탭을, 없으면 가장 앞에 나온 구분자를 씁니다(compare: 비교하다 - ...).
+    const found = SEPARATORS.filter(item => line.includes(item));
+    const separator = found.includes("\t") ? "\t" : found.sort((a, b) => line.indexOf(a) - line.indexOf(b) || b.length - a.length)[0];
+    if (!separator) {
+      const spaced = /^([A-Za-z][A-Za-z'’.\- ]*?)\s+([~(]?[가-힣].*)$/.exec(line);
+      entries.push(fitEntry(spaced ? { word: spaced[1], meaning: spaced[2], example: "" } : { word: line, meaning: "", example: "" }));
+      continue;
+    }
+    let parts = line.split(separator).map(part => part.trim()).filter(Boolean);
+    // 단어와 나머지만 나뉘었으면 나머지를 다른 구분자로 한 번 더 나눕니다.
+    const strong = parts.length === 2 ? STRONG_SEPARATORS.find(item => item !== separator && parts[1].includes(item)) : undefined;
+    if (strong) parts = [parts[0], ...parts[1].split(strong).map(part => part.trim()).filter(Boolean)];
     const [word, ...rest] = parts;
-    // 뜻에 쉼표가 들어 있을 수 있으니, 예문처럼 보이는 조각부터 끝까지를 예문으로 묶습니다.
-    const at = rest.findIndex(looksLikeSentence);
+    // 뜻에 쉼표가 들어 있을 수 있으니, 예문처럼 보이는 조각부터 끝까지를 예문으로 묶습니다. 조각이 둘 이상이면 첫 조각은 늘 뜻입니다(영영 풀이).
+    const at = rest.findIndex((part, index) => (rest.length === 1 || index > 0) && looksLikeSentence(part));
+    const joiner = strong ?? separator;
     const meaning = (at < 0 ? rest : rest.slice(0, at)).join(separator === "," ? ", " : " ").trim();
-    const example = at < 0 ? "" : rest.slice(at).join(separator === "," ? ", " : separator.trim() ? ` ${separator.trim()} ` : " ").trim();
-    entries.push({ word: word ?? "", meaning, example });
+    const example = at < 0 ? "" : rest.slice(at).join(joiner === "," ? ", " : joiner.trim() ? ` ${joiner.trim()} ` : " ").trim();
+    entries.push(fitEntry({ word: word ?? "", meaning, example }));
   }
   return entries.filter(entry => entry.word);
 }
@@ -102,7 +118,14 @@ export function scramble(word: string, random: () => number) {
   return [...letters].reverse().map(char => char.toLowerCase()).join(" / ");
 }
 
-export type WordTestOptions = { asks: WordAsk[]; count: number; seed: number };
+export type WordTestOptions = { asks: WordAsk[]; count: number; seed: number; /** 유형끼리 같은 단어를 쓰지 않습니다(한 유형이 다른 유형의 답을 알려 주지 않게). */ distinct?: boolean };
+/** 유형마다 조건에 맞는 단어가 적은 것부터 고르면, 겹치지 않게 나눌 때 빈 유형이 덜 생깁니다. */
+const PICK_ORDER: WordAsk[] = ["example", "match", "choice", "koEn", "scramble", "spelling", "enKo"];
+/** 유형끼리 겹치지 않게 나눌 때 유형마다 낼 수 있는 문항 수입니다. */
+export function distinctCount(entries: WordEntry[], asks: WordAsk[], count: number) {
+  const words = entries.filter(entry => entry.word.trim()).length;
+  return asks.length ? Math.min(count, Math.max(1, Math.floor(words / asks.length))) : count;
+}
 const meaningOf = (entry: WordEntry) => entry.meaning.trim() || "(뜻 없음)";
 
 /** 유형마다 단어를 골라 시험지 묶음을 만듭니다. count는 유형마다 문항 수(목록보다 많으면 목록 전체)입니다. */
@@ -110,9 +133,16 @@ export function wordTestSections(entries: WordEntry[], options: WordTestOptions)
   const list = entries.filter(entry => entry.word.trim());
   if (!list.length) return [];
   const random = seededRandom(options.seed * 131 + 7);
-  const pick = (pool: WordEntry[]) => shuffled(pool, Math.floor(random() * 1e9)).slice(0, Math.min(options.count, pool.length));
-  const sections: SheetSection[] = [];
-  for (const ask of options.asks) {
+  const used = new Set<WordEntry>();
+  const limit = options.distinct ? distinctCount(list, options.asks, options.count) : options.count;
+  const pick = (pool: WordEntry[]) => {
+    const chosen = shuffled(options.distinct ? pool.filter(entry => !used.has(entry)) : pool, Math.floor(random() * 1e9)).slice(0, limit);
+    for (const entry of chosen) used.add(entry);
+    return chosen;
+  };
+  const built = new Map<WordAsk, SheetSection>();
+  const order = options.distinct ? [...options.asks].sort((a, b) => PICK_ORDER.indexOf(a) - PICK_ORDER.indexOf(b)) : options.asks;
+  for (const ask of order) {
     const problems: SheetProblem[] = [];
     if (ask === "enKo") for (const entry of pick(list)) problems.push(problem(`<b>${escapeHtml(entry.word)}</b> ${blankLine("40mm")}`, escapeHtml(meaningOf(entry))));
     else if (ask === "koEn") for (const entry of pick(list.filter(entry => entry.meaning.trim()))) problems.push(problem(`${escapeHtml(entry.meaning)} ${blankLine("40mm")}`, `<b>${escapeHtml(entry.word)}</b>`));
@@ -145,9 +175,9 @@ export function wordTestSections(entries: WordEntry[], options: WordTestOptions)
         problems.push(problem(`단어와 뜻을 연결하시오.${sheetTable(["단어", "답", "뜻"], rows, { widths: ["38%", "14%", "48%"], center: false })}`, escapeHtml(answer)));
       }
     }
-    if (problems.length) sections.push({ heading: HEADINGS[ask], problems });
+    if (problems.length) built.set(ask, { heading: HEADINGS[ask], problems });
   }
-  return sections;
+  return options.asks.flatMap(ask => built.get(ask) ?? []);
 }
 
 /* ───── 단어장 ───── */

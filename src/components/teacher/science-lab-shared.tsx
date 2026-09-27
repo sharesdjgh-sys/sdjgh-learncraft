@@ -131,7 +131,8 @@ export function SvgView({ svg, className, label }: { svg: string; className?: st
 export function useStored<T extends object>(key: string, schema: z.ZodType<T>) {
   const [state, setState] = useState<T>(() => readStored(key, value => schema.parse(value)));
   useEffect(() => writeStored(key, state), [key, state]);
-  const update = useCallback((patch: Partial<T>) => setState(current => ({ ...current, ...patch })), []);
+  // AI 응답처럼 늦게 오는 값은 함수로 넘겨, 기다리는 동안 바뀐 최신 상태에 합칩니다.
+  const update = useCallback((patch: Partial<T> | ((current: T) => Partial<T>)) => setState(current => ({ ...current, ...(typeof patch === "function" ? patch(current) : patch) })), []);
   return [state, update] as const;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { z } from "zod";
-import { BookOpenText, ClipboardCheck, Copy, ListOrdered, RotateCcw } from "lucide-react";
+import { BookOpenText, ClipboardCheck, Copy, ListOrdered, LoaderCircle, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { orderChunks, readingAsks, readingSections, SAMPLE_PASSAGE, splitSentences, stripBrackets, vocabListHtml, vocabListText, wordFrequency, type ReadingAsk } from "@/features/english/reading";
@@ -11,6 +11,8 @@ import { copyToClipboard } from "./hanmun-sheet";
 import { Card, Toggle } from "./tool-panel";
 import { asksSchema, chipClass, fieldClass, MultiChips, NumberField, panelClass, ProblemSheet, SheetCard, sheetSchema, SheetPreview, SubjectLab, ToolLayout, useStored } from "./science-lab-shared";
 import { ENGLISH_AREA } from "./english-lab-shared";
+import { AiStatus, useAiRequest } from "./ai-request";
+import { requestWordFill } from "./english-word-tools";
 
 // 지문은 두 보기(활동지·어휘 뽑기)가 함께 씁니다.
 const passageKey = "learncraft_english_passage_v1";
@@ -60,6 +62,18 @@ function SheetView() {
   const { head } = orderChunks(sentences, state.orderIntro);
   const vocab = wordFrequency(sentences.map(stripBrackets).join(" ")).slice(0, state.vocabCount);
   const has = (ask: ReadingAsk) => state.asks.includes(ask);
+  const ai = useAiRequest();
+  const missing = vocab.filter(item => !state.meanings[item.word]?.trim()).map(item => item.word);
+  // 지문을 맥락으로 넘겨 그 글에서 쓰인 뜻을 받습니다. 기다리는 동안 교사가 적은 뜻은 그대로 둡니다.
+  const fillMeanings = () => ai.run(async signal => {
+    const { items, rejected } = await requestWordFill(missing, { meaning: true, example: false, context: sentences.map(stripBrackets).join(" ") }, signal);
+    update(current => {
+      const meanings = { ...current.meanings };
+      for (const item of items) if (item.meaning && !meanings[item.word]?.trim()) meanings[item.word] = item.meaning.slice(0, 80);
+      return { meanings };
+    });
+    return `낱말 ${items.filter(item => item.meaning).length}개의 뜻을 지문 맥락에 맞춰 채웠어요.${rejected ? ` 알맞지 않은 결과 ${rejected}개는 버렸어요.` : ""} 정답지에 싣기 전에 확인해 주세요.`;
+  });
   return (
     <ToolLayout aside={<>
       <PassageCard text={passage.text} onChange={text => setPassage({ text })} />
@@ -74,7 +88,8 @@ function SheetView() {
         {has("vocab") && <NumberField className="mt-2" label="어휘 목록 낱말 수" value={state.vocabCount} min={3} max={30} onChange={vocabCount => update({ vocabCount })} />}
       </SheetCard>
       {has("vocab") && vocab.length > 0 && (
-        <Card title="어휘 뜻 (정답지)" help="정답지에 실을 뜻을 넣어요. 비워 두면 ‘뜻을 넣어 주세요’로 실려요.">
+        <Card title="어휘 뜻 (정답지)" help="정답지에 실을 뜻을 넣어요. 비워 두면 ‘뜻을 넣어 주세요’로 실려요. ‘AI로 뜻 채우기’는 빈 칸만 지문에서 쓰인 뜻으로 채워요."
+          action={<Button variant="ghost" size="sm" disabled={ai.busy || !missing.length} onClick={() => void fillMeanings()}>{ai.busy ? <LoaderCircle size={14} className="animate-spin" /> : <Sparkles size={14} />} {ai.busy ? "채우는 중…" : "AI로 뜻 채우기"}</Button>}>
           <div className="scrollbar-subtle max-h-72 space-y-1 overflow-y-auto pr-1">
             {vocab.map(item => (
               <label key={item.word} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-1.5 text-[.8rem]">
@@ -83,6 +98,7 @@ function SheetView() {
               </label>
             ))}
           </div>
+          <AiStatus message={ai.message} error={ai.error} />
         </Card>
       )}
     </>}>

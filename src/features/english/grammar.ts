@@ -38,7 +38,7 @@ export const GRAMMAR_TOPICS: GrammarTopic[] = [
       { text: "He has finished the work two hours ago.", wrong: "has finished", right: "finished", note: "~ ago는 과거 시제" },
     ],
     rewrite: [
-      { direction: "현재완료를 써서 한 문장으로 바꾸시오.", text: "I started learning the guitar two years ago. I still learn it.", answer: "I have learned[have been learning] the guitar for two years." },
+      { direction: "현재완료를 써서 한 문장으로 바꾸시오.", text: "I started learning the guitar two years ago. I am still learning it.", answer: "I have learned[have been learning] the guitar for two years." },
       { direction: "현재완료를 써서 한 문장으로 바꾸시오.", text: "He lost his phone. He doesn't have it now.", answer: "He has lost his phone." },
     ],
   },
@@ -86,7 +86,7 @@ export const GRAMMAR_TOPICS: GrammarTopic[] = [
     ],
     fill: [
       { text: "The students were ____ (excite) about the field trip.", answer: "excited" },
-      { text: "____ (fall) leaves covered the road.", answer: "Fallen", note: "떨어진 잎(완료)" },
+      { text: "The ground was covered with ____ (fall) leaves that had dropped overnight.", answer: "fallen", note: "밤새 떨어진 잎(완료·수동의 과거분사)" },
       { text: "The news was ____ (shock) to everyone.", answer: "shocking", note: "충격을 주는" },
       { text: "____ (leave) home early, she caught the first bus.", answer: "Leaving" },
     ],
@@ -173,7 +173,7 @@ export const GRAMMAR_TOPICS: GrammarTopic[] = [
     fill: [
       { text: "If I ____ (have) a car, I could drive you home.", answer: "had" },
       { text: "If you had left earlier, you ____ (not miss) the bus.", answer: "would not have missed" },
-      { text: "I wish it ____ (be) sunny today.", answer: "were" },
+      { text: "I wish it ____ (be) sunny today.", answer: "were[was]", note: "가정법 과거는 were가 원칙, 구어에서는 was도 씀" },
       { text: "She looked as if she ____ (see) a ghost.", answer: "had seen", note: "본 것이 먼저 일어난 일" },
     ],
     fix: [
@@ -196,7 +196,7 @@ export const GRAMMAR_TOPICS: GrammarTopic[] = [
       { text: "This is (much / very) better than the old one.", answer: "much", note: "비교급은 much로 강조" },
       { text: "Seoul is bigger than any other (city / cities) in Korea.", answer: "city", note: "any other + 단수 명사" },
       { text: "She is the (smarter / smartest) student in our class.", answer: "smartest" },
-      { text: "The weather today is (worse / worst) than yesterday.", answer: "worse", note: "bad - worse - worst" },
+      { text: "The weather today is (worse / worst) than it was yesterday.", answer: "worse", note: "bad - worse - worst" },
     ],
     fill: [
       { text: "Health is ____ (important) than money.", answer: "more important" },

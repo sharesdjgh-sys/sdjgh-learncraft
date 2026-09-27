@@ -1,15 +1,18 @@
 "use client";
 
 import { z } from "zod";
-import { FileSearch, Network, NotebookPen, RotateCcw } from "lucide-react";
+import { FileSearch, LoaderCircle, Network, NotebookPen, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formSheetsHtml, formSheetsText } from "@/features/korean/form-sheet";
 import { inquiryForms, inquirySheets, type InquiryForm } from "@/features/korean/inquiry";
 import { blankWords } from "@/features/korean/literature";
-import { passageBoxHtml, passageSheet, readingAsks, splitParagraphs, STRUCTURES, structureAsks, structureProblems, structureSvg, type ReadingAsk, type Structure, type StructureAsk } from "@/features/korean/reading";
+import { passageBoxHtml, passageSheet, readingAsks, splitParagraphs, STRUCTURES, structureAsks, structureDiagramSection, structureProblems, structureSvg, type ReadingAsk, type Structure, type StructureAsk } from "@/features/korean/reading";
 import { Card, Segmented, Toggle } from "./tool-panel";
 import { KOREAN_AREA } from "./korean-lab-shared";
+import { AiStatus, useAiRequest } from "./ai-request";
+import { readJson } from "./art-works-shared";
+import { PASSAGE_AI_MAX_PARAGRAPHS } from "@/features/korean/passage-ai";
 import { asksSchema, chipClass, fieldClass, HtmlView, MultiChips, panelClass, ProblemSheet, SheetCard, sheetSchema, SheetPreview, SubjectLab, SvgView, ToolLayout, useStored } from "./science-lab-shared";
 
 export function KoreanReadingLab({ tabs }: { tabs?: React.ReactNode }) {
@@ -36,13 +39,45 @@ const passageSchema = z.object({
   space: z.number().int().min(10).max(60).catch(20),
   title: z.string().max(100).catch(""),
   answers: z.boolean().catch(true),
+  ai: z.object({ summaries: z.boolean(), words: z.boolean(), questions: z.boolean() }).catch({ summaries: true, words: true, questions: true }),
 });
+type PassageDraft = { summaries: string[]; words: string[]; questions: { kind: string; text: string }[]; dropped: number };
 function PassageView() {
   const [state, update] = useStored("learncraft_korean_passage_v1", passageSchema);
   const [confirm, confirmDialog] = useConfirm();
   const passage = state.passage;
   const set = (patch: Partial<typeof passage>) => update({ passage: { ...passage, ...patch } });
   const paragraphs = splitParagraphs(passage.body);
+  const ai = useAiRequest();
+  // 교사가 이미 적은 요약·어휘·질문은 그대로 두고 빈 곳만 채우거나 뒤에 덧붙입니다.
+  const draft = () => ai.run(async signal => {
+    const data = await readJson<PassageDraft>(await fetch("/api/teacher/korean-passage", {
+      method: "POST", headers: { "Content-Type": "application/json" }, signal,
+      body: JSON.stringify({ title: passage.title, paragraphs: paragraphs.map(paragraph => paragraph.replace(/[[\]]/g, "")), ...state.ai }),
+    }));
+    const merge = (current: typeof state) => {
+      const now = current.passage;
+      const summaries = [...now.summaries];
+      let filled = 0;
+      data.summaries.forEach((summary, index) => { while (summaries.length <= index) summaries.push(""); if (summary && !summaries[index]?.trim()) { summaries[index] = summary; filled += 1; } });
+      const have = now.words.split(/[,\n]/).map(word => word.trim()).filter(Boolean);
+      const added = data.words.filter(word => !have.includes(word));
+      const lines = current.custom.split("\n").map(line => line.trim()).filter(Boolean);
+      const newLines = data.questions.map(item => `[${item.kind} 읽기] ${item.text}`).filter(line => !lines.includes(line));
+      return {
+        counts: { filled, added: added.length, questions: newLines.length },
+        patch: {
+          passage: { ...now, summaries: summaries.slice(0, 30), words: [...have, ...added].join(", ").slice(0, 400) },
+          custom: [...lines, ...newLines].join("\n").slice(0, 1000),
+          ...(added.length ? { vocabulary: true } : {}), ...(filled ? { summary: true } : {}),
+        },
+      };
+    };
+    const { counts } = merge(state);
+    update(current => merge(current).patch);
+    const parts = [counts.filled && `문단 요약 ${counts.filled}개`, counts.added && `어휘 ${counts.added}개`, counts.questions && `지문 맞춤 질문 ${counts.questions}개`].filter(Boolean);
+    return `${parts.length ? `${parts.join(", ")}를 채웠어요.` : "새로 채울 칸이 없었어요(이미 적은 내용은 바꾸지 않아요)."}${data.dropped ? ` 지문에 없거나 알맞지 않은 결과 ${data.dropped}개는 버렸어요.` : ""} 학습지에 싣기 전에 꼭 확인해 주세요.`;
+  });
   async function clear() {
     if (!await confirm({ eyebrow: "지문 분석", title: "지문을 지울까요?", confirmLabel: "지우기", tone: "danger", description: `지금 지문(문단 ${paragraphs.length}개, ${passage.body.length}자)과 문단 요약·어휘를 지워요.`, note: "지운 지문은 되돌릴 수 없어요. 질문 고르기와 학습지 설정은 그대로 남아요." })) return;
     update({ passage: { title: "", origin: "", body: "", summaries: [], words: "" } });
@@ -56,6 +91,19 @@ function PassageView() {
           <textarea value={passage.body} maxLength={8000} rows={10} onChange={event => set({ body: event.target.value })} placeholder="지문을 붙여 넣으세요." aria-label="지문" className={`${fieldClass} resize-y`} />
           <p className="text-[.72rem] text-ink-4">문단 {paragraphs.length}개 · 빈칸 {blankWords(passage.body).length}개 · {passage.body.length}/8000자</p>
         </div>
+      </Card>
+      <Card title="AI 초안" help="지문으로 문단 요약 참고 답, 어휘 후보, 이 지문에 맞춘 사실적·추론적·비판적 질문을 Gemini로 만들어요. 빈 칸만 채우고 적어 둔 내용은 바꾸지 않아요. 어휘는 지문에 실제로 있는 낱말만 남겨요.">
+        <Toggle label="문단 요약 참고 답" checked={state.ai.summaries} onChange={summaries => update({ ai: { ...state.ai, summaries } })} />
+        <Toggle label="어휘 후보" checked={state.ai.words} onChange={words => update({ ai: { ...state.ai, words } })} />
+        <Toggle label="지문 맞춤 질문 3개" checked={state.ai.questions} onChange={questions => update({ ai: { ...state.ai, questions } })} />
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Button size="sm" disabled={ai.busy || !paragraphs.length || paragraphs.length > PASSAGE_AI_MAX_PARAGRAPHS || !(state.ai.summaries || state.ai.words || state.ai.questions)} onClick={() => void draft()}>
+            {ai.busy ? <LoaderCircle size={14} className="animate-spin" /> : <Sparkles size={14} />} {ai.busy ? "만드는 중…" : "초안 만들기"}
+          </Button>
+          {ai.busy && <Button variant="ghost" size="sm" onClick={ai.cancel}>멈추기</Button>}
+        </div>
+        {paragraphs.length > PASSAGE_AI_MAX_PARAGRAPHS && <p role="status" className="mt-2 text-[.74rem] text-warn">문단이 {PASSAGE_AI_MAX_PARAGRAPHS}개를 넘으면 AI 초안을 만들 수 없어요. 빈 줄로 문단을 나눠 주세요.</p>}
+        <AiStatus message={ai.message} error={ai.error} />
       </Card>
       <Card title="학습지">
         <Toggle label="[ ] 낱말을 빈칸으로" checked={state.blanks} onChange={blanks => update({ blanks })} />
@@ -92,6 +140,7 @@ const structureSchema = z.object({
   kind: z.enum(structureKeys as [Structure, ...Structure[]]).catch("compare"),
   texts: z.partialRecord(z.enum(structureKeys as [Structure, ...Structure[]]), z.array(z.string().max(80)).max(5)).catch({}),
   asks: asksSchema(structureAsks, ["identify", "fill"]),
+  diagram: z.boolean().catch(true),
   sheet: sheetSchema(2),
 });
 function StructureView() {
@@ -104,11 +153,12 @@ function StructureView() {
       <Card title="구조 유형">
         <div className="grid grid-cols-2 gap-1">{structureKeys.map(key => <button key={key} type="button" aria-pressed={state.kind === key} onClick={() => update({ kind: key })} className={chipClass(state.kind === key)}>{STRUCTURES[key].name}</button>)}</div>
       </Card>
-      <Card title="칸 채우기" help="비워 둔 칸은 학생이 쓰는 칸이 돼요. 구조도를 그림으로 수업 자료에 쓸 수 있어요.">
+      <Card title="칸 채우기" help="비워 둔 칸은 학생이 쓰는 칸이 돼요. ‘채운 구조도를 맨 앞에 싣기’를 켜면 학습지와 함께 인쇄돼요. 칸마다 두세 줄까지 보여요.">
         <div className="space-y-1.5">{info.labels.map((label, index) => <label key={label} className="block"><span className="mb-0.5 block text-xs font-semibold text-ink-4">{label}</span><input value={texts[index] ?? ""} maxLength={80} onChange={event => setText(index, event.target.value)} className={`${fieldClass} py-1.5 text-[.82rem]`} /></label>)}</div>
       </Card>
       <SheetCard sheet={state.sheet} onChange={sheet => update({ sheet })} counts={[1, 2, 3, 6]} countLabel="유형마다 문항 수" placeholder="학습지 제목 (예: 글의 짜임 파악하기)">
         <MultiChips options={structureAsks} value={state.asks} onChange={asks => update({ asks: asks as StructureAsk[] })} />
+        <Toggle label="채운 구조도를 맨 앞에 싣기" checked={state.diagram} onChange={diagram => update({ diagram })} help="왼쪽에서 칸을 채운 구조도를 학습지 첫머리에 넣어 정리 자료로 인쇄해요. 비운 칸은 학생이 쓰는 칸이 돼요." />
       </SheetCard>
     </>}>
       <section className={`${panelClass} space-y-2`}>
@@ -116,7 +166,7 @@ function StructureView() {
         <p className="text-[.84rem] text-ink-2"><b>{info.name}</b> — {info.meaning}</p>
         <p className="text-[.78rem] text-ink-4">자주 쓰는 표지: {info.signals}</p>
       </section>
-      <ProblemSheet id="korean-structure-print" sections={structureProblems(state.asks, state.sheet.count, state.sheet.seed)} options={{ title: state.sheet.title || "글의 짜임 파악하기", answers: state.sheet.answers }} />
+      <ProblemSheet id="korean-structure-print" sections={[...(state.diagram ? [structureDiagramSection(state.kind, texts)] : []), ...structureProblems(state.asks, state.sheet.count, state.sheet.seed)]} options={{ title: state.sheet.title || "글의 짜임 파악하기", answers: state.sheet.answers }} />
     </ToolLayout>
   );
 }

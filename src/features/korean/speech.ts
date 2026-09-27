@@ -1,6 +1,6 @@
 /* 국어 · 화법: 반대 신문식 토론(순서·논제·양식), 토의 유형과 협상, 대화의 원리(협력·공손성)와 문제입니다. 이론은 교과서 통설이고, 대화 예시는 교과서형으로 지은 것입니다. */
 import { emptyRows, type FormBlock, type FormSheet } from "./form-sheet";
-import { circled, escapeHtml, problem, sheetTable, shuffled, type SheetProblem, type SheetSection } from "./sheet";
+import { circled, escapeHtml, particle, problem, sheetTable, shuffled, type SheetProblem, type SheetSection } from "./sheet";
 
 /* ───── 반대 신문식 토론 ───── */
 export type DebateSide = "pro" | "con";
@@ -118,7 +118,8 @@ export const MAXIMS: Record<Maxim, { name: string; principle: "협력의 원리"
   modesty: { name: "겸양의 격률", principle: "공손성의 원리", meaning: "자신에 대한 칭찬은 줄이고 자신을 낮춘다." },
   agreement: { name: "동의의 격률", principle: "공손성의 원리", meaning: "상대와 의견이 다른 점은 줄이고 같은 점을 늘린다(일부 동의한 뒤 다른 의견을 말함)." },
 };
-export type Dialogue = { maxim: Maxim; kept: boolean; lines: [string, string][]; why: string };
+/** speaker는 격률을 지키거나 어긴 사람의 줄 번호입니다(없으면 뒤에 말한 사람). */
+export type Dialogue = { maxim: Maxim; kept: boolean; lines: [string, string][]; why: string; speaker?: number };
 export const DIALOGUES: Dialogue[] = [
   { maxim: "quantity", kept: false, lines: [["민지", "주말에 뭐 했어?"], ["준호", "토요일 아침 일곱 시에 일어나서 세수하고, 칫솔에 치약을 짜서 양치하고, 아침으로 식빵 두 쪽을 먹고…"]], why: "묻는 말에 필요한 것보다 훨씬 많은 정보를 늘어놓았다." },
   { maxim: "quantity", kept: false, lines: [["손님", "도서관이 어디 있나요?"], ["학생", "저쪽이요."]], why: "길을 찾는 데 필요한 정보가 너무 적다." },
@@ -126,8 +127,8 @@ export const DIALOGUES: Dialogue[] = [
   { maxim: "relation", kept: false, lines: [["선생님", "숙제는 다 해 왔니?"], ["학생", "선생님, 오늘 날씨가 정말 좋네요."]], why: "묻는 말과 관계없는 이야기를 했다." },
   { maxim: "manner", kept: false, lines: [["엄마", "언제 들어오니?"], ["아들", "좀 늦을 수도 있고 일찍 올 수도 있고, 봐서 적당히 갈게요."]], why: "모호하게 말해 언제 오는지 알 수 없다." },
   { maxim: "manner", kept: true, lines: [["팀장", "회의 결과를 알려 줄래요?"], ["사원", "결론은 두 가지입니다. 첫째, 행사는 다음 주 금요일로 미룹니다. 둘째, 장소는 강당으로 바꿉니다."]], why: "요점을 간결하고 조리 있게 차례대로 말했다." },
-  { maxim: "tact", kept: true, lines: [["학생", "선생님, 바쁘시지 않으시면 이 문제 좀 봐 주실 수 있을까요?"], ["선생님", "그래, 가져와 보렴."]], why: "부탁할 때 상대의 부담을 줄이는 말로 조심스럽게 요청했다." },
-  { maxim: "generosity", kept: true, lines: [["손님", "제가 잘 못 들어서 그러는데, 한 번만 더 말씀해 주시겠어요?"], ["직원", "네, 다시 설명해 드릴게요."]], why: "상대가 설명을 잘못했다고 하지 않고, 자신이 잘 못 들었다고 탓을 자신에게 돌렸다." },
+  { maxim: "tact", kept: true, lines: [["학생", "선생님, 바쁘시지 않으시면 이 문제 좀 봐 주실 수 있을까요?"], ["선생님", "그래, 가져와 보렴."]], why: "부탁할 때 상대의 부담을 줄이는 말로 조심스럽게 요청했다.", speaker: 0 },
+  { maxim: "generosity", kept: true, lines: [["손님", "제가 잘 못 들어서 그러는데, 한 번만 더 말씀해 주시겠어요?"], ["직원", "네, 다시 설명해 드릴게요."]], why: "상대가 설명을 잘못했다고 하지 않고, 자신이 잘 못 들었다고 탓을 자신에게 돌렸다.", speaker: 0 },
   { maxim: "approbation", kept: true, lines: [["하윤", "내가 만든 발표 자료인데 어때?"], ["서준", "그림이 한눈에 들어와서 좋다. 글씨만 조금 키우면 더 잘 보이겠어."]], why: "상대를 먼저 칭찬하고, 고칠 점은 부드럽게 말했다." },
   { maxim: "modesty", kept: true, lines: [["친구", "이번 대회에서 상 받았다며? 정말 대단하다!"], ["수아", "운이 좋았어. 아직 배울 게 많아."]], why: "칭찬을 받았을 때 자신을 낮추어 말했다." },
   { maxim: "agreement", kept: true, lines: [["도윤", "체육 대회 날 반 티셔츠를 맞추자."], ["예린", "좋은 생각이야. 다만 값이 부담될 수 있으니 싼 곳을 알아보면 어떨까?"]], why: "상대 의견에 먼저 동의한 뒤 자신의 의견을 덧붙였다." },
@@ -153,7 +154,8 @@ export function speechProblems(asks: SpeechAsk[], count: number, seed: number): 
           problems.push(problem(`다음 대화와 가장 관련 깊은 대화의 격률은?${dialogueHtml(dialogue)}${choices.map((key, i) => `${circled(i)} ${MAXIMS[key].name}`).join("&nbsp;&nbsp; ")}`,
             `${circled(choices.indexOf(dialogue.maxim))} ${maxim.name}(${maxim.principle}) — ${dialogue.kept ? "지킴" : "어김"}: ${escapeHtml(dialogue.why)}`, { space: 4 }));
         } else {
-          problems.push(problem(`다음 대화에서 뒤에 말한 사람은 어떤 격률을 지켰는지 또는 어겼는지 쓰고, 그 까닭을 설명하시오.${dialogueHtml(dialogue)}`,
+          const who = dialogue.lines[dialogue.speaker ?? dialogue.lines.length - 1][0];
+          problems.push(problem(`다음 대화에서 ‘${escapeHtml(who)}’${particle(who, "은", "는")} 어떤 격률을 지켰는지 또는 어겼는지 쓰고, 그 까닭을 설명하시오.${dialogueHtml(dialogue)}`,
             `${maxim.name} ${dialogue.kept ? "지킴" : "어김"} — ${escapeHtml(dialogue.why)}`, { space: 12 }));
         }
       }

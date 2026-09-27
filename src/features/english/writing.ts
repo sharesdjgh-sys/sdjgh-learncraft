@@ -9,7 +9,7 @@ export const WRITING_GENRES: WritingGenre[] = [
   {
     key: "email", name: "이메일", english: "Email",
     steps: [
-      { name: "Greeting", guide: "받는 사람에게 인사해요.", expressions: ["Dear Ms. Kim,", "Hi Jake,", "Hello, Mr. Brown."] },
+      { name: "Greeting", guide: "받는 사람에게 인사해요.", expressions: ["Dear Ms. Kim,", "Hi Jake,", "Hello Mr. Brown,"] },
       { name: "Purpose", guide: "이메일을 쓰는 까닭을 먼저 밝혀요.", expressions: ["I'm writing to ask about ...", "I'm writing to let you know that ...", "Thank you for your email about ..."] },
       { name: "Details", guide: "필요한 내용을 차례대로 써요.", expressions: ["First, ...", "Also, I'd like to know ...", "Could you tell me ...?"] },
       { name: "Closing", guide: "끝인사와 이름을 써요.", expressions: ["I look forward to hearing from you.", "Please let me know if you have any questions.", "Best regards, / Sincerely,"] },

@@ -7,12 +7,15 @@ export const SAMPLE_PASSAGE = `Have you ever bought something just because it wa
 
 /* ───── 문장 나누기 ───── */
 
-// 마침표로 끝나도 문장이 끝나지 않는 약어입니다.
-const ABBREVIATIONS = ["mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "e.g", "i.e", "a.m", "p.m", "u.s", "u.k", "no", "fig", "approx", "inc", "ltd", "co", "mt"];
+// 마침표로 끝나도 문장이 끝나지 않는 약어입니다. no는 뒤에 숫자가 올 때(No. 5)만 약어로 봅니다.
+// 문장 끝에도 자주 오는 약어는 다음 글이 대문자로 시작하면 문장이 끝난 것으로 봅니다(at 5 p.m. He ...).
+const SENTENCE_END_ABBREVIATIONS = ["etc", "a.m", "p.m"];
+const ABBREVIATIONS = ["mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "e.g", "i.e", "a.m", "p.m", "u.s", "u.k", "no", "nos", "fig", "approx", "inc", "ltd", "co", "mt"];
 
 /** 지문을 문장으로 나눕니다. 약어(Mr. e.g.), 소수점(3.5), 따옴표·괄호로 끝나는 문장, 줄바꿈을 처리합니다. */
 export function splitSentences(text: string): string[] {
-  const clean = text.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+  // PDF·한글에서 복사해 문장 중간에서 줄이 바뀐 곳(끝 부호 없이 소문자로 이어짐)은 한 줄로 잇습니다.
+  const clean = text.replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/([^.!?:"'”’)\]\n]) ?\n(?=[a-z(])/g, "$1 ").trim();
   if (!clean) return [];
   const sentences: string[] = [];
   let start = 0;
@@ -37,9 +40,11 @@ export function splitSentences(text: string): string[] {
     if (next && !/^\s/.test(next)) { at = end - 1; continue; }
     if (char === ".") {
       const word = (clean.slice(start, at).match(/([A-Za-z.]+)$/)?.[1] ?? "").toLowerCase();
-      if (ABBREVIATIONS.includes(word)) continue;
-      // U. S. 처럼 대문자 한 글자 + 마침표는 이름 약자로 봅니다.
-      if (/(^|\s)[A-Z]$/.test(clean.slice(start, at))) continue;
+      if (word === "no" || word === "nos") { if (/^\s*\d/.test(next)) continue; }
+      else if (ABBREVIATIONS.includes(word) && !(SENTENCE_END_ABBREVIATIONS.includes(word) && /^\s+[A-Z]/.test(next))) continue;
+      // J. K. Rowling 처럼 대문자 한 글자 + 마침표가 이어지면 이름 약자로 봅니다(Plan B. We ...는 문장 끝).
+      const before = clean.slice(start, at);
+      if (/(^|\s)[A-Z]$/.test(before) && (/^\s+[A-Z]\./.test(next) || /(^|\s)[A-Z]\.\s?[A-Z]$/.test(before))) continue;
     }
     // 다음 글이 소문자로 시작하면 아직 문장 안입니다(예: "Wow!" she said.).
     if (/^\s+[a-z]/.test(next)) { at = end - 1; continue; }
@@ -63,18 +68,28 @@ export const STOP_WORDS = new Set(("a an the this that these those i me my mine 
   "all any some each every both either neither many much more most few little less least other another such own same " +
   "there here now only even still again ever never always often sometimes really quite rather ll ve re s t d m don doesn didn isn aren wasn weren can't won't").split(/\s+/));
 
-const lemma = (word: string) => word.toLowerCase().replace(/[’']/g, "'").replace(/'s$/, "");
-/** 지문의 낱말(기능어 제외)과 나온 수입니다. 많이 나온 차례, 같으면 처음 나온 차례입니다. */
+/** 소문자로 바꾸고 소유격 's를 뗍니다. */
+const normalizeWord = (word: string) => word.toLowerCase().replace(/[’']/g, "'").replace(/'s$/, "");
+/** 지문의 낱말(기능어 제외)과 나온 수입니다. 많이 나온 차례, 같으면 처음 나온 차례입니다.
+    축약형(don't, I'm)은 기능어로 보아 빼고, 원형이 함께 나온 -s 복수형(consumers)은 원형(consumer)으로 합칩니다. */
 export function wordFrequency(text: string, options: { keepStopWords?: boolean } = {}) {
   const counts = new Map<string, { word: string; count: number; first: number }>();
   const matches = text.match(/[A-Za-z]+(?:[-'’][A-Za-z]+)*/g) ?? [];
   matches.forEach((raw, index) => {
-    const word = lemma(raw);
-    if (word.length < 2 || (!options.keepStopWords && STOP_WORDS.has(word))) return;
+    const word = normalizeWord(raw);
+    if (word.length < 2 || (!options.keepStopWords && (STOP_WORDS.has(word) || word.includes("'")))) return;
     const item = counts.get(word) ?? { word, count: 0, first: index };
     item.count += 1;
     counts.set(word, item);
   });
+  for (const [word, item] of counts) {
+    const base = word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : "";
+    const target = base && counts.get(base);
+    if (!target || target === item) continue;
+    target.count += item.count;
+    target.first = Math.min(target.first, item.first);
+    counts.delete(word);
+  }
   return [...counts.values()].sort((a, b) => b.count - a.count || a.first - b.first);
 }
 
@@ -183,8 +198,10 @@ export function readingSections(passage: string, options: ReadingOptions): Sheet
       const words = sentences.flatMap(sentence => bracketParts(sentence).filter(part => part.blank).map(part => part.text));
       if (words.length) {
         let index = 0;
-        const body = sentences.map(sentence => bracketParts(sentence).map(part => part.blank ? `<b>(${circled(index++)})</b>${blankLine("20mm")}` : escapeHtml(part.text)).join("")).join(" ");
-        problems.push(problem(`빈칸에 알맞은 말을 쓰시오.${box(body)}`, words.map((word, at) => `${circled(at)} ${escapeHtml(word)}`).join("&nbsp;&nbsp; "), { space: 4 }));
+        // ⑩ 다음은 (11)처럼 괄호 숫자로 적습니다.
+        const mark = (at: number) => at < 10 ? `(${circled(at)})` : `(${at + 1})`;
+        const body = sentences.map(sentence => bracketParts(sentence).map(part => part.blank ? `<b>${mark(index++)}</b>${blankLine("20mm")}` : escapeHtml(part.text)).join("")).join(" ");
+        problems.push(problem(`빈칸에 알맞은 말을 쓰시오.${box(body)}`, words.map((word, at) => `${mark(at)} ${escapeHtml(word)}`).join("&nbsp;&nbsp; "), { space: 4 }));
       }
     } else if (ask === "main") {
       problems.push(problem(`다음 글의 요지를 우리말로 한 문장으로 쓰시오.${box(whole)}`, "학생마다 표현이 다를 수 있어요. 글의 핵심 주장을 담았는지 봐 주세요.", { space: 16 }));

@@ -4,15 +4,18 @@ import { z } from "zod";
 import { BookOpen, ListChecks, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { DEFAULT_WORDS, parseWordList, wordAsks, wordLines, wordListHtml, wordListLayouts, wordListText, wordTestSections, type WordAsk, type WordEntry, type WordListLayout } from "@/features/english/wordlist";
+import { DEFAULT_WORDS, distinctCount, parseWordList, WORD_LIMITS, wordAsks, wordLines, wordListHtml, wordListLayouts, wordListText, wordTestSections, type WordAsk, type WordEntry, type WordListLayout } from "@/features/english/wordlist";
 import { Card, Segmented, Toggle } from "./tool-panel";
 import { asksSchema, fieldClass, MultiChips, panelClass, ProblemSheet, SheetCard, sheetSchema, SheetPreview, SubjectLab, ToolLayout, useStored } from "./science-lab-shared";
 import { ENGLISH_AREA } from "./english-lab-shared";
+import { CourseWordsCard, WordFillCard } from "./english-word-tools";
 
 // 단어 목록은 두 보기(시험지·단어장)가 함께 씁니다.
 const listKey = "learncraft_english_wordlist_v1";
-const entrySchema = z.object({ word: z.string().max(60), meaning: z.string().max(120), example: z.string().max(300) });
-const listSchema = z.object({ entries: z.array(entrySchema).max(80).catch(DEFAULT_WORDS) });
+// 길이가 넘는 글은 잘라서 읽습니다. 한 항목이 어긋났다고 목록 전체가 예시로 바뀌지 않게 합니다.
+const fit = (max: number) => z.string().catch("").transform(text => text.slice(0, max));
+const entrySchema = z.object({ word: fit(WORD_LIMITS.word), meaning: fit(WORD_LIMITS.meaning), example: fit(WORD_LIMITS.example) });
+const listSchema = z.object({ entries: z.array(entrySchema).transform(entries => entries.slice(0, 80)).catch(DEFAULT_WORDS) });
 
 export function EnglishWordsLab({ tabs }: { tabs?: React.ReactNode }) {
   return (
@@ -26,7 +29,7 @@ export function EnglishWordsLab({ tabs }: { tabs?: React.ReactNode }) {
 }
 
 /** 단어 목록 붙여 넣기와 표 편집입니다. 목록 상태는 보기가 갖고 내려 줍니다(미리보기와 같은 값을 쓰도록). */
-function WordListEditor({ entries, onChange }: { entries: WordEntry[]; onChange: (entries: WordEntry[]) => void }) {
+function WordListEditor({ entries, onChange, onUpdate }: { entries: WordEntry[]; onChange: (entries: WordEntry[]) => void; onUpdate: (update: (entries: WordEntry[]) => WordEntry[]) => void }) {
   const [confirm, confirmDialog] = useConfirm();
   const update = ({ entries: next }: { entries: WordEntry[] }) => onChange(next);
   const setEntry = (index: number, patch: Partial<WordEntry>) => update({ entries: entries.map((entry, at) => at === index ? { ...entry, ...patch } : entry) });
@@ -71,6 +74,8 @@ function WordListEditor({ entries, onChange }: { entries: WordEntry[]; onChange:
         </div>
         <p className="mt-2 text-[.72rem] text-ink-4">교과서 단어는 쓰는 교과서에서 옮겨 넣어 주세요. 예시 목록의 예문은 직접 쓴 문장이에요.</p>
       </Card>
+      <CourseWordsCard entries={entries} onChange={onUpdate} />
+      <WordFillCard entries={entries} onChange={onUpdate} />
       {confirmDialog}
     </>
   );
@@ -78,18 +83,21 @@ function WordListEditor({ entries, onChange }: { entries: WordEntry[]; onChange:
 
 const testSchema = z.object({
   asks: asksSchema(wordAsks, ["enKo", "koEn", "example", "choice"]),
+  distinct: z.boolean().catch(true),
   sheet: sheetSchema(10),
 });
 function TestView() {
   const [list, setList] = useStored(listKey, listSchema);
   const [state, update] = useStored("learncraft_english_wordtest_v1", testSchema);
-  const sections = wordTestSections(list.entries, { asks: state.asks, count: state.sheet.count, seed: state.sheet.seed });
+  const sections = wordTestSections(list.entries, { asks: state.asks, count: state.sheet.count, seed: state.sheet.seed, distinct: state.distinct });
+  const perAsk = distinctCount(list.entries, state.asks, state.sheet.count);
   const withExample = list.entries.filter(entry => entry.example.trim()).length;
   return (
     <ToolLayout aside={<>
-      <WordListEditor entries={list.entries} onChange={entries => setList({ entries })} />
+      <WordListEditor entries={list.entries} onChange={entries => setList({ entries })} onUpdate={next => setList(current => ({ entries: next(current.entries) }))} />
       <SheetCard sheet={state.sheet} onChange={sheet => update({ sheet })} counts={[5, 10, 15, 20]} countLabel="유형마다 문항 수" placeholder="시험지 제목 (예: Lesson 1 단어 시험 A형)" help="‘다른 문제로’를 누르면 단어 순서·보기가 바뀌어 B형을 만들 수 있어요.">
         <MultiChips options={wordAsks} value={state.asks} onChange={asks => update({ asks: asks as WordAsk[] })} />
+        <Toggle label="유형끼리 단어 겹치지 않게" checked={state.distinct} onChange={distinct => update({ distinct })} help={state.distinct ? `한 유형의 문제가 다른 유형의 답을 알려 주지 않게 나눠요. 지금 목록으로는 유형마다 최대 ${perAsk}문항이에요.` : "유형마다 목록 전체에서 골라요. 같은 단어가 여러 유형에 나올 수 있어요."} />
         <p className="mt-2 text-[.72rem] leading-5 text-ink-4">예문이 있는 단어 {withExample}개 · 뜻 고르기는 뜻이 다른 단어가 4개 이상일 때 나와요.</p>
       </SheetCard>
     </>}>
@@ -110,7 +118,7 @@ function ListView() {
   const entries = list.entries.filter(entry => entry.word.trim());
   return (
     <ToolLayout aside={<>
-      <WordListEditor entries={list.entries} onChange={entries => setList({ entries })} />
+      <WordListEditor entries={list.entries} onChange={entries => setList({ entries })} onUpdate={next => setList(current => ({ entries: next(current.entries) }))} />
       <Card title="단어장">
         <p className="mb-1 text-xs font-semibold text-ink-4">모양</p>
         <Segmented label="모양" value={state.layout} onChange={layout => update({ layout })} options={(Object.keys(wordListLayouts) as WordListLayout[]).map(value => ({ value, label: wordListLayouts[value] }))} />

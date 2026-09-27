@@ -112,6 +112,11 @@ const rubricSchema = z.object({
   scores: z.array(z.number().min(0).max(100)).min(2).max(5).catch([5, 3, 1]),
   names: z.boolean().catch(true),
 });
+/** 단계 수에 맞는 기본 이름과 점수입니다. 점수는 아래 단계부터 1, 3, 5 … 로 둡니다(3단계면 5·3·1점). */
+function levelPreset(count: number) {
+  const labels = count === 2 ? ["상", "하"] : count === 3 ? ["상", "중", "하"] : count === 4 ? ["상", "중상", "중하", "하"] : ["상", "중상", "중", "중하", "하"];
+  return { labels, scores: labels.map((_, index) => (count - index) * 2 - 1) };
+}
 function RubricView() {
   const [state, update] = useStored("learncraft_english_rubric_v1", rubricSchema);
   const [confirm, confirmDialog] = useConfirm();
@@ -121,10 +126,31 @@ function RubricView() {
     if (!await confirm({ title: `${kind === "writing" ? "쓰기" : "말하기"} 기본 기준으로 바꿀까요?`, eyebrow: "평가 기준표", confirmLabel: "바꾸기", tone: "danger", description: `지금 평가 요소 ${state.rows.length}개를 기본 기준 ${DEFAULT_RUBRICS[kind].length}개로 바꿔요. 단계는 상·중·하(5·3·1점)로 돌아가요.`, note: "지금 고친 기준 내용은 되돌릴 수 없어요. 제목은 그대로 남아요." })) return;
     update({ kind, rows: DEFAULT_RUBRICS[kind], labels: ["상", "중", "하"], scores: [5, 3, 1] });
   }
-  const setLevels = (count: number) => {
-    const pick = count === 2 ? ["상", "하"] : count === 3 ? ["상", "중", "하"] : count === 4 ? ["상", "중상", "중하", "하"] : ["상", "중상", "중", "중하", "하"];
-    // 점수는 아래 단계부터 1, 3, 5 … 로 둡니다(3단계면 5·3·1점).
-    update({ labels: pick, scores: pick.map((_, index) => (count - index) * 2 - 1), rows: state.rows.map(row => ({ ...row, levels: Array.from({ length: count }, (_, index) => row.levels[index] ?? "") })) });
+  const setLevels = async (count: number) => {
+    if (count === levels) return;
+    const { labels: pick, scores } = levelPreset(count);
+    // 기준 문구는 위치 비율대로 옮깁니다. 맨 위·맨 아래 단계가 먼저 자리를 잡고, 자리가 겹친 가운데 단계 문구는 빠집니다(3→2단계면 ‘중’).
+    const order = [0, levels - 1, ...Array.from({ length: Math.max(0, levels - 2) }, (_, index) => index + 1)];
+    let dropped = 0;
+    const rows = state.rows.map(row => {
+      const next: string[] = Array.from({ length: count }, () => "");
+      const filled = new Set<number>();
+      for (const from of order) {
+        const to = Math.round(from * (count - 1) / (levels - 1));
+        if (filled.has(to)) { if (row.levels[from]?.trim()) dropped += 1; continue; }
+        filled.add(to);
+        next[to] = row.levels[from] ?? "";
+      }
+      return { ...row, levels: next };
+    });
+    const base = levelPreset(levels);
+    const customLabels = state.labels.join() !== base.labels.join() || state.scores.join() !== base.scores.join();
+    if ((dropped || customLabels) && !await confirm({
+      title: `${count}단계로 바꿀까요?`, eyebrow: "평가 기준표", confirmLabel: "바꾸기", tone: dropped ? "danger" : undefined,
+      description: `단계 이름을 ${pick.join("·")}(${scores.join("·")}점)으로 바꾸고, 기준 문구는 가장 가까운 단계로 옮겨요.`,
+      note: [dropped ? `가운데 단계의 기준 문구 ${dropped}개는 옮길 자리가 없어 지워져요.` : "", customLabels ? "고친 단계 이름과 점수는 기본값으로 돌아가요." : ""].filter(Boolean).join(" "),
+    })) return;
+    update({ labels: pick, scores, rows });
   };
   return (
     <ToolLayout aside={<>
@@ -135,7 +161,7 @@ function RubricView() {
         </div>
       </Card>
       <Card title="단계와 점수">
-        <Segmented label="단계 수" value={levels} onChange={setLevels} options={[2, 3, 4, 5].map(value => ({ value, label: `${value}단계` }))} />
+        <Segmented label="단계 수" value={levels} onChange={count => void setLevels(count)} options={[2, 3, 4, 5].map(value => ({ value, label: `${value}단계` }))} />
         <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(4.2rem,1fr))] gap-1.5">
           {state.labels.map((label, index) => (
             <div key={index} className="space-y-1">

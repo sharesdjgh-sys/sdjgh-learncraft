@@ -48,7 +48,9 @@ const cellStyle = "border:1px solid #444;padding:1.4mm 2mm;text-align:center";
 const headStyle = `${cellStyle};background:#f1f1f1`;
 /** 자음 체계표. hide에 든 글자는 빈칸으로 둡니다. */
 export function consonantTableHtml(hide: Set<string> = new Set()) {
-  const cell = (row: (typeof CONSONANT_ROWS)[number], place: Place) => CONSONANTS.filter(item => item.place === place && item.manner === row.manner && item.strength === row.strength)
+  // ㅎ은 세기 구분이 없지만 교과서 체계표처럼 마찰음의 예사소리 줄(목청소리 칸)에 둡니다.
+  const inRow = (item: Consonant, row: (typeof CONSONANT_ROWS)[number]) => item.strength === row.strength || (item.manner === "마찰음" && !item.strength && row.strength === "예사소리");
+  const cell = (row: (typeof CONSONANT_ROWS)[number], place: Place) => CONSONANTS.filter(item => item.place === place && item.manner === row.manner && inRow(item, row))
     .map(item => hide.has(item.letter) ? "(&nbsp;&nbsp;&nbsp;)" : escapeHtml(item.letter)).join(" ");
   const rows = CONSONANT_ROWS.map((row, index) => {
     const first = CONSONANT_ROWS.findIndex(item => item.group === row.group) === index;

@@ -82,8 +82,8 @@ export function literaryHistoryProblems(asks: HistoryAsk[], count: number, seed:
   for (const ask of asks) {
     const problems: SheetProblem[] = [];
     if (ask === "genre") {
-      for (const genre of shuffled(GENRES, seed * 5 + 1).slice(0, Math.min(count, GENRES.length))) {
-        const choices = shuffled(GENRES, seed * 11 + genre.name.length);
+      for (const [index, genre] of shuffled(GENRES, seed * 5 + 1).slice(0, Math.min(count, GENRES.length)).entries()) {
+        const choices = shuffled(GENRES, seed * 11 + index * 17 + 3);
         problems.push(problem(`다음 설명에 알맞은 갈래는?<span style="display:block;margin:1mm 0 1mm 4mm">${escapeHtml(genre.feature)} (예: ${escapeHtml(genre.works)})</span>${choices.map((item, i) => `${circled(i)} ${item.name}`).join("&nbsp;&nbsp; ")}`,
           `${circled(choices.indexOf(genre))} ${genre.name} 갈래 — ${escapeHtml(genre.how)}`, { space: 4 }));
       }
