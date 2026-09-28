@@ -62,6 +62,7 @@ import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import { makeAnswerPdfFileName } from "@/lib/tutor-pdf-file-name";
+import { PdfTooLargeError, preparePdfRequest } from "@/lib/pdf-payload-browser";
 import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage, UserRole } from "@/types";
 
 const showMarkdownCopyButton = process.env.NODE_ENV === "development";
@@ -1429,19 +1430,11 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
       captureElement.classList.remove("learncraft-pdf-staging");
       captureElement.classList.add("learncraft-pdf-native");
       captureElement.removeAttribute("aria-hidden");
-      const html = captureElement.outerHTML;
+      const request = await preparePdfRequest(captureElement, styles, makeAnswerPdfFileName(message.content, createdAt));
       captureElement.remove();
 
       const fileName = `${makeAnswerPdfFileName(message.content, createdAt)}.pdf`;
-      const response = await fetch("/api/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          html,
-          styles,
-          title: makeAnswerPdfFileName(message.content, createdAt),
-        }),
-      });
+      const response = await fetch("/api/pdf", { method: "POST", ...request });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error?.message ?? "PDF 서버가 파일을 만들지 못했어요.");
@@ -1451,7 +1444,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
       setNotice("PDF 파일을 저장했어요.");
     } catch (error) {
       console.error("[LearnCraft PDF 저장 실패]", error);
-      setNotice("PDF 파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      setNotice(error instanceof PdfTooLargeError
+        ? "그림이 많아 PDF 한 파일로 만들 수 없어요. 답변을 나누어 저장해 주세요."
+        : "PDF 파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       captureElement.remove();
       setSavingPdfMessageId(null);

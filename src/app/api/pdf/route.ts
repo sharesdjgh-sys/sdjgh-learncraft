@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import puppeteer, { type Browser } from "puppeteer-core";
 import { z } from "zod";
 import { requireLearner } from "@/lib/auth";
+import { readPdfPayload } from "@/lib/pdf-payload-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
   const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
 
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = requestSchema.safeParse(await readPdfPayload(request));
   if (!parsed.success) {
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "PDF 문서 내용을 확인해 주세요." } }, { status: 400 });
   }
