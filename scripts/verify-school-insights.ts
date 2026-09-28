@@ -1,5 +1,5 @@
-﻿import assert from "node:assert/strict";
-import { dateRange, summarizeSchoolUsage, type SchoolActivity, type SchoolUsageData } from "../src/features/usage/school-insights";
+import assert from "node:assert/strict";
+import { dateRange, previousRange, summarizeGroups, summarizeSchoolUsage, summarizeUsers, userDetail, type SchoolActivity, type SchoolUsageData } from "../src/features/usage/school-insights";
 
 const base: SchoolActivity = { userId: "student-a", date: "2026-09-21", hour: 23, subject: "수학", unit: "함수", requests: 3, tokens: 90, cost: 0.01, status: "SUCCEEDED", latencyTotal: 6000, latencyCount: 3, latencyMax: 2500, errorCode: null };
 const data: SchoolUsageData = {
@@ -59,6 +59,52 @@ assert.deepEqual(empty.peaks, []);
 assert.equal(dateRange("2026-12-31", "2027-01-01").length, 2);
 assert.equal(dateRange("2024-02-28", "2024-03-01").length, 3);
 for (const [start, end] of [["2026-02-30", "2026-03-01"], ["invalid", "2026-09-27"], ["2026-09-27", "2026-09-21"], ["2026-01-01", "2026-12-31"]]) assert.throws(() => dateRange(start, end));
+// 사용자별 통계: 미사용자 포함, 직전 기간 비교, 활동 수준과 점검 표시
+const withHistory: SchoolUsageData = {
+  ...data,
+  users: [...data.users.map((user) => ({ ...user, externalId: `ID-${user.id}`, lastLoginAt: user.id === "unused" ? null : "2026-09-27 08:00" }))],
+  activities: [...data.activities.filter((row) => row.date >= "2026-09-21"),
+    { ...base, date: "2026-09-15", requests: 10, action: "QUIZ" },
+    { ...base, userId: "teacher", date: "2026-09-14", requests: 1 },
+    { ...base, userId: "teacher", date: "2026-09-23", requests: 30, subject: "영어", action: "DEEPER", lastAt: "2026-09-23 10:15" },
+    { ...base, userId: "student-b", status: "FAILED", requests: 3, errorCode: "TIMEOUT" },
+  ],
+};
+assert.deepEqual(previousRange("2026-09-21", "2026-09-27"), { start: "2026-09-14", end: "2026-09-20", days: 7 });
+const roster = summarizeUsers(withHistory, all);
+const byId = new Map(roster.map((user) => [user.id, user]));
+assert.equal(roster.length, 5, "active accounts plus inactive accounts with usage; admins excluded");
+assert.equal(byId.get("unused")?.level, "NONE");
+assert.ok(byId.get("unused")?.flags.includes("NEVER_LOGGED_IN"));
+assert.ok(byId.get("inactive")?.flags.includes("INACTIVE_ACCOUNT"));
+assert.equal(byId.get("student-a")?.prevRequests, 10);
+assert.equal(byId.get("student-a")?.requests, 3);
+assert.ok(byId.get("student-a")?.flags.includes("DROPPED"));
+assert.equal(byId.get("student-a")?.level, "LOW");
+assert.equal(byId.get("student-b")?.failed, 3);
+assert.ok(byId.get("student-b")?.flags.includes("FAILURES"));
+assert.ok(byId.get("teacher")?.flags.includes("SURGE"));
+assert.equal(byId.get("teacher")?.lastAt, "2026-09-23 10:15");
+assert.equal(byId.get("teacher")?.level, "NORMAL");
+assert.equal(byId.get("teacher")?.subjects[0].subject, "영어");
+assert.equal(summarizeUsers(withHistory, { ...all, subject: "수학" }).find((user) => user.id === "teacher")?.requests, 0);
+const groups = summarizeGroups(roster);
+const grade1 = groups.find((group) => group.key === "G1")!;
+assert.equal(grade1.registered, 2);
+assert.equal(grade1.using, 1);
+assert.equal(grade1.rate, 50);
+assert.equal(grade1.levels.NONE, 1);
+assert.equal(groups.find((group) => group.key === "TEACHER")?.requests, 35);
+const detail = userDetail(withHistory, "teacher", "ALL");
+assert.equal(detail.daily.length, 7);
+assert.equal(detail.daily.reduce((sum, day) => sum + day.requests, 0), 35);
+assert.equal(detail.actions[0].action, "DEEPER");
+assert.equal(detail.subjects[0].subject, "영어");
+assert.deepEqual(userDetail(withHistory, "student-b", "ALL").errors, [{ code: "TIMEOUT", requests: 3 }]);
+const summary = summarizeSchoolUsage(withHistory, all);
+assert.equal(summary.subjects.reduce((sum, item) => sum + item.requests, 0), summary.total);
+assert.equal(summary.actions.reduce((sum, item) => sum + item.requests, 0), summary.total);
+console.log("School monitoring people: roster with non-users, previous period, levels, flags, groups and detail passed.");
 console.log("School monitoring: totals, filters, distinct users, statuses, latency, heatmap, empty periods and date validation passed.");
 
 async function verifyApi(baseUrl: string) {

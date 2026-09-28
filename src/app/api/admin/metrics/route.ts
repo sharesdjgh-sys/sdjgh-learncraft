@@ -27,7 +27,8 @@ export async function GET(request: Request) {
     if (!db) return NextResponse.json({ available: false, start, end, timeZone, users: [], activities: [] } satisfies SchoolUsageData, { headers: { "Cache-Control": "private, no-store" } });
     const previousStart = new Date(Date.parse(start) - dateRange(start, end).length * 86400000).toISOString().slice(0, 10);
     const [userResult, activityResult] = await Promise.all([
-      db.execute(sql`SELECT id, name, role, official_grade AS grade, active FROM users
+      db.execute(sql`SELECT id, name, role, official_grade AS grade, active, external_id AS "externalId",
+        to_char(last_login_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD HH24:MI') AS "lastLoginAt" FROM users
         WHERE school_id = ${admin.schoolId}::uuid AND role IN ('STUDENT', 'TEACHER')`),
       db.execute(sql`SELECT e.student_id AS "userId",
         to_char(e.created_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS date,
@@ -36,7 +37,8 @@ export async function GET(request: Request) {
         COUNT(*)::int AS requests, SUM(e.input_tokens::bigint + e.output_tokens)::float AS tokens,
         SUM(e.estimated_cost_usd)::float AS cost, e.status, e.error_code AS "errorCode",
         COALESCE(SUM(e.latency_ms), 0)::float AS "latencyTotal", COUNT(e.latency_ms)::int AS "latencyCount",
-        COALESCE(MAX(e.latency_ms), 0)::int AS "latencyMax"
+        COALESCE(MAX(e.latency_ms), 0)::int AS "latencyMax", e.action::text AS action,
+        to_char(MAX(e.created_at) AT TIME ZONE ${timeZone}, 'YYYY-MM-DD HH24:MI') AS "lastAt"
         FROM usage_events e
         JOIN users usr ON usr.id = e.student_id AND usr.school_id = e.school_id
         LEFT JOIN units u ON u.id = e.unit_id
@@ -46,7 +48,7 @@ export async function GET(request: Request) {
           AND usr.role IN ('STUDENT', 'TEACHER')
           AND e.created_at >= (${previousStart}::date::timestamp AT TIME ZONE ${timeZone})
           AND e.created_at < ((${end}::date + 1)::timestamp AT TIME ZONE ${timeZone})
-        GROUP BY 1, 2, 3, 4, 5, e.status, e.error_code`),
+        GROUP BY 1, 2, 3, 4, 5, e.status, e.error_code, e.action`),
     ]);
     return NextResponse.json({ available: true, start, end, timeZone,
       users: rows<SchoolUser>(userResult), activities: rows<SchoolActivity>(activityResult),
