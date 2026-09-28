@@ -8,8 +8,8 @@ import styles from "./accounts.module.css";
 import f from "./feedback.module.css";
 
 type Status = "ALL" | keyof typeof statuses;
-type Filters = { status: Status; category: string; role: string; sort: string; q: string; author: { id: string; label: string } | null };
-const initialFilters: Filters = { status: "ALL", category: "ALL", role: "ALL", sort: "new", q: "", author: null };
+type Filters = { status: Status; category: string; role: string; source: string; sort: string; q: string; author: { id: string; label: string } | null };
+const initialFilters: Filters = { status: "ALL", category: "ALL", role: "ALL", source: "ALL", sort: "new", q: "", author: null };
 const pageSize = 20;
 const date = (value: string) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul" }).format(new Date(value));
 const shortDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }).format(new Date(value));
@@ -48,7 +48,7 @@ export function AdminFeedback() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const params = new URLSearchParams({ page: String(page), status: filters.status, category: filters.category, role: filters.role, sort: filters.sort });
+    const params = new URLSearchParams({ page: String(page), status: filters.status, category: filters.category, role: filters.role, source: filters.source, sort: filters.sort });
     if (filters.q) params.set("q", filters.q);
     if (filters.author) params.set("authorId", filters.author.id);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading mirrors this request lifecycle
@@ -76,7 +76,7 @@ export function AdminFeedback() {
   }
 
   const counts = data?.counts;
-  const filtered = Boolean(filters.q || filters.author || filters.category !== "ALL" || filters.role !== "ALL");
+  const filtered = Boolean(filters.q || filters.author || filters.category !== "ALL" || filters.role !== "ALL" || filters.source !== "ALL");
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
   return (
@@ -102,6 +102,7 @@ export function AdminFeedback() {
               <label className={styles.search}><Search size={17} className="shrink-0" /><span className="sr-only">제목, 내용, 작성자 검색</span><input type="search" value={search} maxLength={80} onChange={(event) => setSearch(event.target.value)} placeholder="제목·내용·이름·학번으로 검색" /></label>
               <label className={styles.filter}><SlidersHorizontal size={15} /><select aria-label="피드백 유형" value={filters.category} onChange={(event) => update({ category: event.target.value })}><option value="ALL">모든 유형</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <label className={styles.filter}><select aria-label="작성자 구분" value={filters.role} onChange={(event) => update({ role: event.target.value })}><option value="ALL">학생·선생님</option><option value="STUDENT">학생만</option><option value="TEACHER">선생님만</option></select></label>
+              <label className={styles.filter}><select aria-label="보낸 곳" value={filters.source} onChange={(event) => update({ source: event.target.value })}><option value="ALL">모든 화면</option><option value="LEARNING">학습 화면</option><option value="TEACHER_TOOLS">교사 지원실</option></select></label>
               <label className={styles.filter}><select aria-label="정렬" value={filters.sort} onChange={(event) => update({ sort: event.target.value })}><option value="new">최신순</option><option value="old">오래된순</option></select></label>
             </div>
             {filters.author && <p className={f.chip}><UserRound size={13} />{filters.author.label}의 피드백만 보는 중<button type="button" aria-label="작성자 필터 해제" onClick={() => update({ author: null })}><X size={13} /></button></p>}
@@ -114,7 +115,7 @@ export function AdminFeedback() {
                     <span className={f.rowTop}><span className={`${f.badge} ${f[item.status]}`}>{statuses[item.status]}</span><span className={`${f.category} ${item.category === "BUG" ? f.categoryBUG : ""}`}>{categories[item.category]}</span><span className={f.rowIcons}>{item.images.length > 0 && <ImageIcon size={13} aria-label={`이미지 ${item.images.length}장`} />}{item.reply && <MessageSquareReply size={13} aria-label="답변 있음" />}</span></span>
                     <span className={f.rowDate}>{shortDate(item.createdAt)}</span>
                     <span className={f.rowTitle}>{item.title}</span>
-                    <span className={f.rowMeta}><span><b>{item.studentName}</b> {item.studentExternalId}</span><span className={`${f.role} ${item.authorRole === "TEACHER" ? f.roleTEACHER : ""}`}>{authorLabel(item)}</span>{item.curriculumLocation && <span className="truncate">{item.curriculumLocation.courseTitle} › {item.curriculumLocation.unitTitle}</span>}</span>
+                    <span className={f.rowMeta}><span><b>{item.studentName}</b> {item.studentExternalId}</span><span className={`${f.role} ${item.authorRole === "TEACHER" ? f.roleTEACHER : ""}`}>{authorLabel(item)}</span>{item.curriculumLocation && <span className="truncate">{item.curriculumLocation.courseTitle} › {item.curriculumLocation.unitTitle}</span>}{item.toolLocation && <span className="truncate">교사 지원실 › {item.toolLocation.subject} › {item.toolLocation.tab ?? item.toolLocation.tool}</span>}</span>
                   </button>
                 </li>)}</ul>
                   : <div className={styles.empty}><div className={styles.emptyIcon}><MessageSquareText size={27} strokeWidth={1.3} /></div><h3>{filtered || filters.status !== "ALL" ? "조건에 맞는 피드백이 없습니다" : "아직 들어온 피드백이 없습니다"}</h3><p>{filtered || filters.status !== "ALL" ? "검색어나 필터를 바꿔 보세요." : "학생과 선생님이 피드백을 남기면 여기에 모입니다."}</p>{(filtered || filters.status !== "ALL") && <button type="button" className={styles.secondary} onClick={reset}>조건 초기화</button>}</div>}
@@ -170,6 +171,7 @@ function FeedbackDetail({ item, onClose, onSaved, onDelete, onAuthor }: { item: 
         <div className={f.author}><span className={styles.avatar} aria-hidden="true">{item.studentName.slice(0, 1)}</span><div><strong>{item.studentName}</strong><span>{item.studentExternalId} · {authorLabel(item)}</span></div><button type="button" className={styles.rowAction} onClick={onAuthor}>이 사람 피드백 모아 보기</button></div>
       </div>
       {item.curriculumLocation && <div><p className={f.sectionLabel}>학습 위치</p><div className={f.location}><b>{item.curriculumLocation.unitTitle}</b>{item.curriculumLocation.grade}학년 · {item.curriculumLocation.subjectTitle} · {item.curriculumLocation.courseTitle}<br />{item.curriculumLocation.chapterTitle} › {item.curriculumLocation.sectionTitle}</div></div>}
+      {item.toolLocation && <div><p className={f.sectionLabel}>교사 지원실 위치</p><div className={f.location}><b>{item.toolLocation.subject} · {item.toolLocation.tab ?? item.toolLocation.tool}</b>{item.toolLocation.tab ? `${item.toolLocation.tool} · ` : ""}<a href={item.toolLocation.path} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#2c55a6] underline-offset-2 hover:underline">해당 화면 열기</a></div></div>}
       <div><p className={f.sectionLabel}>내용</p><p className={f.content}>{item.content}</p></div>
       {item.images.length > 0 && <div className={f.images}>{item.images.map((image, index) => <a key={image.id} href={`/api/feedback/${item.id}/images/${image.id}`} target="_blank" rel="noopener noreferrer" aria-label={`첨부 이미지 ${index + 1} 크게 보기`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- private API image, not optimizable */}

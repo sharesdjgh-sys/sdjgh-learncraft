@@ -57,8 +57,9 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
   return (
     <div className="app-canvas min-h-dvh">
       <header className="veil sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-4 xl:gap-7">
-          <Logo />
+        <div className="flex min-w-0 items-center gap-4 max-[439px]:overflow-hidden xl:gap-7">
+          {/* 추가 버튼이 있는 좁은 휴대폰에서는 로고를 같은 비율로 조금 줄여 버튼 자리를 만듭니다. */}
+          <Logo className={actions ? "max-[399px]:[&>span]:h-8 max-[399px]:[&>span]:w-[8.9rem]" : undefined} />
           <nav className={cn("hidden items-center min-[1024px]:flex", crowded ? "gap-0.5 xl:gap-1.5 2xl:gap-3" : links.some((link) => link.subject) ? "gap-0.5 min-[1160px]:gap-1.5 xl:gap-2 2xl:gap-5" : "gap-0.5 xl:gap-1")} aria-label={menuLabel}>
             {links.map(({ href, label, icon: Icon, subject, tone }) => {
               const active = pathname.startsWith(href);
@@ -88,12 +89,12 @@ export function ConsoleShell({ user, links, menuLabel, badgeIcon: BadgeIcon, act
             })}
           </nav>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className={cn("flex shrink-0 items-center gap-2", actions && "max-[439px]:gap-1")}>
           {actions}
-          {/* 1024~1159px에서는 메뉴 자리를 위해 이름을 숨기고 아이콘만 둡니다(마우스를 올리면 이름이 보여요). */}
-          <div className="flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-3 shadow-[var(--lift-1)] min-[1024px]:max-[1159px]:pr-1.5" aria-label={`로그인 사용자 ${user.name}`} title={user.name}>
+          {/* 1024~1159px에서는 메뉴 자리를 위해 이름을 숨기고 아이콘만 둡니다(마우스를 올리면 이름이 보여요). 추가 버튼이 있으면 440px 미만 휴대폰에서도 같게 합니다. */}
+          <div className={cn("flex min-h-10 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-3 shadow-[var(--lift-1)] min-[1024px]:max-[1159px]:pr-1.5", actions && "max-[439px]:pr-1.5")} aria-label={`로그인 사용자 ${user.name}`} title={user.name}>
             <span className="grid size-7 place-items-center rounded-[8px] bg-brand-soft text-brand-dark"><BadgeIcon size={14} /></span>
-            <span className="min-w-0 leading-tight min-[1024px]:max-[1159px]:hidden">
+            <span className={cn("min-w-0 leading-tight min-[1024px]:max-[1159px]:hidden", actions && "max-[439px]:hidden")}>
               <span className="block max-w-28 truncate text-[.78rem] font-bold text-ink">{user.name}</span>
               <span className="hidden max-w-36 truncate text-[.68rem] text-ink-5 xl:block">{user.schoolName}</span>
             </span>

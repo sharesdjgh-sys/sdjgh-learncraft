@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import colors from "@/components/teacher/teacher-colors.module.css";
 import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, Flower2, Lamp, GraduationCap, Languages, MapIcon, Music, Palette, ScrollText, Trophy } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
+import { TeacherFeedbackButton } from "@/components/feedback/teacher-feedback-button";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
 
@@ -47,12 +48,14 @@ export function TeacherShell({ user, children }: { user: SessionUser; children: 
       menuLabel="교사 지원실 메뉴"
       badgeIcon={GraduationCap}
       beforeLogout={clearLearnerState}
-      actions={(
+      actions={(<>
+        {/* 관리자는 피드백을 받는 쪽이라 보내기 버튼은 선생님 계정에만 둡니다. */}
+        {user.role === "TEACHER" && <TeacherFeedbackButton subject={subject?.subject} tool={subject?.label} colorStyle={colorStyle} />}
         <Link href="/learn" className="flex min-h-10 items-center gap-1.5 rounded-[11px] px-2.5 text-[.78rem] font-bold text-ink-3 transition hover:bg-surface-2 hover:text-brand-dark" title="학습 화면으로 돌아가기" aria-label="학습 화면으로 돌아가기">
           <BookOpenText size={16} aria-hidden="true" />
           <span className="hidden sm:inline lg:hidden xl:inline">학습 화면</span>
         </Link>
-      )}
+      </>)}
     >
       <div className={colors.scope} data-subject={subject?.subject} style={colorStyle}>{children}</div>
     </ConsoleShell>

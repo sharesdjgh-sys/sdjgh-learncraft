@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { feedback, users } from "@/db/schema";
@@ -19,6 +19,7 @@ const authorRole = (role: SessionUser["role"]): FeedbackItem["authorRole"] => ro
 const dto = (row: Stored): FeedbackItem => ({
   images: row.images.map(({ id, width, height, size }) => ({ id, width, height, size })),
   curriculumLocation: row.curriculumLocation,
+  toolLocation: row.toolLocation ?? null,
   id: row.id, category: row.category, title: row.title, content: row.content, status: row.status, reply: row.reply, version: row.version,
   createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), completedAt: row.completedAt?.toISOString() ?? null,
   studentName: row.studentName, studentExternalId: row.studentExternalId,
@@ -26,7 +27,7 @@ const dto = (row: Stored): FeedbackItem => ({
 });
 
 export async function listFeedback(user: SessionUser, input: Pick<Query, "page" | "status"> & Partial<Query>): Promise<FeedbackPage> {
-  const query: Query = { category: "ALL", role: "ALL", q: "", sort: "new", ...input };
+  const query: Query = { category: "ALL", role: "ALL", source: "ALL", q: "", sort: "new", ...input };
   const offset = (query.page - 1) * pageSize;
   const counts: FeedbackCounts = { ALL: 0, RECEIVED: 0, IN_PROGRESS: 0, COMPLETED: 0 };
   if (!db) {
@@ -34,6 +35,7 @@ export async function listFeedback(user: SessionUser, input: Pick<Query, "page" 
     const matched = demo().filter((row) => visible(row, user)
       && (query.category === "ALL" || row.category === query.category)
       && (query.role === "ALL" || row.authorRole === query.role)
+      && (query.source === "ALL" || (query.source === "TEACHER_TOOLS") === Boolean(row.toolLocation))
       && (!query.authorId || row.studentId === query.authorId)
       && (!q || [row.title, row.content, row.studentName, row.studentExternalId].some((value) => value.toLocaleLowerCase().includes(q))));
     for (const row of matched) { counts.ALL += 1; counts[row.status] += 1; }
@@ -48,6 +50,8 @@ export async function listFeedback(user: SessionUser, input: Pick<Query, "page" 
     user.role !== "ADMIN" ? eq(feedback.studentId, user.id) : undefined,
     query.category === "ALL" ? undefined : eq(feedback.category, query.category),
     query.role === "ALL" ? undefined : eq(users.role, query.role),
+    // The column defaults to JSON null, so check for an object rather than SQL NULL.
+    query.source === "ALL" ? undefined : query.source === "TEACHER_TOOLS" ? sql`jsonb_typeof(${feedback.toolLocation}) = 'object'` : sql`jsonb_typeof(${feedback.toolLocation}) is distinct from 'object'`,
     query.authorId ? eq(feedback.studentId, query.authorId) : undefined,
     query.q ? or(ilike(feedback.title, pattern), ilike(feedback.content, pattern), ilike(users.name, pattern), ilike(users.externalId, pattern)) : undefined,
   ];
@@ -117,6 +121,7 @@ function authorOf(user: SessionUser): Author {
 const feedbackColumns = {
   images: feedback.images,
   curriculumLocation: feedback.curriculumLocation,
+  toolLocation: feedback.toolLocation,
   id: feedback.id, requestId: feedback.requestId, schoolId: feedback.schoolId, studentId: feedback.studentId,
   category: feedback.category, title: feedback.title, content: feedback.content, status: feedback.status, reply: feedback.reply,
   handledBy: feedback.handledBy, completedAt: feedback.completedAt, version: feedback.version, createdAt: feedback.createdAt, updatedAt: feedback.updatedAt,

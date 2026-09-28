@@ -100,6 +100,7 @@ export const feedbackStatus = pgEnum("feedback_status", ["RECEIVED", "IN_PROGRES
 export const feedback = pgTable("feedback", {
   images: jsonb("images").$type<import("@/features/feedback/model").StoredFeedbackImage[]>().default([]).notNull(),
   curriculumLocation: jsonb("curriculum_location").$type<import("@/features/feedback/model").FeedbackCurriculumLocation | null>().default(null),
+  toolLocation: jsonb("tool_location").$type<import("@/features/feedback/model").FeedbackToolLocation | null>().default(null),
   id: uuid("id").defaultRandom().primaryKey(),
   requestId: uuid("request_id").notNull(),
   schoolId: uuid("school_id").references(() => schools.id).notNull(),
