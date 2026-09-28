@@ -130,11 +130,11 @@ export function previousRange(start: string, end: string) {
  * 비활성 계정은 조회 기간이나 직전 기간에 요청이 있을 때만 포함합니다.
  */
 export function summarizeUsers(data: SchoolUsageData, filters: SchoolUsageFilters) {
-  const dates = new Set(dateRange(data.start, data.end));
+  const dates = new Map(dateRange(data.start, data.end).map((date, index) => [date, index]));
   const previous = previousRange(data.start, data.end);
   const previousDates = new Set(dateRange(previous.start, previous.end));
   const stats = new Map<string, { requests: number; prevRequests: number; failed: number; tokens: number; cost: number;
-    days: Set<string>; lastAt: string; subjects: Map<string, number> }>();
+    days: Set<string>; daily: number[]; lastAt: string; subjects: Map<string, number> }>();
   const matches = (user: SchoolUser) => ["STUDENT", "TEACHER"].includes(user.role)
     && (filters.role === "ALL" || user.role === filters.role)
     && (filters.grade === "ALL" || (user.role === "STUDENT" && String(user.grade) === filters.grade));
@@ -142,7 +142,7 @@ export function summarizeUsers(data: SchoolUsageData, filters: SchoolUsageFilter
     if (filters.subject !== "ALL" && row.subject !== filters.subject) continue;
     const current = dates.has(row.date);
     if (!current && !previousDates.has(row.date)) continue;
-    const item = stats.get(row.userId) ?? { requests: 0, prevRequests: 0, failed: 0, tokens: 0, cost: 0, days: new Set<string>(), lastAt: "", subjects: new Map<string, number>() };
+    const item = stats.get(row.userId) ?? { requests: 0, prevRequests: 0, failed: 0, tokens: 0, cost: 0, days: new Set<string>(), daily: Array<number>(dates.size).fill(0), lastAt: "", subjects: new Map<string, number>() };
     stats.set(row.userId, item);
     if (!current) {
       if (row.status === "SUCCEEDED") item.prevRequests += row.requests;
@@ -154,6 +154,7 @@ export function summarizeUsers(data: SchoolUsageData, filters: SchoolUsageFilter
     item.tokens += row.tokens;
     item.cost += row.cost;
     item.days.add(row.date);
+    item.daily[dates.get(row.date)!] += row.requests;
     const lastAt = row.lastAt ?? row.date;
     if (lastAt > item.lastAt) item.lastAt = lastAt;
     item.subjects.set(row.subject, (item.subjects.get(row.subject) ?? 0) + row.requests);
@@ -174,7 +175,7 @@ export function summarizeUsers(data: SchoolUsageData, filters: SchoolUsageFilter
     if (!user.active) flags.push("INACTIVE_ACCOUNT");
     const subjects = [...item?.subjects ?? []].map(([subject, count]) => ({ subject, requests: count })).sort((a, b) => b.requests - a.requests);
     return { ...user, requests, prevRequests, failed, tokens: item?.tokens ?? 0, cost: item?.cost ?? 0,
-      activeDays, lastAt: item?.lastAt || null, subjects, level, flags };
+      activeDays, daily: item?.daily ?? Array<number>(dates.size).fill(0), lastAt: item?.lastAt || null, subjects, level, flags };
   }).sort((a, b) => b.requests - a.requests || a.name.localeCompare(b.name, "ko") || a.id.localeCompare(b.id));
 }
 export type UserSummary = ReturnType<typeof summarizeUsers>[number];
