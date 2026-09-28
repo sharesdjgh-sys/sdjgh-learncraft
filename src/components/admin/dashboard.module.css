@@ -170,6 +170,77 @@ button.stat:hover { border-color: #cfd3de; box-shadow: 0 4px 14px #2632520a; }
 .drawerTitle { margin-bottom: 10px; font-size: 13px; font-weight: 750; color: #3a4052; }
 @media (max-width: 640px) { .gradeSegment { margin: 0 15px 12px; max-width: calc(100% - 30px); } }
 
+/* 운영 설정 */
+.statCode { font-size: 19px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.limitGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); border-top: 1px solid #eff0f5; }
+.limitControl, .limitInsight { padding: 20px 22px 22px; }
+.limitInsight { border-left: 1px solid #eff0f5; background: #fcfcfe; }
+.limitLabel { margin-bottom: 12px; font-size: 12px; font-weight: 700; color: #6b7285; }
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper > button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #e0e3eb; border-radius: 11px; background: #fff; color: #4c5266; transition: background .15s, border-color .15s; }
+.stepper > button:hover:not(:disabled) { border-color: #b9abeb; background: #f5f3ff; color: #4a31bb; }
+.stepper > button:disabled { opacity: .4; }
+.stepper label { display: flex; align-items: baseline; gap: 4px; }
+.stepper input { width: 88px; padding: 2px 4px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: center; font-size: 38px; font-weight: 800; letter-spacing: -.04em; color: #2b3144; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper input:hover, .stepper input:focus { border-color: #d8d2f0; background: #fff; outline: none; }
+.stepper label span { font-size: 14px; color: #8a90a0; }
+.limitActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.histogram { display: block; width: 100%; height: 88px; border-bottom: 1px solid #e2e4ea; }
+.insightFacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 14px; overflow: hidden; border: 1px solid #eceef3; border-radius: 10px; background: #eceef3; }
+.insightFacts div { padding: 10px 12px; background: #fff; }
+.insightFacts dt { font-size: 11px; color: #8a90a0; }
+.insightFacts dd { margin-top: 2px; font-size: 18px; font-weight: 800; color: #2b3144; font-variant-numeric: tabular-nums; }
+.insightFacts dd small { margin-left: 3px; font-size: 11px; font-weight: 600; color: #8a90a0; }
+.warnValue { color: #9a5c0c !important; }
+.insightNote { margin-top: 12px; font-size: 12px; line-height: 1.75; color: #5d6477; }
+
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 22px 18px; padding: 16px; border-radius: 12px; background: #f7f8fb; }
+.flowNode { display: flex; flex-direction: column; gap: 4px; min-width: 150px; padding: 11px 14px; border: 1px solid #e3e5ec; border-radius: 11px; background: #fff; font-size: 11.5px; font-weight: 650; color: #6b7285; }
+.flowNode code { font-size: 14px; font-weight: 750; color: #2b3144; }
+.flowNode small { font-size: 11px; font-weight: 500; color: #9aa0ae; }
+.flowStart { border-style: dashed; background: transparent; }
+.flowStart > span { font-size: 13px; font-weight: 700; color: #3e4458; }
+.flowMain { border-color: #cbbff2; box-shadow: 0 0 0 3px #efebff; }
+.flowMain code { color: #4a31bb; }
+.flowArrow { flex-shrink: 0; color: #b0b4c0; }
+.flowWhen { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; color: #9aa0ae; }
+.flowWhen svg { color: #b0b4c0; }
+.flowDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #d69a3c; }
+.flowDot[data-ready=true] { background: #3f9a71; box-shadow: 0 0 0 3px #3f9a711f; }
+.modelTable td { vertical-align: top; }
+.code2 { display: inline-block; padding: 2px 7px; border-radius: 6px; background: #f2f3f7; color: #2b3144; font-size: 12.5px; font-weight: 700; overflow-wrap: anywhere; }
+.warnText { display: inline-flex; align-items: center; gap: 4px; font-weight: 650; color: #9a5c0c; }
+.inlineWarn { display: flex; align-items: center; gap: 7px; margin: 0 22px 14px; padding: 11px 14px; border-radius: 9px; background: #fff6e6; color: #9a5c0c; font-size: 12.5px; }
+.more2 { border-top: 1px solid #eff0f5; }
+.more2 summary { display: flex; align-items: center; gap: 6px; padding: 14px 22px; font-size: 12.5px; font-weight: 650; color: #5d6477; cursor: pointer; list-style: none; }
+.more2 summary::-webkit-details-marker { display: none; }
+.more2 summary svg { transition: transform .15s; }
+.more2[open] summary svg { transform: rotate(180deg); }
+.more2 summary:hover { color: #2b3144; }
+.more2Body { padding: 0 22px 20px; }
+.useList { display: grid; gap: 12px; }
+.useList li { font-size: 12.5px; color: #3e4458; }
+.useList p { margin-top: 3px; font-size: 12px; line-height: 1.7; color: #7a8091; }
+.howTo { margin: 18px 0 8px; font-size: 12px; font-weight: 650; color: #4c5266; }
+.envList { display: grid; gap: 1px; overflow: hidden; border: 1px solid #eceef3; border-radius: 9px; background: #eceef3; }
+.envList div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: #fff; font-size: 11.5px; }
+.envList code { color: #3e4458; overflow-wrap: anywhere; }
+.envList dd { flex-shrink: 0; color: #8a90a0; }
+@media (max-width: 900px) {
+  .limitGrid { grid-template-columns: minmax(0, 1fr); }
+  .limitInsight { border-left: 0; border-top: 1px solid #eff0f5; }
+}
+@media (max-width: 640px) {
+  .limitControl, .limitInsight { padding: 16px; }
+  .flow { margin: 0 16px 14px; }
+  .flowNode { min-width: 0; flex: 1 1 100%; }
+  .flowArrow, .flowWhen svg { transform: rotate(90deg); }
+  .flowWhen { flex-direction: row; gap: 6px; }
+  .inlineWarn { margin: 0 16px 12px; }
+  .more2 summary, .more2Body { padding-left: 16px; padding-right: 16px; }
+}
+
 .note { display: flex; align-items: flex-start; gap: 8px; margin: 20px 3px 0; color: #7d8596; font-size: 11px; line-height: 1.8; }
 .note svg { flex-shrink: 0; margin-top: 3px; }
 .loading { padding: 80px 0; text-align: center; font-size: 13px; color: #8a90a0; }

@@ -108,17 +108,12 @@ const promotionalPrices = {
 const standardPrices = { input: 1.5, output: 7.5, cachedInput: 0.15 };
 
 if (Object.values(promotionalPrices).every(Number.isFinite)) {
-  const pricedModels = [
-    {
-      promotionalId: "ffffffff-ffff-4fff-8fff-000000000001",
-      standardId: "ffffffff-ffff-4fff-8fff-000000000003",
-      modelId: process.env.GEMINI_FALLBACK_MODEL_ID ?? "gemini-3.6-flash",
-    },
-    {
-      promotionalId: "ffffffff-ffff-4fff-8fff-000000000002",
-      standardId: "ffffffff-ffff-4fff-8fff-000000000004",
-      modelId: process.env.GEMINI_PRIMARY_MODEL_ID ?? "gemini-3.7-flash",
-    },
+  // 가격 행 id는 모델마다 고정합니다. 기본·예비 역할이 바뀌어도 다른 모델의 가격을 덮어쓰지 않습니다.
+  // standardId가 없는 모델은 2027년 이후 단가가 아직 확인되지 않아 등록하지 않습니다.
+  const pricedModels: { modelId: string; promotionalId: string; standardId?: string }[] = [
+    { modelId: "gemini-3.6-flash", promotionalId: "ffffffff-ffff-4fff-8fff-000000000001", standardId: "ffffffff-ffff-4fff-8fff-000000000003" },
+    { modelId: "gemini-3.7-flash", promotionalId: "ffffffff-ffff-4fff-8fff-000000000002", standardId: "ffffffff-ffff-4fff-8fff-000000000004" },
+    { modelId: "gemini-3.8-flash", promotionalId: "ffffffff-ffff-4fff-8fff-000000000005" },
   ];
 
   for (const model of pricedModels) {
@@ -129,12 +124,12 @@ if (Object.values(promotionalPrices).every(Number.isFinite)) {
         effectiveTo: new Date("2027-01-01T00:00:00Z"),
         prices: promotionalPrices,
       },
-      {
+      ...(model.standardId ? [{
         id: model.standardId,
         effectiveFrom: new Date("2027-01-01T00:00:00Z"),
         effectiveTo: null,
         prices: standardPrices,
-      },
+      }] : []),
     ];
 
     for (const period of pricePeriods) {

@@ -9,7 +9,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL_ID: z.string().optional(),
   GEMINI_PRIMARY_MODEL_ID: z.string().optional(),
-  GEMINI_FALLBACK_MODEL_ID: z.string().default("gemini-3.6-flash"),
+  GEMINI_FALLBACK_MODEL_ID: z.string().default("gemini-3.7-flash"),
   GEMINI_IMAGE_MODEL_ID: z.string().default("gemini-3.1-flash-image"),
   GEMINI_IMAGE_ENABLED: z.enum(["true", "false"]).default("true"),
   OPENAI_API_KEY: z.string().optional(),
@@ -51,7 +51,7 @@ export const env = {
   GEMINI_PRIMARY_MODEL_ID:
     parsed.data.GEMINI_PRIMARY_MODEL_ID
     ?? parsed.data.GEMINI_MODEL_ID
-    ?? "gemini-3.7-flash",
+    ?? "gemini-3.8-flash",
 };
 
 export const isDatabaseConfigured = Boolean(env.DATABASE_URL);

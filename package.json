@@ -6,6 +6,7 @@
     "test:teacher-activities": "tsx scripts/verify-teacher-activities.ts",
     "test:learning-progress": "tsx scripts/verify-learning-progress.ts && tsx scripts/verify-learning-analysis.ts",
     "test:school-insights": "tsx scripts/verify-school-insights.ts",
+    "test:admin-settings": "tsx scripts/verify-admin-settings.ts",
     "test:vocabulary": "tsx scripts/verify-vocabulary.ts",
     "test:english-questions": "tsx scripts/verify-english-questions.ts",
     "test:music-score": "tsx scripts/verify-music-score.ts",
