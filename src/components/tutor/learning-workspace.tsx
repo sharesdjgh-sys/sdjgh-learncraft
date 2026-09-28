@@ -26,6 +26,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronsDown,
   ChevronRight,
   CircleHelp,
   Copy,
@@ -682,6 +683,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   const imagePreparationRef = useRef(false);
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const streamingAnswerRef = useRef(false);
   const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
 
@@ -920,11 +922,25 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     if (autoScrollRef.current) {
       messageEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth", block: "end" });
     }
+    // 위로 올려 둔 채 답변이 길어지면 '맨 아래로' 버튼을 보여 줍니다.
+    const frame = window.requestAnimationFrame(updateJumpToLatest);
+    return () => window.cancelAnimationFrame(frame);
   }, [loading, messages]);
+
+  function updateJumpToLatest() {
+    const container = messageScrollRef.current;
+    setShowJumpToLatest(Boolean(container) && container!.scrollHeight - container!.scrollTop - container!.clientHeight > 300);
+  }
+
+  function jumpToLatest() {
+    autoScrollRef.current = true;
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
 
   function trackScrollPosition() {
     const container = messageScrollRef.current;
     if (!container) return;
+    updateJumpToLatest();
     if (streamingAnswerRef.current) {
       autoScrollRef.current = false;
       return;
@@ -1673,7 +1689,13 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
           </div>
         </div>
 
-        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="shrink-0 bg-surface pb-3 pt-2 sm:pb-5">
+        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="relative shrink-0 bg-surface pb-3 pt-2 sm:pb-5">
+          {conversationOpen && messages.length > 0 && showJumpToLatest && (
+            <button type="button" onClick={jumpToLatest} aria-label={loading ? "작성 중인 답변으로 이동" : "대화 맨 아래로 이동"} title="맨 아래로" className="absolute bottom-full left-1/2 z-10 mb-2.5 grid size-11 -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-brand/20 bg-[linear-gradient(135deg,#ffffff_0%,#f0edff_48%,#e8e2ff_100%)] text-brand-dark shadow-[0_7px_18px_rgba(86,58,194,.18),inset_0_1px_0_rgba(255,255,255,.9)] transition-[translate,box-shadow,border-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-[0_11px_24px_rgba(86,58,194,.24),inset_0_1px_0_rgba(255,255,255,.95)] motion-reduce:hover:translate-y-0">
+              <ChevronsDown className="size-5" strokeWidth={2.4} aria-hidden="true" />
+              {loading && <span className="absolute right-0.5 top-0.5 size-2.5 rounded-full border-2 border-white bg-brand motion-safe:animate-pulse" aria-hidden="true" />}
+            </button>
+          )}
           <div className={cn("mx-auto w-full", conversationWidth, conversationPadding)}>
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
