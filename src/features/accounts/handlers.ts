@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accountCredentials, users } from "@/db/schema";
 import { invalidateAccountStatusCache, requireAdmin } from "@/lib/auth";
@@ -10,21 +10,6 @@ import { registrationSchema, statusSchema, type AccountRole } from "./model";
 
 const fail = (message: string, status: number, code = "ACCOUNT_ERROR") => NextResponse.json({ error: { code, message } }, { status });
 const projection = { id: users.id, loginId: users.externalId, name: users.name, grade: users.officialGrade, active: users.active };
-
-export async function listAccounts(request: Request, role: AccountRole) {
-  const admin = await requireAdmin();
-  if (!admin) return fail("관리자 권한이 필요합니다.", 403, "FORBIDDEN");
-  if (!db) return fail("계정 관리를 사용하려면 데이터베이스 연결이 필요합니다.", 503);
-  const q = new URL(request.url).searchParams.get("q")?.trim().slice(0, 80) ?? "";
-  const status = new URL(request.url).searchParams.get("status");
-  const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-  const accounts = await db.select(projection).from(users).where(and(
-    eq(users.schoolId, admin.schoolId), eq(users.role, role),
-    q ? or(ilike(users.externalId, pattern), ilike(users.name, pattern)) : undefined,
-    status === "active" ? eq(users.active, true) : status === "inactive" ? eq(users.active, false) : undefined,
-  )).orderBy(desc(users.updatedAt), users.id).limit(201);
-  return NextResponse.json({ accounts: accounts.slice(0, 200), hasMore: accounts.length > 200 });
-}
 
 export async function registerAccounts(request: Request, role: AccountRole) {
   const admin = await requireAdmin();

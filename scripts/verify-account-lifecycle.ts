@@ -47,7 +47,24 @@ async function main() {
     const teacherAccount = teacherAccounts.find((item: { loginId: string }) => item.loginId === teacherLogin);
     assert.ok(teacherAccount);
     const teacherCookie = await login(teacherLogin, teacherInput.initialPassword);
+    // 모니터링 목록: 로그인 전에는 '로그인 기록 없음', 로그인 뒤에는 마지막 로그인이 기록됩니다.
+    type Page = { accounts: { id: string; lastLoginAt: string | null; loginDaysAgo: number | null; requests: number }[]; total: number; summary: { total: number; never: number; unused: number }[] };
+    const list = async (path: string) => { const response = await request(path, adminCookie); assert.equal(response.status, 200, path); return await response.json() as Page; };
+    let students = await list("/api/admin/accounts?status=never");
+    assert.equal(students.total, 1);
+    assert.equal(students.summary.reduce((sum, row) => sum + row.never, 0), 1);
+    assert.equal(students.accounts[0].requests, 0);
+    assert.equal((await list("/api/admin/teachers?status=never&sort=stale")).total, 1, "로그인한 선생님은 빠집니다.");
+    assert.equal((await list("/api/admin/teachers?status=never&page=2")).accounts.length, 0);
+    assert.equal((await list("/api/admin/accounts?status=unused&export=1")).accounts.length, 1);
+    assert.equal((await list("/api/admin/accounts?grade=none")).total, 0, "학번 첫 자리로 학년이 정해집니다.");
     const studentCookie = await login(studentLogin, studentInput.initialPassword);
+    students = await list(`/api/admin/accounts?q=${studentLogin}&sort=login`);
+    assert.ok(students.accounts[0].lastLoginAt);
+    assert.equal(students.accounts[0].loginDaysAgo, 0);
+    assert.equal((await list("/api/admin/accounts?status=never")).total, 0);
+    assert.equal((await list("/api/admin/accounts?status=unknown&sort=bad")).total, 1, "알 수 없는 조건은 기본값으로 처리합니다.");
+    assert.equal((await request("/api/admin/accounts?status=never", otherCookie).then((response) => response.json()) as Page).total, 0, "다른 학교 계정은 보이지 않습니다.");
     for (const session of [teacherCookie, studentCookie]) {
       assert.equal((await request("/api/bookmarks", session)).status, 200);
       assert.equal((await request("/api/admin/accounts", session, "POST", studentInput)).status, 403);

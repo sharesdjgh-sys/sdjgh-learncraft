@@ -41,7 +41,8 @@ export function AdminDashboard() {
   const [tab, setTab] = useState<Tab>("overview");
   const [views, setViews] = useState<Record<Role, PeopleView>>({ STUDENT: initialView, TEACHER: initialView });
   const [pattern, setPattern] = useState({ role: "ALL", grade: "ALL" });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 계정 관리에서 ?user=로 넘어오면 해당 사람의 상세를 바로 엽니다. 목록은 클라이언트에서만 그려져 서버 값과 어긋나지 않습니다.
+  const [selectedId, setSelectedId] = useState<string | null>(() => typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("user"));
 
   useEffect(() => {
     let active = true;
