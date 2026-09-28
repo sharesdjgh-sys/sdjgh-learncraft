@@ -73,6 +73,7 @@
     "test:image-intent": "tsx scripts/verify-explicit-image-request.ts",
     "test:tutor-progress": "tsx scripts/verify-tutor-progress.ts",
     "test:visuals": "tsx scripts/verify-learning-visuals.ts",
+    "test:learning-map": "tsx scripts/verify-learning-map.ts",
     "test:rendering": "tsx scripts/verify-subject-rendering.tsx"
   },
   "dependencies": {
