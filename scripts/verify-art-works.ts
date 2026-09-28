@@ -16,8 +16,14 @@ for (const work of artWorks) {
   // 이미지가 있는 작품과 저작권 때문에 설명만 두는 작품 중 하나여야 합니다.
   assert.ok(Boolean(work.file) !== Boolean(work.copyright), `${work.id} 이미지·저작권 표시`);
   if (work.file) assert.ok(isCommonsFileName(work.file), `${work.id} 파일 이름`);
+  // 이용 조건 검사를 건너뛰는 저작권 작품 이미지는 저작권 표시가 있는 작품에만 둡니다.
+  if (work.wikiFile) { assert.ok(work.copyright, `${work.id} 저작권 이미지는 저작권 작품에만`); assert.ok(isCommonsFileName(work.wikiFile), `${work.id} 저작권 이미지 파일 이름`); }
 }
-unique(artWorks.flatMap(work => work.file ? [work.file] : []), "같은 이미지를 두 작품에 씀");
+unique(artWorks.flatMap(work => work.file ?? work.wikiFile ?? []), "같은 이미지를 두 작품에 씀");
+for (const id of ["guernica", "persistence", "marilyn", "whaam", "dadaikseon"]) assert.ok(artWorks.find(work => work.id === id)?.wikiFile, `${id} 저작권 작품 이미지`);
+const sample = { query: { pages: [{ title: "File:PicassoGuernica.jpg", imageinfo: [{ mime: "image/jpeg", thumburl: "https://upload.wikimedia.org/wikipedia/en/7/74/PicassoGuernica.jpg", thumbwidth: 464, thumbheight: 211, descriptionurl: "https://en.wikipedia.org/wiki/File:PicassoGuernica.jpg", extmetadata: { LicenseShortName: { value: "Fair use" } } }] }] } };
+assert.equal(commonsImages(sample).length, 0, "비자유 파일은 일반 Commons 조회에서 거절");
+assert.equal(commonsImages(sample, { protectedWork: true })[0]?.protectedWork, true, "저작권 작품 조회는 표시를 붙여 받음");
 for (const movement of artMovements) {
   assert.ok(artGroups.includes(movement.group), `${movement.id} 묶음`);
   assert.ok(movement.works.length >= 6, `${movement.id} 작품 수`);
@@ -47,8 +53,20 @@ const mona = artWorks.find(work => work.id === "mona-lisa")!;
 assert.match(workPrompt({ ...mona, movement: "르네상스" }, "high"), /고등학생[\s\S]*모나리자[\s\S]*르네상스/);
 assert.match(termPrompt("명도", "middle", { category: "조형 요소", definition: "밝기" }), /중학생[\s\S]*명도[\s\S]*조형 요소/);
 
-// --online: 모든 이미지가 Commons에 있고 이용 조건(퍼블릭 도메인·CC)을 통과하는지 확인합니다.
+// --online: 모든 이미지가 Commons에 있고 이용 조건(퍼블릭 도메인·CC)을 통과하는지, 저작권 작품 이미지는 영어 위키백과에서 받을 수 있는지 확인합니다.
+async function verifyProtectedOnline() {
+  const files = artWorks.flatMap(work => work.wikiFile ? [work.wikiFile] : []);
+  const url = new URL("https://en.wikipedia.org/w/api.php");
+  url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "1280", iiextmetadatalanguage: "en", titles: files.join("|") }).toString();
+  const response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; catalog check)" } });
+  assert.ok(response.ok, `위키백과 응답 ${response.status}`);
+  const found = new Set(commonsImages(await response.json(), { protectedWork: true }).map(image => image.file));
+  assert.deepEqual(files.filter(file => !found.has(file)), [], "위키백과에서 받을 수 없는 저작권 작품 이미지");
+  console.log(`온라인 확인: 저작권 작품 이미지 ${files.length}개 모두 사용 가능`);
+}
+
 async function verifyOnline() {
+  await verifyProtectedOnline();
   const files = artWorks.flatMap(work => work.file ? [work.file] : []);
   const missing: string[] = [];
   for (let index = 0; index < files.length; index += 20) {
@@ -70,4 +88,4 @@ async function verifyOnline() {
   console.log(`온라인 확인: 이미지 ${files.length}개 모두 사용 가능`);
 }
 
-void (process.argv.includes("--online") ? verifyOnline() : Promise.resolve()).then(() => console.log(`미술 작품 검증 통과: 사조 ${artMovements.length}개, 작품 ${artWorks.length}점(설명만 ${artWorks.filter(work => work.copyright).length}점), 용어 ${artTerms.length}개`));
+void (process.argv.includes("--online") ? verifyOnline() : Promise.resolve()).then(() => console.log(`미술 작품 검증 통과: 사조 ${artMovements.length}개, 작품 ${artWorks.length}점(저작권 보호 ${artWorks.filter(work => work.copyright).length}점, 그중 이미지 ${artWorks.filter(work => work.wikiFile).length}점), 용어 ${artTerms.length}개`));

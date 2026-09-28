@@ -5,7 +5,7 @@ import { AlertCircle, BookmarkCheck, BookmarkPlus, Brush, Copy, ExternalLink, Li
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CommonsImage } from "@/lib/commons-media";
-import { findMovement, findTerm, type CatalogWork } from "@/lib/art-works/catalog";
+import { findMovement, findTerm, findWork, type CatalogWork } from "@/lib/art-works/catalog";
 import { appreciationSteps, artLevels, type ArtLevel, type TermExplanation, type WorkExplanation } from "@/lib/art-works/explanation";
 
 export const endpoint = "/api/teacher/art-works";
@@ -26,7 +26,7 @@ export type ArtItem = {
 };
 
 export function catalogItem(work: CatalogWork): ArtItem {
-  return { key: `c:${work.id}`, workId: work.id, title: work.title, original: work.original, artist: work.artist, year: work.year, movement: findMovement(work.movementId)?.name, file: work.file, copyright: work.copyright };
+  return { key: `c:${work.id}`, workId: work.id, title: work.title, original: work.original, artist: work.artist, year: work.year, movement: findMovement(work.movementId)?.name, file: work.file ?? work.wikiFile, copyright: work.copyright };
 }
 export function commonsItem(image: CommonsImage): ArtItem {
   return { key: `f:${image.file}`, title: image.title, artist: image.artist.slice(0, 200), file: image.file, description: image.description };
@@ -78,7 +78,7 @@ export function useArtImages(files: (string | undefined)[]) {
 }
 
 // ── 브라우저 저장소: 자료함과 AI 해설
-function createLocalStore<T>(key: string, fallback: T, valid: (value: unknown) => value is T) {
+function createLocalStore<T>(key: string, fallback: T, valid: (value: unknown) => value is T, refresh: (value: T) => T = value => value) {
   const listeners = new Set<() => void>();
   let memory = fallback;
   let loaded = false;
@@ -87,7 +87,7 @@ function createLocalStore<T>(key: string, fallback: T, valid: (value: unknown) =
       loaded = true;
       try {
         const saved = JSON.parse(window.localStorage.getItem(key) ?? "null") as unknown;
-        if (valid(saved)) memory = saved;
+        if (valid(saved)) memory = refresh(saved);
       } catch { /* 저장소를 쓸 수 없으면 이번 방문 동안만 기억합니다. */ }
     }
     return memory;
@@ -105,7 +105,9 @@ function createLocalStore<T>(key: string, fallback: T, valid: (value: unknown) =
 }
 
 const isItemList = (value: unknown): value is ArtItem[] => Array.isArray(value) && value.every(item => item && typeof item.key === "string" && typeof item.title === "string" && typeof item.artist === "string");
-export const collectionStore = createLocalStore<ArtItem[]>("learncraft_art_collection", [], isItemList);
+// 예전에 담은 카탈로그 작품도 지금 카탈로그 정보(새로 찾은 저작권 작품 이미지 등)로 보여 줍니다.
+const refreshItems = (items: ArtItem[]) => items.map(item => { const work = item.workId ? findWork(item.workId) : undefined; return work ? catalogItem(work) : item; });
+export const collectionStore = createLocalStore<ArtItem[]>("learncraft_art_collection", [], isItemList, refreshItems);
 const emptyItems: ArtItem[] = [];
 export function useCollection() {
   return useSyncExternalStore(collectionStore.subscribe, collectionStore.read, () => emptyItems);
@@ -133,6 +135,7 @@ export function latestWorkExplanation(itemKey: string) {
 
 export function creditText(item: ArtItem, image?: CommonsImage | null) {
   const work = [item.title, item.artist, item.year].filter(Boolean).join(", ");
+  if (image?.protectedWork) return `${work}. © ${item.artist}(저작권 보호 작품). 수업용 인용 이미지: ${image.sourceUrl}`;
   return image ? `${work}. 이미지: ${image.artist.slice(0, 160)} / Wikimedia Commons / ${image.license} (${image.sourceUrl})` : work;
 }
 
@@ -186,20 +189,26 @@ export async function copyText(text: string) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-export function ArtImage({ item, image, className, imgClassName, sizes = "card" }: { item: ArtItem; image: CommonsImage | null | undefined; className?: string; imgClassName?: string; sizes?: "card" | "large" }) {
+/** 저작권 작품 이미지 위에 붙이는 표시입니다. */
+export function CopyrightMark({ className }: { className?: string }) {
+  return <span className={cn("pointer-events-none flex w-fit items-center gap-1 rounded-full bg-[#5f5446]/90 px-2 py-1 text-[.68rem] font-bold text-white shadow-sm", className)}><Lock size={11} aria-hidden="true" /> 저작권 보호 작품</span>;
+}
+
+export function ArtImage({ item, image, className, imgClassName, sizes = "card", mark = sizes === "large" }: { item: ArtItem; image: CommonsImage | null | undefined; className?: string; imgClassName?: string; sizes?: "card" | "large"; mark?: boolean }) {
   const [failed, setFailed] = useState(false);
-  if (item.copyright || !item.file) {
+  if (!item.file) {
     return <div className={cn("flex flex-col items-center justify-center gap-2 bg-[#f4f1ec] px-4 text-center text-[#7a6d5c]", className)}>
       <Lock size={sizes === "large" ? 28 : 20} aria-hidden="true" />
       <p className="text-[.78rem] font-bold">저작권 보호 작품</p>
-      {sizes === "large" && <p className="max-w-xs break-keep text-[.74rem] leading-5">작가 사후 70년이 지나지 않아 이미지를 싣지 않았어요. 수업에서는 소장처 누리집의 공식 이미지를 보여 주세요.</p>}
+      {sizes === "large" && <p className="max-w-xs break-keep text-[.74rem] leading-5">작가 사후 70년이 지나지 않은 작품인데, 쓸 수 있는 이미지를 찾지 못했어요. 수업에서는 소장처 누리집의 공식 이미지를 보여 주세요.</p>}
     </div>;
   }
   if (image === undefined && !failed) return <div className={cn("flex items-center justify-center bg-[#f4f1ec] text-ink-4", className)}><LoaderCircle size={20} className="animate-spin" aria-label="이미지를 불러오는 중" /></div>;
   if (!image || failed) return <div className={cn("flex flex-col items-center justify-center gap-1 bg-[#f4f1ec] text-[.76rem] font-semibold text-ink-4", className)}><AlertCircle size={18} aria-hidden="true" /> 이미지를 불러오지 못했어요</div>;
-  return <div className={cn("flex items-center justify-center bg-[#f4f1ec]", className)}>
+  return <div className={cn("relative flex items-center justify-center bg-[#f4f1ec]", className)}>
     {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={image.imageUrl} alt={`${item.title} (${item.artist})`} width={image.width} height={image.height} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className={cn("h-full w-full object-contain", imgClassName)} />
+    {item.copyright && mark && <CopyrightMark className="absolute bottom-2.5 left-2.5" />}
   </div>;
 }
 
@@ -350,7 +359,8 @@ export function ArtWorkDialog({ item, point, place, medium, terms, onClose, onOp
               {image ? <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] px-3 text-sm font-semibold text-ink-3 hover:bg-brand-page hover:text-brand-dark"><ExternalLink size={14} /> 원본 파일</a>
                 : item.copyright && <a href={searchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] px-3 text-sm font-semibold text-ink-3 hover:bg-brand-page hover:text-brand-dark"><ExternalLink size={14} /> 공식 이미지 찾기</a>}
             </div>
-            {image && <p className="break-words text-[.72rem] leading-5 text-ink-4">이미지: {image.artist.slice(0, 200)} · <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="underline">Wikimedia Commons</a> · {image.licenseUrl ? <a href={image.licenseUrl} target="_blank" rel="noreferrer" className="underline">{image.license}</a> : image.license}</p>}
+            {image && item.copyright && <p role="note" className="flex gap-2 rounded-xl border border-[#e4dccf] bg-[#f8f4ee] px-3.5 py-3 text-[.78rem] leading-5 text-[#5f5446]"><Lock size={14} className="mt-0.5 shrink-0" aria-hidden="true" /><span className="break-keep"><strong>저작권 보호 작품</strong>이에요(© {item.artist}). 저해상도 인용 이미지이니 수업 시간에 보여 주는 용도로만 쓰고, 파일을 내려받아 배포하거나 누리집·SNS에 올리지 마세요.</span></p>}
+            {image && !image.protectedWork && <p className="break-words text-[.72rem] leading-5 text-ink-4">이미지: {image.artist.slice(0, 200)} · <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="underline">Wikimedia Commons</a> · {image.licenseUrl ? <a href={image.licenseUrl} target="_blank" rel="noreferrer" className="underline">{image.license}</a> : image.license}</p>}
           </div>
         </div>
         <div className="border-t border-line bg-surface-2 p-5 sm:p-6">

@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, BookOpenText, BookmarkCheck, Brush, BookmarkPlus, Columns2, Copy, Library, Lightbulb, LoaderCircle, Lock, Palette, Presentation, Printer, Search, ShieldCheck, Sparkles, Tags, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpenText, BookmarkCheck, Brush, BookmarkPlus, Columns2, Copy, Library, Lightbulb, LoaderCircle, Palette, Presentation, Printer, Search, ShieldCheck, Sparkles, Tags, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { CommonsImage } from "@/lib/commons-media";
 import { artGroups, artMovements, artTerms, artWorks, findTerm, findWork, termCategories, termDetails, worksForTerm, type ArtTerm, type CatalogWork, type TermCategory } from "@/lib/art-works/catalog";
 import type { TermExplanation } from "@/lib/art-works/explanation";
-import { ArtImage, ArtWorkDialog, catalogItem, collectionStore, commonsItem, copyText, creditText, endpoint, ExplanationPanel, readJson, rememberImages, TermExplanationCard, toggleCollection, useArtImages, useCollection, useExplanation, type ArtItem } from "./art-works-shared";
+import { ArtImage, ArtWorkDialog, CopyrightMark, catalogItem, collectionStore, commonsItem, copyText, creditText, endpoint, ExplanationPanel, readJson, rememberImages, TermExplanationCard, toggleCollection, useArtImages, useCollection, useExplanation, type ArtItem } from "./art-works-shared";
 import { ArtSlideshow, ArtWorksheet } from "./art-works-show";
 
 type Tab = "movements" | "terms" | "search" | "collection";
@@ -48,7 +48,7 @@ function WorkCard({ item, image, onOpen }: { item: ArtItem; image: CommonsImage 
         </div>
       </button>
       <SaveButton item={item} className="absolute right-2.5 top-2.5" />
-      {item.copyright && <span className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-[#7a6d5c] px-2 py-1 text-[.68rem] font-bold text-white"><Lock size={11} /> 설명만</span>}
+      {item.copyright && <CopyrightMark className="absolute left-2.5 top-2.5" />}
     </article>
   );
 }
@@ -61,7 +61,7 @@ function MovementsPanel({ onOpen }: { onOpen: (opened: Opened) => void }) {
   // 찾는 말이 있으면 모든 사조에서 제목·원제·작가·연도로 작품을 찾습니다.
   const found = needle ? artWorks.filter(work => `${work.title} ${work.original ?? ""} ${work.artist} ${work.year}`.toLowerCase().includes(needle)) : null;
   const shown = found ?? movement.works.map(work => findWork(work.id)!);
-  const getImage = useArtImages(shown.slice(0, 48).map(work => work.file));
+  const getImage = useArtImages(shown.slice(0, 48).map(work => work.file ?? work.wikiFile));
   return (
     <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
       <nav aria-label="시대와 사조" className="min-w-0 rounded-[18px] border border-line bg-surface p-3 shadow-[var(--lift-1)] lg:sticky lg:top-24">
@@ -106,7 +106,7 @@ function MovementsPanel({ onOpen }: { onOpen: (opened: Opened) => void }) {
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {shown.slice(0, 48).map(work => {
             const item = catalogItem(work);
-            return <WorkCard key={work.id} item={item} image={getImage(work.file)} onOpen={() => onOpen({ item, work })} />;
+            return <WorkCard key={work.id} item={item} image={getImage(item.file)} onOpen={() => onOpen({ item, work })} />;
           })}
         </div>
         {shown.length > 48 && <p className="mt-3 text-center text-[.8rem] text-ink-4">앞의 48점만 보여 줘요. 찾는 말을 더 자세히 적어 보세요.</p>}
@@ -146,7 +146,7 @@ function TermDetailView({ term, onSelect, onOpenWork }: { term: ArtTerm; onSelec
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
             {items.map((item, index) => (
               <button key={item.key} type="button" onClick={() => onOpenWork(works[index])} className="group overflow-hidden rounded-xl border border-line bg-surface text-left transition hover:border-brand/30 hover:shadow-[var(--lift-1)]">
-                <ArtImage item={item} image={getImage(item.file)} className="aspect-[4/3] w-full" />
+                <ArtImage item={item} image={getImage(item.file)} className="aspect-[4/3] w-full" mark />
                 <span className="block px-2.5 py-2"><span className="line-clamp-1 text-[.82rem] font-bold text-ink group-hover:text-brand-dark">{item.title}</span><span className="line-clamp-1 text-[.72rem] text-ink-4">{item.artist}</span></span>
               </button>
             ))}

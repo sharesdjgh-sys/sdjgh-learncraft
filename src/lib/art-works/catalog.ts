@@ -1,6 +1,7 @@
 // 중·고등학교 미술 교과서에서 자주 다루는 사조·작품·용어를 정리했습니다.
 // file은 Wikimedia Commons 파일 이름이며 이용 조건(퍼블릭 도메인·CC)을 scripts/verify-art-works.ts --online으로 확인합니다.
-// 작가 사후 70년이 지나지 않아 저작권이 남은 작품은 file 없이 설명만 두고 copyright를 표시합니다.
+// 작가 사후 70년이 지나지 않아 저작권이 남은 작품은 file 없이 copyright를 표시하고, 찾을 수 있으면 wikiFile에
+// 영어 위키백과의 저해상도 이미지(비자유 인용)나 Commons 사진을 둡니다. 교실 수업 화면에서 보여 주는 용도입니다.
 
 import { moreWorks } from "./more-works";
 
@@ -16,8 +17,10 @@ export type ArtWork = {
   medium?: string;
   /** Wikimedia Commons 파일 이름(File:…) */
   file?: string;
-  /** 저작권이 남아 이미지를 싣지 않는 작품 */
+  /** 저작권이 남은 작품(작가 사후 70년 이내). 화면에 '저작권 보호' 표시를 붙입니다. */
   copyright?: boolean;
+  /** 저작권 작품의 저해상도 이미지 파일(영어 위키백과 또는 Commons). 이용 조건 검사 없이 수업 화면에서만 보여 줍니다. */
+  wikiFile?: string;
   /** 교과서에서 이 작품을 다루는 까닭 한 줄 */
   point: string;
   /** 관련 미술 용어 id */
@@ -213,8 +216,8 @@ export const artMovements: ArtMovement[] = [
     summary: "하나의 시점에서 보이는 모습 대신 여러 방향에서 본 대상을 한 화면에 쪼개고 다시 짜 맞추어 그렸습니다. 세잔의 영향을 받아 피카소와 브라크가 시작했습니다.",
     features: ["여러 시점을 한 화면에 동시에 표현", "기하학적인 면으로 대상을 분해", "분석적 입체주의 → 종합적 입체주의(콜라주·파피에 콜레)"],
     works: [
-      { id: "demoiselles", title: "아비뇽의 여인들", original: "Les Demoiselles d'Avignon", artist: "파블로 피카소", year: "1907년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", copyright: true, point: "아프리카 조각의 영향을 받아 인체를 날카로운 면으로 쪼갠, 입체주의의 출발점이 된 작품입니다.", terms: ["multiple-viewpoints", "plane"] },
-      { id: "guernica", title: "게르니카", artist: "파블로 피카소", year: "1937년", place: "마드리드 레이나 소피아 미술관", medium: "캔버스에 유채", copyright: true, point: "스페인 내전의 폭격을 흑백과 쪼개진 형태로 고발한 반전 미술의 대표작입니다.", terms: ["multiple-viewpoints", "value"] },
+      { id: "demoiselles", title: "아비뇽의 여인들", original: "Les Demoiselles d'Avignon", artist: "파블로 피카소", year: "1907년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", copyright: true, wikiFile: "File:Les Demoiselles d'Avignon.jpg", point: "아프리카 조각의 영향을 받아 인체를 날카로운 면으로 쪼갠, 입체주의의 출발점이 된 작품입니다.", terms: ["multiple-viewpoints", "plane"] },
+      { id: "guernica", title: "게르니카", artist: "파블로 피카소", year: "1937년", place: "마드리드 레이나 소피아 미술관", medium: "캔버스에 유채", copyright: true, wikiFile: "File:PicassoGuernica.jpg", point: "스페인 내전의 폭격을 흑백과 쪼개진 형태로 고발한 반전 미술의 대표작입니다.", terms: ["multiple-viewpoints", "value"] },
       { id: "gris-picasso", title: "피카소의 초상", artist: "후안 그리스", year: "1912년", place: "시카고 미술관", medium: "캔버스에 유채", file: "File:Juan Gris - Portrait of Pablo Picasso - Google Art Project.jpg", point: "인물을 격자 모양의 면으로 나누어 입체주의의 원리를 또렷하게 보여 줍니다.", terms: ["multiple-viewpoints", "plane", "portrait"] },
     ],
   },
@@ -227,7 +230,7 @@ export const artMovements: ArtMovement[] = [
       { id: "yellow-red-blue", title: "노랑-빨강-파랑", artist: "바실리 칸딘스키", year: "1925년", place: "파리 퐁피두 센터", medium: "캔버스에 유채", file: "File:Kandinsky - Gelb-Rot-Blau, 1925.jpg", point: "기하학적 도형과 자유로운 선을 함께 써서 색과 형태의 대비를 탐구했습니다.", terms: ["point", "line", "contrast"] },
       { id: "mondrian", title: "빨강, 파랑, 노랑의 구성 II", artist: "피트 몬드리안", year: "1930년", place: "취리히 미술관", medium: "캔버스에 유채", file: "File:Piet Mondriaan, 1930 - Mondrian Composition II in Red, Blue, and Yellow.jpg", point: "수직·수평선과 삼원색만으로 균형을 찾은 차가운 추상(신조형주의)의 대표작입니다.", terms: ["cold-abstraction", "balance", "primary-colors"] },
       { id: "black-square", title: "검은 사각형", artist: "카지미르 말레비치", year: "1915년", place: "모스크바 트레티야코프 미술관", medium: "캔버스에 유채", file: "File:Kazimir Malevich, 1915, Black Suprematic Square, oil on linen canvas, 79.5 x 79.5 cm, Tretyakov Gallery, Moscow.jpg", point: "흰 바탕에 검은 사각형 하나만 그려 '절대주의'를 선언한 극단적 추상입니다.", terms: ["plane", "simplification"] },
-      { id: "pollock", title: "가을의 리듬(넘버 30)", artist: "잭슨 폴록", year: "1950년", place: "뉴욕 메트로폴리탄 미술관", medium: "캔버스에 에나멜", copyright: true, point: "캔버스를 바닥에 놓고 물감을 흘리고 뿌린 액션 페인팅(추상 표현주의)의 대표작입니다.", terms: ["dripping", "action-painting"] },
+      { id: "pollock", title: "가을의 리듬(넘버 30)", artist: "잭슨 폴록", year: "1950년", place: "뉴욕 메트로폴리탄 미술관", medium: "캔버스에 에나멜", copyright: true, wikiFile: "File:Autumn Rhythm.jpg", point: "캔버스를 바닥에 놓고 물감을 흘리고 뿌린 액션 페인팅(추상 표현주의)의 대표작입니다.", terms: ["dripping", "action-painting"] },
       { id: "kim-whanki", title: "우주 05-IV-71 #200", artist: "김환기", year: "1971년", medium: "코튼에 유채", copyright: true, point: "수많은 푸른 점을 찍어 우주와 그리움을 표현한 한국 추상 미술의 대표작입니다.", terms: ["point", "rhythm", "hot-abstraction"] },
     ],
   },
@@ -237,8 +240,8 @@ export const artMovements: ArtMovement[] = [
     features: ["기성품을 작품으로 내놓는 레디메이드", "낯선 조합으로 충격을 주는 데페이즈망", "우연·자동 기술법(프로타주, 데칼코마니)"],
     works: [
       { id: "fountain", title: "샘", original: "Fountain", artist: "마르셀 뒤샹", year: "1917년(사진: 앨프리드 스티글리츠)", medium: "기성품 소변기(원작 분실)", file: "File:Marcel Duchamp, 1917, Fountain, photograph by Alfred Stieglitz.jpg", point: "공장에서 만든 물건에 서명만 해 전시에 내놓아 '무엇이 예술인가'를 물었습니다.", terms: ["readymade", "concept-art"] },
-      { id: "persistence", title: "기억의 지속", artist: "살바도르 달리", year: "1931년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", copyright: true, point: "녹아내리는 시계로 꿈속처럼 뒤틀린 시간을 표현한 초현실주의의 대표작입니다.", terms: ["depaysement", "symbol"] },
-      { id: "treachery", title: "이미지의 배반(이것은 파이프가 아니다)", artist: "르네 마그리트", year: "1929년", place: "로스앤젤레스 카운티 미술관", medium: "캔버스에 유채", copyright: true, point: "그림과 글을 어긋나게 놓아 이미지와 실제 사물의 관계를 생각하게 합니다.", terms: ["depaysement", "concept-art"] },
+      { id: "persistence", title: "기억의 지속", artist: "살바도르 달리", year: "1931년", place: "뉴욕 현대미술관", medium: "캔버스에 유채", copyright: true, wikiFile: "File:The Persistence of Memory.jpg", point: "녹아내리는 시계로 꿈속처럼 뒤틀린 시간을 표현한 초현실주의의 대표작입니다.", terms: ["depaysement", "symbol"] },
+      { id: "treachery", title: "이미지의 배반(이것은 파이프가 아니다)", artist: "르네 마그리트", year: "1929년", place: "로스앤젤레스 카운티 미술관", medium: "캔버스에 유채", copyright: true, wikiFile: "File:MagrittePipe.jpg", point: "그림과 글을 어긋나게 놓아 이미지와 실제 사물의 관계를 생각하게 합니다.", terms: ["depaysement", "concept-art"] },
     ],
   },
   {
@@ -246,9 +249,9 @@ export const artMovements: ArtMovement[] = [
     summary: "대중문화와 광고, 대량 생산된 이미지를 미술로 끌어들인 팝 아트 이후, 비디오·설치·퍼포먼스처럼 재료와 형식의 경계가 사라졌습니다.",
     features: ["광고·만화·유명인 같은 대중문화 이미지", "실크스크린으로 반복 생산", "비디오 아트, 설치 미술, 개념 미술로 확장"],
     works: [
-      { id: "marilyn", title: "마릴린 두 폭", original: "Marilyn Diptych", artist: "앤디 워홀", year: "1962년", place: "런던 테이트 모던", medium: "캔버스에 아크릴, 실크스크린", copyright: true, point: "같은 얼굴을 실크스크린으로 반복해 대량 소비 사회와 스타의 이미지를 보여 줍니다.", terms: ["silkscreen", "pop-art", "repetition"] },
-      { id: "lichtenstein", title: "행복한 눈물", original: "Happy Tears", artist: "로이 리히텐슈타인", year: "1964년", medium: "캔버스에 유채·마그나", copyright: true, point: "만화의 망점(벤데이 점)과 말풍선 느낌을 크게 확대해 대중문화를 미술로 끌어왔습니다.", terms: ["pop-art", "point"] },
-      { id: "dadaikseon", title: "다다익선", artist: "백남준", year: "1988년", place: "국립현대미술관 과천관", medium: "텔레비전 모니터 1,003대로 만든 비디오 탑", copyright: true, point: "텔레비전을 쌓아 올린 비디오 아트로, 기술과 예술의 만남을 보여 줍니다.", terms: ["video-art", "installation"] },
+      { id: "marilyn", title: "마릴린 두 폭", original: "Marilyn Diptych", artist: "앤디 워홀", year: "1962년", place: "런던 테이트 모던", medium: "캔버스에 아크릴, 실크스크린", copyright: true, wikiFile: "File:Marilyndiptych.jpg", point: "같은 얼굴을 실크스크린으로 반복해 대량 소비 사회와 스타의 이미지를 보여 줍니다.", terms: ["silkscreen", "pop-art", "repetition"] },
+      { id: "lichtenstein", title: "행복한 눈물", original: "Happy Tears", artist: "로이 리히텐슈타인", year: "1964년", medium: "캔버스에 유채·마그나", copyright: true, wikiFile: "File:Happy Tears.jpg", point: "만화의 망점(벤데이 점)과 말풍선 느낌을 크게 확대해 대중문화를 미술로 끌어왔습니다.", terms: ["pop-art", "point"] },
+      { id: "dadaikseon", title: "다다익선", artist: "백남준", year: "1988년", place: "국립현대미술관 과천관", medium: "텔레비전 모니터 1,003대로 만든 비디오 탑", copyright: true, wikiFile: "File:The More, the Better (다다익선(多多益善)) 백남준 PAIK Namjune(1932~2006).jpg", point: "텔레비전을 쌓아 올린 비디오 아트로, 기술과 예술의 만남을 보여 줍니다.", terms: ["video-art", "installation"] },
     ],
   },
   {

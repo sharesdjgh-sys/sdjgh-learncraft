@@ -4,8 +4,8 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { requireTeacherTools } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
-import { getCommonsImagesByFile, searchCommonsImages } from "@/lib/commons-media";
-import { findMovement, findTerm, findWork } from "@/lib/art-works/catalog";
+import { getCommonsImagesByFile, getProtectedWorkImages, searchCommonsImages } from "@/lib/commons-media";
+import { artWorks, findMovement, findTerm, findWork } from "@/lib/art-works/catalog";
 import { artLevels, TERM_GUIDE, termExplanationSchema, termPrompt, WORK_GUIDE, workExplanationSchema, workPrompt, type WorkContext } from "@/lib/art-works/explanation";
 
 export const runtime = "nodejs";
@@ -23,6 +23,9 @@ const inputSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("term"), level, regenerate: z.boolean().optional(), term: z.string().trim().min(1).max(40), termId: z.string().max(60).optional() }),
 ]);
+
+// 이용 조건 검사를 건너뛰는 저작권 작품 이미지는 카탈로그에 등록한 파일만 받습니다.
+const protectedFiles = new Set(artWorks.flatMap(work => work.wikiFile ? [work.wikiFile] : []));
 
 const json = (data: unknown, status = 200, cache = "private, no-store") => Response.json(data, { status, headers: { "Cache-Control": cache } });
 
@@ -58,7 +61,10 @@ export async function GET(request: Request) {
   const files = params.get("files")?.split("\n").map(file => file.trim()).filter(Boolean) ?? [];
   if (!query && !files.length) return json({ error: "찾을 작품이나 파일을 알려 주세요." }, 400);
   try {
-    const images = query ? await searchCommonsImages(query, { limit: 24, width: IMAGE_WIDTH }) : await getCommonsImagesByFile(files, IMAGE_WIDTH);
+    const images = query ? await searchCommonsImages(query, { limit: 24, width: IMAGE_WIDTH }) : (await Promise.all([
+      getCommonsImagesByFile(files.filter(file => !protectedFiles.has(file)), IMAGE_WIDTH),
+      getProtectedWorkImages(files.filter(file => protectedFiles.has(file)), IMAGE_WIDTH),
+    ])).flat();
     return json({ images }, 200, "private, max-age=3600");
   } catch (error) {
     return json({ error: error instanceof Error && error.message.includes("요청 제한") ? error.message : "작품 이미지를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
