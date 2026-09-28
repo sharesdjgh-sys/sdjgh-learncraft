@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import assert from "node:assert/strict";
-import { InlineMarkdown, Markdown } from "../src/components/ui/markdown";
+import { InlineMarkdown, Markdown, normalizeMathDelimiters } from "../src/components/ui/markdown";
 
 const strongCases = [
   "**진경산수화(정선의 《인왕제색도》)**",
@@ -162,3 +162,24 @@ for (const partial of ["## 힌트\n\n반", "## 힌트\n\n반지름은 $r", "## �
   assert.doesNotMatch(streamed.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g, ""), /반지름|반/);
 }
 console.log("힌트·확인 정답 접기 검증 완료: 기본 닫힘, 섹션 경계, 수식, 기존 굵은 제목, 스트리밍, 코드 블록 제외");
+
+// 인공지능 기초 버그 신고: 인라인 코드로 시작하는 하위 목록의 "* "가 곱셈 기호로 읽혀
+// $$*$$ 수식 블록이 되면서 목록과 뒤따르는 인라인 수식이 흩어지던 문제
+const nestedCodeList = [
+  "* **해결**: 관계를 지도처럼 이어 주는 거예요.",
+  "  * `[음향 장비]` $\rightarrow$ `[밴드부 공연]`에 필요함",
+  "  * `[밴드부 공연]` $\rightarrow$ `[강당]`에서 $14$시에 진행",
+  "  - `[수리 비용]` $\rightarrow$ $10$만 원 이상이면 `[선생님 승인]` 필요",
+  "  1. `[선생님 승인]` 뒤에 수리해요.",
+].join("\n");
+assert.doesNotMatch(normalizeMathDelimiters(nestedCodeList), /\$\$\s*[*+-]\s*\$\$/, "목록 기호가 수식 블록이 됨");
+const nestedCodeListHtml = renderToStaticMarkup(<Markdown>{nestedCodeList}</Markdown>);
+assert.doesNotMatch(nestedCodeListHtml, /katex-display/, "목록 기호가 가운데 정렬 수식으로 보임");
+assert.equal([...nestedCodeListHtml.matchAll(/<ul\b/g)].length, 3, "하위 목록 구조 유지");
+assert.match(nestedCodeListHtml, /<li[^>]*><code[^>]*>\[음향 장비\]<\/code> (?:(?!<\/li>)[\s\S])*?class="katex"(?:(?!<\/li>)[\s\S])*?<code[^>]*>\[밴드부 공연\]<\/code>에 필요함<\/li>/, "화살표가 목록 항목 안의 인라인 수식");
+assert.match(nestedCodeListHtml, /<ol\b[\s\S]*\[선생님 승인\]/, "번호 하위 목록 유지");
+// 연산자만 있는 줄 조각은 수식이 아니지만, 수식 줄 복구는 그대로 동작해야 합니다.
+assert.doesNotMatch(normalizeMathDelimiters("앞 문장\n*\n뒤 문장"), /\$/);
+assert.match(normalizeMathDelimiters("- x^2 + 1\n1. a+b=c"), /^- \$x\^[^$]+ \+ 1\$\n1\. \$a\+b=c\$$/, "목록 속 수식 줄은 목록 안 인라인 수식");
+assert.match(normalizeMathDelimiters("x^2 + 1"), /\$\$\nx\^[^$]+ \+ 1\n\$\$/, "목록 밖 수식 줄은 블록 수식");
+console.log("하위 목록 인라인 코드·수식 검증 완료: 목록 기호를 수식으로 바꾸지 않음");

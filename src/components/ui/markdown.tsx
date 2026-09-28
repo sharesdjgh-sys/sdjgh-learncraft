@@ -507,6 +507,8 @@ function separateKoreanFromDollarMath(value: string) {
 function looksLikeMathExpression(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0
+    // A lone operator such as "*" or "-" has nothing to calculate.
+    && /[\p{L}\p{N}\\]/u.test(trimmed)
     && !/(?:\*\*|__)/.test(trimmed)
     && !/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(trimmed)
     && !looksLikeEnglishProse(trimmed)
@@ -566,9 +568,15 @@ function normalizeBrokenLineMath(value: string) {
       return line;
     }
 
-    // A blockquote marker is Markdown structure, not a "greater than" sign.
-    const quoteMarker = line.match(/^[\t ]*(?:>[\t ]?)+/)?.[0] ?? "";
-    return quoteMarker + repairBrokenMathLine(line.slice(quoteMarker.length));
+    // Blockquote and list markers are Markdown structure, not "greater than"
+    // or multiplication signs. A nested bullet before inline code reaches
+    // here as a bare "  * " fragment.
+    const structure = line.match(/^([\t ]*(?:>[\t ]?)*)((?:[*+-]|\d{1,9}[.)])(?=[\t ]|$)[\t ]*)?/)!;
+    const structureMarker = structure[0];
+    const repaired = repairBrokenMathLine(line.slice(structureMarker.length));
+    // Keep a repaired equation inside its list item instead of breaking it out as a display block.
+    const listEquation = structure[2] ? repaired.match(/^\$\$([^$]+)\$\$$/) : null;
+    return structureMarker + (listEquation ? `$${listEquation[1]}$` : repaired);
   }).join("");
 }
 
