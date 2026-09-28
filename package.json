@@ -9,6 +9,7 @@
     "test:vocabulary": "tsx scripts/verify-vocabulary.ts",
     "test:english-questions": "tsx scripts/verify-english-questions.ts",
     "test:music-score": "tsx scripts/verify-music-score.ts",
+    "test:music-instruments": "tsx scripts/verify-music-instruments.ts",
     "test:social-map": "tsx scripts/verify-social-map.ts",
     "test:social": "tsx scripts/verify-social-history.ts && tsx scripts/verify-social-geography.ts && tsx scripts/verify-social-politics.ts && tsx scripts/verify-social-economy.ts && tsx scripts/verify-social-ethics.ts",
     "test:math-tools": "tsx scripts/verify-math-common.ts && tsx scripts/verify-math-algebra-calculus.ts && tsx scripts/verify-math-probability-geometry.ts",
