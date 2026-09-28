@@ -59,6 +59,21 @@ async function main() {
     const teacherFeedback = await createFeedback(teacher, { ...input, requestId: crypto.randomUUID() });
     assert.equal((await listFeedback(teacher, query)).items.length, 1);
     assert.equal((await listFeedback(teacher, query)).items[0].id, teacherFeedback.id);
+    const all = await listFeedback(admin, query);
+    assert.equal(all.total, 22); assert.equal(all.counts.ALL, 22); assert.equal(all.counts.IN_PROGRESS, 1); assert.equal(all.counts.RECEIVED, 21);
+    assert.equal((await listFeedback(admin, { ...query, status: "IN_PROGRESS" })).counts.ALL, 22, "Counts must ignore the status filter");
+    const teachers = await listFeedback(admin, { ...query, role: "TEACHER" });
+    assert.equal(teachers.total, 1); assert.equal(teachers.items[0].authorRole, "TEACHER");
+    const byAuthor = await listFeedback(admin, { ...query, authorId: student.id });
+    assert.equal(byAuthor.total, 21); assert.ok(byAuthor.items.every((item) => item.authorId === student.id && item.authorRole === "STUDENT"));
+    assert.equal((await listFeedback(admin, { ...query, q: "페이지 검증 1" })).total, 11);
+    assert.equal((await listFeedback(admin, { ...query, q: student.externalId })).total, 21, "Search must match author login ids");
+    assert.equal((await listFeedback(admin, { ...query, q: "100%_" })).total, 0, "LIKE wildcards must be escaped");
+    assert.equal((await listFeedback(admin, { ...query, category: "QUESTION" })).total, 0);
+    assert.equal((await listFeedback(admin, { ...query, sort: "old" })).items[0].id, first.id);
+    assert.equal((await listFeedback(admin, { ...query, status: "IN_PROGRESS" })).items[0].handlerName, admin.name);
+    assert.equal((await listFeedback(student, { ...query, authorId: teacher.id })).total, 0, "Author filter must not widen learner visibility");
+
     const { findFeedback, deleteFeedback } = await import("../src/features/feedback/repository");
     assert.equal(await findFeedback(teacher, first.id), null);
     assert.equal(await findFeedback(student, teacherFeedback.id), null);

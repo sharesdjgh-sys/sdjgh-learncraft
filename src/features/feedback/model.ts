@@ -27,6 +27,11 @@ export const updateFeedbackSchema = z.object({
 export const feedbackQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   status: z.enum(["ALL", "RECEIVED", "IN_PROGRESS", "COMPLETED"]).default("ALL"),
+  category: z.enum(["ALL", "BUG", "IMPROVEMENT", "QUESTION"]).default("ALL"),
+  role: z.enum(["ALL", "STUDENT", "TEACHER"]).default("ALL"),
+  authorId: z.string().uuid().optional(),
+  q: z.string().trim().max(80).default(""),
+  sort: z.enum(["new", "old"]).default("new"),
 });
 export type FeedbackItem = {
   images: { id: string; width: number; height: number; size: number }[];
@@ -35,8 +40,11 @@ export type FeedbackItem = {
   status: keyof typeof statuses; reply: string; version: number;
   createdAt: string; updatedAt: string; completedAt: string | null;
   studentName: string; studentExternalId: string;
+  authorId: string; authorRole: "STUDENT" | "TEACHER"; authorGrade: number | null; handlerName: string | null;
 };
 export type FeedbackCurriculumLocation = z.infer<typeof feedbackCurriculumLocationSchema>;
-export type FeedbackPage = { items: FeedbackItem[]; page: number; hasMore: boolean };
+export type FeedbackCounts = Record<"ALL" | keyof typeof statuses, number>;
+/** `counts` ignore the status filter so every status tab can show its total under the other filters. */
+export type FeedbackPage = { items: FeedbackItem[]; page: number; hasMore: boolean; total: number; counts: FeedbackCounts };
 
 export type StoredFeedbackImage = FeedbackItem["images"][number] & { key: string; provider: "local" | "blob" };

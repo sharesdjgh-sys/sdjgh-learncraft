@@ -9,7 +9,8 @@ export async function GET(request: Request) {
   const user = await getSession();
   if (!user || !["STUDENT", "TEACHER", "ADMIN"].includes(user.role)) return NextResponse.json({ error: { message: "로그인이 필요해요." } }, { status: 401 });
   const url = new URL(request.url);
-  const query = feedbackQuerySchema.safeParse({ page: url.searchParams.get("page") ?? undefined, status: url.searchParams.get("status") ?? undefined });
+  const param = (name: string) => url.searchParams.get(name) || undefined;
+  const query = feedbackQuerySchema.safeParse({ page: param("page"), status: param("status"), category: param("category"), role: param("role"), authorId: param("authorId"), q: param("q"), sort: param("sort") });
   if (!query.success) return NextResponse.json({ error: { message: "조회 조건을 확인해 주세요." } }, { status: 400 });
   try { return NextResponse.json(await listFeedback(user, query.data), { headers: { "Cache-Control": "private, no-store" } }); }
   catch { return NextResponse.json({ error: { message: "피드백을 불러오지 못했어요. 다시 시도해 주세요." } }, { status: 503 }); }
