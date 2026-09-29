@@ -9,6 +9,8 @@ import remarkMath from "remark-math";
 import { FunctionGraph } from "@/components/ui/function-graph";
 import { LearningVisual } from "@/components/ui/learning-visual";
 import { LearningFigure } from "@/components/ui/learning-figure";
+import { LearningQuiz } from "@/components/ui/learning-quiz";
+import { CheckAnswer } from "@/components/ui/check-answer";
 import { VocabularyExplanation } from "@/components/ui/vocabulary-explanation";
 import { compactDollarMath } from "@/lib/math-notation";
 import { rehypeFoldHints } from "@/lib/rehype-fold-hints";
@@ -46,6 +48,9 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
     if (/\blanguage-learncraft-figure\b/.test(language)) {
       return <LearningFigure source={nodeText(child.props.children).trim()} />;
     }
+    if (/\blanguage-learncraft-quiz\b/.test(language)) {
+      return <LearningQuiz source={nodeText(child.props.children).trim()} streaming={streaming} renderInline={(text) => <InlineMarkdown>{text}</InlineMarkdown>} />;
+    }
     if (/\blanguage-learncraft-vocabulary\b/.test(language)) {
       return <VocabularyExplanation source={nodeText(child.props.children).trim()} />;
     }
@@ -62,7 +67,14 @@ function MarkdownPre({ children }: { children?: ReactNode }) {
 }
 
 const markdownComponents: Components = {
-  details: ({ children }) => <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>,
+  details: ({ children, ...props }) => {
+    const details = <details className="my-4 rounded-xl border border-line bg-surface-2 [&>div]:border-t [&>div]:border-line [&>div]:p-4 [&>div>:first-child]:mt-0">{children}</details>;
+    const data = props as Record<string, unknown>;
+    const question = data["data-check-question"];
+    const answer = data["data-check-answer"];
+    if (typeof question !== "string" || typeof answer !== "string") return details;
+    return <CheckAnswer index={Number(data["data-check-index"]) || 0} question={question} modelAnswer={answer} renderInline={(text) => <InlineMarkdown>{text}</InlineMarkdown>}>{details}</CheckAnswer>;
+  },
   summary: ({ children }) => {
     const answer = nodeText(children).includes("정답 보기");
     return <summary className="min-h-11 cursor-pointer px-4 py-3 text-[.88rem] font-bold text-brand marker:text-brand focus-visible:outline-2 focus-visible:outline-brand">{children}<span className="ml-2 text-[.75rem] font-normal text-ink-4">{answer ? "생각한 뒤 확인하세요" : "막힐 때 펼쳐보세요"}</span></summary>;
@@ -331,10 +343,12 @@ function normalizePlainMath(value: string) {
     (match, expression: string) => expression.trim() ? `\n\n$$\n${expression.trim()}\n$$\n\n` : match,
   );
   const dimensionalUnitsNormalized = normalizeDimensionalUnits(texDisplayNormalized);
-  const escapedStrongNormalized = normalizeEscapedStrongMarkers(dimensionalUnitsNormalized);
+  const parenthesizedUnitsNormalized = normalizeParenthesizedDimensionalMath(dimensionalUnitsNormalized);
+  const escapedStrongNormalized = normalizeEscapedStrongMarkers(parenthesizedUnitsNormalized);
   const emphasisNormalized = normalizeKoreanEmphasisBoundaries(escapedStrongNormalized);
   const brokenLineMathNormalized = normalizeBrokenLineMath(emphasisNormalized);
-  const adjacentMathNormalized = normalizeAdjacentDollarMath(brokenLineMathNormalized);
+  const inlineBeforeKoreanNormalized = normalizeInlineMathBeforeKorean(brokenLineMathNormalized);
+  const adjacentMathNormalized = normalizeAdjacentDollarMath(inlineBeforeKoreanNormalized);
   const unclosedLineMathNormalized = normalizeUnclosedLineMath(adjacentMathNormalized);
   const shortDisplayMathNormalized = normalizeShortDisplayMath(unclosedLineMathNormalized);
   const displayMathNormalized = shortDisplayMathNormalized.replace(
@@ -372,6 +386,44 @@ function normalizeDimensionalUnits(value: string) {
       const symbol = delimitedSymbol ?? plainSymbol;
       return symbol ? `$[${symbol.trim()}] = ${unit.trim()}$` : match;
     },
+  );
+}
+
+/**
+ * Generated curriculum data sometimes puts a parenthesized dimensional
+ * equation across several lines and mixes display delimiters into the prose.
+ * Rebuild the whole parenthesis as one inline equation before the general
+ * dollar-delimiter repair runs.
+ */
+function normalizeParenthesizedDimensionalMath(value: string) {
+  return value.replace(
+    /\(\s*(?:\${1,3}\s*)?(\[[A-Za-zΑ-Ωα-ω][A-Za-z0-9_]*\]\s*=\s*[^()]{1,180}?)(?:\s*\${1,3})?\s*\)/g,
+    (match, rawExpression: string) => {
+      if (/[\p{Script=Hangul}\p{Script=Han}]/u.test(rawExpression)) return match;
+
+      const expression = rawExpression
+        .replace(/(?<!\\)\$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/[⋅·]/g, String.raw`\cdot `)
+        .replace(
+          /(\\text\{[^{}\r\n]+\}|[A-Za-zΑ-Ωα-ω])\s+([+-]?\d+)(?=\s*(?:\/|\\cdot\b|$))/g,
+          "$1^{$2}",
+        );
+
+      return expression ? `($${expression}$)` : match;
+    },
+  );
+}
+
+/**
+ * A single-dollar inline equation followed by a Korean particle may be closed
+ * with three dollars when a model accidentally appends a display delimiter.
+ */
+function normalizeInlineMathBeforeKorean(value: string) {
+  return value.replace(
+    /(?<!\\)\$([^$\r\n]+?)\${3}(?=[\p{Script=Hangul}])/gu,
+    (_, expression: string) => `$${expression.trim()}$`,
   );
 }
 
@@ -455,9 +507,21 @@ function separateKoreanFromDollarMath(value: string) {
 function looksLikeMathExpression(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0
+    // A lone operator such as "*" or "-" has nothing to calculate.
+    && /[\p{L}\p{N}\\]/u.test(trimmed)
     && !/(?:\*\*|__)/.test(trimmed)
     && !/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(trimmed)
+    && !looksLikeEnglishProse(trimmed)
     && /(?:\\[A-Za-z]+|[_^=<>≤≥]|[+*/÷×]|\d\s*-\s*\d)/.test(trimmed);
+}
+
+/**
+ * English sentences (reading passages, example sentences) are not equations
+ * even when they contain "-", "/" or "<". Treat three consecutive words as
+ * prose unless the line carries TeX commands.
+ */
+function looksLikeEnglishProse(value: string) {
+  return !/\\[A-Za-z]+/.test(value) && /\b[A-Za-z]{2,}[,.;:!?'"’”)]*\s+[A-Za-z]{2,}[,.;:!?'"’”)]*\s+[A-Za-z]{2,}\b/.test(value);
 }
 
 function looksLikeOrderedPairList(value: string) {
@@ -504,52 +568,64 @@ function normalizeBrokenLineMath(value: string) {
       return line;
     }
 
-    let repaired = line;
-
-    repaired = repaired.replace(
-      /(^|\|)([\t ]*)([^|$\r\n]+?)\$([\t ]*)(?=\||$)/g,
-      (match, boundary: string, spacing: string, expression: string, trailingSpacing: string) => {
-        if (!looksLikeMathExpression(expression) && !looksLikeOrderedPairList(expression)) return match;
-        return `${boundary}${spacing}$${expression.trim()}$${trailingSpacing}`;
-      },
-    );
-
-    repaired = repaired.replace(
-      /^(\s*)([^$]+?)\$(?=[가-힣])/,
-      (match, indentation: string, expression: string) => (
-        looksLikeMathExpression(expression)
-          ? `${indentation}$${expression.trim()}$`
-          : match
-      ),
-    );
-
-    repaired = repaired.replace(
-      /^(.*[가-힣])((?:\\[A-Za-z]+)[^$]*?)\$(?=[가-힣])/,
-      (_, sentence: string, expression: string) => (
-        looksLikeMathExpression(expression)
-          ? `${sentence.trimEnd()} $${expression.trim()}$`
-          : `${sentence}${expression}$`
-      ),
-    );
-
-    if (!repaired.includes("$")) {
-      if (looksLikeMathExpression(repaired)) return `$$${repaired.trim()}$$`;
-
-      const mixed = repaired.match(/^(.*[가-힣])((?:[A-Za-z]|\\[A-Za-z]+).*)$/);
-      if (mixed && looksLikeMathExpression(mixed[2])) {
-        return `${mixed[1].trimEnd()} $${mixed[2].trim()}$`;
-      }
-    }
-
-    const indexes = singleDollarIndexes(repaired);
-    if (indexes.length % 2 === 0) return repaired;
-
-    const lastDollar = indexes.at(-1)!;
-    const trailing = repaired.slice(lastDollar + 1);
-    if (looksLikeMathExpression(trailing)) return `${repaired}$`;
-
-    return repaired;
+    // Blockquote and list markers are Markdown structure, not "greater than"
+    // or multiplication signs. A nested bullet before inline code reaches
+    // here as a bare "  * " fragment.
+    const structure = line.match(/^([\t ]*(?:>[\t ]?)*)((?:[*+-]|\d{1,9}[.)])(?=[\t ]|$)[\t ]*)?/)!;
+    const structureMarker = structure[0];
+    const repaired = repairBrokenMathLine(line.slice(structureMarker.length));
+    // Keep a repaired equation inside its list item instead of breaking it out as a display block.
+    const listEquation = structure[2] ? repaired.match(/^\$\$([^$]+)\$\$$/) : null;
+    return structureMarker + (listEquation ? `$${listEquation[1]}$` : repaired);
   }).join("");
+}
+
+function repairBrokenMathLine(line: string) {
+  let repaired = line;
+
+  repaired = repaired.replace(
+    /(^|\|)([\t ]*)([^|$\r\n]+?)\$([\t ]*)(?=\||$)/g,
+    (match, boundary: string, spacing: string, expression: string, trailingSpacing: string) => {
+      if (!looksLikeMathExpression(expression) && !looksLikeOrderedPairList(expression)) return match;
+      return `${boundary}${spacing}$${expression.trim()}$${trailingSpacing}`;
+    },
+  );
+
+  repaired = repaired.replace(
+    /^(\s*)([^$]+?)\$(?=[가-힣])/,
+    (match, indentation: string, expression: string) => (
+      looksLikeMathExpression(expression)
+        ? `${indentation}$${expression.trim()}$`
+        : match
+    ),
+  );
+
+  repaired = repaired.replace(
+    /^(.*[가-힣])((?:\\[A-Za-z]+)[^$]*?)\$(?=[가-힣])/,
+    (_, sentence: string, expression: string) => (
+      looksLikeMathExpression(expression)
+        ? `${sentence.trimEnd()} $${expression.trim()}$`
+        : `${sentence}${expression}$`
+    ),
+  );
+
+  if (!repaired.includes("$")) {
+    if (looksLikeMathExpression(repaired)) return `$$${repaired.trim()}$$`;
+
+    const mixed = repaired.match(/^(.*[가-힣])((?:[A-Za-z]|\\[A-Za-z]+).*)$/);
+    if (mixed && looksLikeMathExpression(mixed[2])) {
+      return `${mixed[1].trimEnd()} $${mixed[2].trim()}$`;
+    }
+  }
+
+  const indexes = singleDollarIndexes(repaired);
+  if (indexes.length % 2 === 0) return repaired;
+
+  const lastDollar = indexes.at(-1)!;
+  const trailing = repaired.slice(lastDollar + 1);
+  if (looksLikeMathExpression(trailing)) return `${repaired}$`;
+
+  return repaired;
 }
 
 /** Normalize common model aliases before KaTeX parses the expression. */

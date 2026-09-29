@@ -45,6 +45,8 @@ async function main() {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/, "Service worker must bypass API requests.");
   assert.match(worker, /request\.mode === "navigate"/, "Service worker must handle offline navigation separately.");
   assert.match(worker, /caches\.match\("\/offline"\)/, "Navigation must fall back to the offline page.");
+  assert.match(worker, /request\.headers\.has\("range"\)/, "Service worker must bypass range requests.");
+  assert.match(worker, /response\.status === 200/, "Service worker must cache only complete responses.");
 
   const offlineHtml = await offlineResponse.text();
   assert.match(offlineHtml, /인터넷 연결을 확인해 주세요/);

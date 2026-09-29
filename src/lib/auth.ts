@@ -10,7 +10,7 @@ import { db } from "@/db";
 import { accountCredentials, schools, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { verifyPassword } from "@/lib/password";
-import { canUseLearning } from "@/lib/roles";
+import { canUseLearning, canUseTeacherTools } from "@/lib/roles";
 import type { SessionUser } from "@/types";
 
 const COOKIE_NAME = "learncraft_session";
@@ -233,4 +233,9 @@ export async function requireAdmin() {
 export async function requireLearner() {
   const user = await getSession();
   return user && canUseLearning(user.role) ? user : null;
+}
+
+export async function requireTeacherTools() {
+  const user = await getSession();
+  return user && canUseTeacherTools(user.role) ? user : null;
 }

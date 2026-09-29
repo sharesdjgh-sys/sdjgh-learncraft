@@ -19,7 +19,7 @@ export function requestsGeneratedImage(message: string) {
     if (/(?:그림|이미지|삽화|일러스트)(?:으)?로\s*(?:설명|보여|표현|정리)/.test(cleaned)) return true;
     if (/(?:그림|이미지|삽화|일러스트).*(?:그려|그리|만들|생성|제작)|(?:그려|그리|만들|생성|제작).*(?:그림|이미지|삽화|일러스트)/.test(cleaned)) return true;
     if (/(?:draw|generate|create|make).*(?:picture|illustration|image)/.test(cleaned)) return true;
-    return /그려\s*(?:줘|주|주세요|주세요)|그려줘/.test(cleaned) && !/(?:플로차트|순서도|흐름도|도식|mermaid)/.test(cleaned);
+    return /그려\s*(?:줘|주|주세요|주세요)|그려줘/.test(cleaned) && !/(?:플로차트|순서도|흐름도|도식|mermaid|지도|연표|그래프|도표|차트|표로|악보)/.test(cleaned);
   });
 }
 

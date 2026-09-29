@@ -4,11 +4,11 @@
 async (page) => {
   const results = [];
   const check = (condition, name) => { if (!condition) throw new Error(name); results.push(name); };
-  await page.goto("http://localhost:3000/admin/math-figures");
+  await page.goto("http://localhost:3000/teacher/math-figures");
   if (page.url().includes("/login")) {
     await page.getByRole("button", {name:"관리자 샘플 로그인",exact:true}).click();
-    await page.waitForURL(/admin/);
-    await page.goto("http://localhost:3000/admin/math-figures");
+    await page.waitForURL(/admin|teacher/);
+    await page.goto("http://localhost:3000/teacher/math-figures");
   }
   await page.getByRole("tab", {name:"수식·수치로 생성",exact:true}).click();
   const apply = () => page.getByRole("button", {name:"계산해서 편집기에 적용",exact:true}).click();

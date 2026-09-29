@@ -10,7 +10,7 @@ for (const text of [
  "create an infographic about the water cycle", "draw a picture of a volcano",
 ]) assert(requestsGeneratedImage(text), text);
 for (const text of [
- "물의 순환을 설명해 주세요", "플로차트로 그려줘", "순서도를 그려 주세요", "인포그래픽이란 무엇인가요?",
+ "물의 순환을 설명해 주세요", "플로차트로 그려줘", "순서도를 그려 주세요", "삼국과 가야를 지도로 그려주세요", "삼국 시대 지도를 그려줘", "연표로 그려줘", "그래프로 그려줘", "표로 그려줘", "인포그래픽이란 무엇인가요?",
  "인포그래픽의 뜻을 알려줘", "첨부한 그림을 보고 설명해줘", "이 그림의 오류를 찾아줘",
  "그림 없이 글로 설명해줘", "인포그래픽은 필요 없어요", "인포그래픽을 그리지 말고 글로 설명해줘",
 ]) assert(!requestsGeneratedImage(text), text);

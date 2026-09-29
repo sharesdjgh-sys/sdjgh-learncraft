@@ -1,4 +1,4 @@
-import { FeedbackBoard } from "@/components/feedback/feedback-board";
+import { AdminFeedback } from "@/components/admin/admin-feedback";
 
 export const metadata = { title: "피드백 관리" };
-export default function AdminFeedbackPage() { return <FeedbackBoard admin />; }
+export default function AdminFeedbackPage() { return <AdminFeedback />; }

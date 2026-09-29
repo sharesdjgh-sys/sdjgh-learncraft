@@ -11,6 +11,7 @@ export default async function LearnPage() {
       studentId={user?.id ?? "demo-student"}
       studentName={user?.name ?? "학생"}
       schoolName={user?.schoolName ?? "서대전여자고등학교"}
+      role={user?.role}
     />
   );
 }

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpenText, LogOut, NotebookTabs, MessageSquareText } from "lucide-react";
+import { BookOpenText, GraduationCap, LogOut, NotebookTabs, MessageSquareText } from "lucide-react";
 import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobileUsageSummary } from "@/components/usage/mobile-usage-summary";
 import { Logo } from "@/components/ui/logo";
@@ -19,7 +19,7 @@ const studentPrimaryNavItems = [
 
 export const studentNavItems = studentPrimaryNavItems;
 
-export function StudentTopNavigation({ actions, user }: { actions?: React.ReactNode; user: Pick<SessionUser, "name" | "schoolName"> }) {
+export function StudentTopNavigation({ actions, user }: { actions?: React.ReactNode; user: Pick<SessionUser, "name" | "schoolName"> & Partial<Pick<SessionUser, "role">> }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -62,6 +62,12 @@ export function StudentTopNavigation({ actions, user }: { actions?: React.ReactN
       <div className="flex shrink-0 items-center gap-2">
         {actions}
         <PwaInstallAction />
+        {user.role === "TEACHER" && (
+          <Link href="/teacher" title="교사 지원실" className="flex min-h-10 items-center gap-1.5 rounded-[11px] border border-brand/15 bg-brand-page px-2.5 text-[.78rem] font-bold text-brand-dark transition hover:-translate-y-px hover:border-brand/30" aria-label="교사 지원실로 이동">
+            <GraduationCap size={16} strokeWidth={1.9} aria-hidden="true" />
+            <span className="hidden sm:inline">교사 지원실</span>
+          </Link>
+        )}
         <Link href="/profile" className="flex min-h-10 max-w-14 items-center truncate rounded-[10px] px-1.5 text-[.76rem] font-bold text-ink-2 active:bg-surface-2 min-[1024px]:hidden" aria-label={`${user.name} 내 정보 보기`}>{user.name}</Link>
         <Link href="/profile" title="내 정보 보기" className="hidden min-h-11 items-center gap-2 rounded-[12px] border border-line bg-surface px-1.5 pr-2.5 shadow-[var(--lift-1)] transition-all duration-300 hover:-translate-y-px hover:border-[var(--line-2)] min-[1024px]:flex" aria-label={`로그인 사용자 ${user.name}, 내 정보 보기`}>
           <Image

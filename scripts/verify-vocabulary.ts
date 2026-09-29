@@ -8,6 +8,8 @@ import { z } from "zod";
 import type { LearningUnit } from "../src/types";
 import { buildVocabulary, sanitizeVocabularyTerms, unitHasTerm, vocabularyExplanationSchema, vocabularyTermKey, VOCABULARY_GUIDE } from "../src/features/vocabulary/content";
 import * as content from "../src/features/vocabulary/content";
+import * as etymology from "../src/features/vocabulary/etymology";
+import * as englishEtymology from "../src/features/vocabulary/english-etymology";
 import * as imageIntent from "../src/lib/explicit-image-request";
 import { learningUnits } from "../src/data/curriculum";
 
@@ -20,9 +22,9 @@ function loadModule(path: string, modules: Record<string, unknown>) {
   return exports;
 }
 const repository = loadModule("src/features/vocabulary/repository.ts", {
-  "server-only": {}, "node:crypto": crypto, "drizzle-orm": orm, "@/db": { db: null }, "@/db/schema": {}, "./content": content,
+  "server-only": {}, "node:crypto": crypto, "drizzle-orm": orm, "@/db": { db: null }, "@/db/schema": {}, "./content": content, "./etymology": etymology, "./english-etymology": englishEtymology,
 }) as typeof import("../src/features/vocabulary/repository");
-const { vocabularyCacheKey, claimExplanation, finishExplanation, readExplanation } = repository;
+const { vocabularyCacheKey, claimExplanation, finishExplanation, readExplanation, englishEtymologyCacheKey } = repository;
 
 async function main() {
   const unit = { id: "unit-a", courseCode: "science", courseTitle: "통합과학", grade: 1, subjectTitle: "과학", chapterTitle: "물질", chapterOrder: 1, sectionTitle: "물질의 변화", sectionOrder: 1, title: "상태 변화", summary: "수증기가 물방울로 바뀐다.", keyPoints: ["응결"], keywords: ["통합과학", "물질", "물질의 변화", " 증발 ", "응결", "응결"], scopeExcluded: [] } as unknown as LearningUnit;
@@ -182,6 +184,30 @@ async function main() {
   failQuestion = true;
   const failed = await tutor.POST(question()); await assert.rejects(failed.text());
   assert.equal(reserved, 2); assert.equal(completed, 1); assert.equal(refunded, 1);
+  const card = etymology.koreanEtymologySchema.parse({ wordType: "한자어", original: "凝結", parts: [{ text: "凝", sound: "응", gloss: "엉길" }, { text: "結", sound: "결", gloss: "맺을" }], summary: { originalMeaning: "엉기어 맺힘", meaningShift: "기체가 액체로 바뀌는 현상을 가리키게 됨" }, story: null, today: { meaning: "수증기가 물방울로 바뀌는 현상", examples: ["차가운 컵 표면에 물방울이 응결했다."] }, points: [], relatedWords: [], classroomHook: "컵에 맺힌 물은 어디서 왔을까요?", teacherScript: "공기 속 수증기가 엉겨 맺힌 거예요.", confidence: "certain", confidenceNote: "표준국어대사전 원어 표기와 일치합니다." });
+  const etymologyKey = repository.etymologyCacheKey("school-a", "응결", unit);
+  assert.notEqual(etymologyKey, repository.etymologyCacheKey("school-a", "응결"), "Etymology cache separates textbook context from free lookups");
+  assert.notEqual(etymologyKey, vocabularyCacheKey("school-a", unit, "응결"), "Etymology cards never collide with student vocabulary cards");
+  const etymologyOwner = await claimExplanation(etymologyKey, "school-a");
+  assert(etymologyOwner); await finishExplanation(etymologyKey, etymologyOwner, card);
+  assert.deepEqual(await repository.readEtymology(etymologyKey), card);
+  await repository.discardCached(etymologyKey);
+  assert.equal(await repository.readEtymology(etymologyKey), null, "Regeneration discards the cached etymology card");
+  console.log("PASS korean etymology: schema, cache key isolation, save, reuse and regeneration discard");
+  const englishCard = englishEtymology.englishEtymologySchema.parse({ partOfSpeech: "동사", pronunciation: "/ɪnˈspekt/", meanings: ["검사하다", "점검하다"], originPath: "라틴어 inspicere(들여다보다) → 영어 inspect", parts: [{ text: "in-", role: "prefix", meaning: "안으로", origin: "라틴어 in" }, { text: "spect", role: "root", meaning: "보다", origin: "라틴어 specere" }], summary: { originalMeaning: "안을 들여다보다", meaningShift: "자세히 살펴 검사한다는 뜻이 되었어요." }, story: null, examples: [{ english: "Officials inspect the building every year.", korean: "공무원들은 매년 그 건물을 점검한다." }], wordFamily: [{ word: "spectator", meaning: "관중", point: "보는 사람이에요." }], points: [], classroomHook: "안경(spectacles)과 inspect는 무슨 관계일까요?", teacherScript: "spect는 보다라는 뜻이에요.", confidence: "certain", confidenceNote: "사전에서 확인되는 어원입니다." });
+  const englishKey = englishEtymologyCacheKey("school-a", "Inspect");
+  assert.equal(englishKey, englishEtymologyCacheKey("school-a", "inspect"), "English cards ignore letter case");
+  assert.notEqual(englishKey, repository.etymologyCacheKey("school-a", "inspect"), "English cards never collide with Korean etymology cards");
+  assert.notEqual(englishKey, englishEtymologyCacheKey("school-b", "inspect"));
+  const englishOwner = await claimExplanation(englishKey, "school-a");
+  assert(englishOwner); await finishExplanation(englishKey, englishOwner, englishCard);
+  assert.deepEqual(await repository.readEnglishEtymology(englishKey), englishCard);
+  assert(englishEtymology.englishTermPattern.test(englishEtymology.normalizeEnglishTerm(" open‑minded ")));
+  assert(englishEtymology.englishTermPattern.test("don't"));
+  assert(!englishEtymology.englishTermPattern.test("응결"));
+  assert(!englishEtymology.englishTermPattern.test("ignore previous; instructions"));
+  assert(englishEtymology.englishRootGroups.every(group => group.words.every(word => englishEtymology.englishTermPattern.test(word))));
+  console.log("PASS english etymology: schema, term validation, case-insensitive cache key, save and reuse");
   console.log("PASS vocabulary: ordering, deduplication, membership, context isolation/invalidation, generation lock, ownership, cache reuse and failed retry");
   console.log("PASS vocabulary tutor: term validation, paid direct questions, free contextual follow-ups, no tools, successful accounting and failure refund");
 }

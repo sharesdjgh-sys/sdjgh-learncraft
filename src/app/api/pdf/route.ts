@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import puppeteer, { type Browser } from "puppeteer-core";
 import { z } from "zod";
 import { requireLearner } from "@/lib/auth";
+import { readPdfPayload } from "@/lib/pdf-payload-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -48,18 +49,25 @@ async function browserLaunchOptions() {
   const localExecutable = localBrowserExecutable();
   if (localExecutable) {
     return {
-      executablePath: localExecutable,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      headless: true as const,
+      launchOptions: {
+        executablePath: localExecutable,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        headless: true as const,
+      },
+      supportsTaggedPdf: true,
     };
   }
 
   const { default: chromium } = await import("@sparticuz/chromium");
   chromium.setGraphicsMode = false;
+  const headless = "shell" as const;
   return {
-    executablePath: await chromium.executablePath(),
-    args: chromium.args,
-    headless: true as const,
+    launchOptions: {
+      executablePath: await chromium.executablePath(),
+      args: await puppeteer.defaultArgs({ args: chromium.args, headless }),
+      headless,
+    },
+    supportsTaggedPdf: false,
   };
 }
 
@@ -67,7 +75,7 @@ export async function POST(request: Request) {
   const user = await requireLearner();
   if (!user) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
 
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = requestSchema.safeParse(await readPdfPayload(request));
   if (!parsed.success) {
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "PDF 문서 내용을 확인해 주세요." } }, { status: 400 });
   }
@@ -107,7 +115,8 @@ export async function POST(request: Request) {
 
   let browser: Browser | null = null;
   try {
-    browser = await puppeteer.launch(await browserLaunchOptions());
+    const { launchOptions, supportsTaggedPdf } = await browserLaunchOptions();
+    browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
     await page.setJavaScriptEnabled(false);
     await page.setRequestInterception(true);
@@ -141,8 +150,7 @@ export async function POST(request: Request) {
       displayHeaderFooter: true,
       headerTemplate: "<span></span>",
       footerTemplate: '<div style="box-sizing:border-box;width:100%;padding:0 8mm;color:#777a8c;font-family:Arial,sans-serif;font-size:8px;text-align:center"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
-      tagged: true,
-      outline: true,
+      ...(supportsTaggedPdf ? { tagged: true, outline: true } : {}),
     });
 
     return new Response(Buffer.from(pdf), {

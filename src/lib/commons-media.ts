@@ -2,6 +2,8 @@ export type CommonsImage = {
   file: string; title: string; description: string; artist: string;
   imageUrl: string; sourceUrl: string; license: string; licenseUrl: string;
   width: number; height: number;
+  /** 저작권이 남은 작품의 저해상도 이미지(영어 위키백과). 수업 안에서 보여 주는 용도로만 씁니다. */
+  protectedWork?: boolean;
 };
 
 function plain(value: unknown, max = 600) {
@@ -14,7 +16,8 @@ function safeUrl(value: unknown, hosts: string[]) {
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && hosts.includes(url.hostname) ? url.href : ""; } catch { return ""; }
 }
 
-export function commonsImages(payload: unknown): CommonsImage[] {
+/** `protectedWork`면 이용 조건 검사 없이 받되, 부르는 쪽이 카탈로그에 등록한 저작권 작품 파일만 넘깁니다. */
+export function commonsImages(payload: unknown, { protectedWork = false }: { protectedWork?: boolean } = {}): CommonsImage[] {
   const data = payload as { query?: { pages?: Array<{ title?: string; imageinfo?: Array<{
     mime?: string; thumburl?: string; thumbwidth?: number; thumbheight?: number;
     descriptionurl?: string; extmetadata?: Record<string, { value?: string }>;
@@ -25,27 +28,28 @@ export function commonsImages(payload: unknown): CommonsImage[] {
     const meta = info?.extmetadata ?? {};
     const license = plain(meta.LicenseShortName?.value ?? meta.UsageTerms?.value, 100);
     const imageUrl = safeUrl(info?.thumburl, ["upload.wikimedia.org", "thumb.wikimedia.org"]);
-    const sourceUrl = safeUrl(info?.descriptionurl, ["commons.wikimedia.org"]);
+    const sourceUrl = safeUrl(info?.descriptionurl, protectedWork ? ["commons.wikimedia.org", "en.wikipedia.org"] : ["commons.wikimedia.org"]);
     if (!page.title?.startsWith("File:") || !info || !["image/jpeg", "image/png", "image/webp", "image/svg+xml"].includes(info.mime ?? "")
-      || !imageUrl || !sourceUrl || !/^(CC BY(?:-SA)?(?: |$)|CC0|Public domain|PDM)/i.test(license)) return [];
+      || !imageUrl || !sourceUrl || (!protectedWork && !/^(CC BY(?:-SA)?(?: |$)|CC0|Public domain|PDM)/i.test(license))) return [];
     if (!Number.isFinite(info.thumbwidth) || !Number.isFinite(info.thumbheight) || !info.thumbwidth || !info.thumbheight) return [];
     return [{ file: page.title, title: plain(meta.ObjectName?.value || page.title.replace(/^File:/, ""), 240),
       description: plain(meta.ImageDescription?.value), artist: plain(meta.Attribution?.value || meta.Artist?.value, 10000) || "제작자 정보는 원문 참고",
-      imageUrl, sourceUrl, license, licenseUrl: safeUrl(meta.LicenseUrl?.value, ["creativecommons.org", "www.creativecommons.org"]),
-      width: info.thumbwidth, height: info.thumbheight }];
+      imageUrl, sourceUrl, license: license || "저작권 보호", licenseUrl: safeUrl(meta.LicenseUrl?.value, ["creativecommons.org", "www.creativecommons.org"]),
+      width: info.thumbwidth, height: info.thumbheight, ...(protectedWork ? { protectedWork: true } : {}) }];
   });
 }
 
 let retryAfter = 0;
 const cache = new Map<string, { until: number; images: Promise<CommonsImage[]> }>();
-async function requestImages(params: Record<string, string>): Promise<CommonsImage[]> {
-  const key = JSON.stringify(params);
+// 저작권 작품의 저해상도 파일은 영어 위키백과에만 있어 그 API를 씁니다(Commons 파일도 함께 조회됩니다).
+async function requestImages(params: Record<string, string>, width = 900, protectedWork = false): Promise<CommonsImage[]> {
+  const key = JSON.stringify([params, width, protectedWork]);
   const existing = cache.get(key);
   if (existing && existing.until > Date.now()) return existing.images;
   if (Date.now() < retryAfter) throw new Error("이미지 서비스의 요청 제한으로 잠시 쉬고 있어요.");
-  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  const url = new URL(protectedWork ? "https://en.wikipedia.org/w/api.php" : "https://commons.wikimedia.org/w/api.php");
   url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", prop: "imageinfo",
-    iiprop: "url|mime|extmetadata", iiurlwidth: "900", redirects: "1", iiextmetadatalanguage: "en", ...params }).toString();
+    iiprop: "url|mime|extmetadata", iiurlwidth: String(width), redirects: "1", iiextmetadatalanguage: "en", ...params }).toString();
   const images = (async () => {
     const response = await fetch(url, { headers: { "User-Agent": "LearnCraft/1.0 (school learning media; Wikimedia Commons)" }, signal: AbortSignal.timeout(8000) });
     if (response.status === 429) {
@@ -56,18 +60,33 @@ async function requestImages(params: Record<string, string>): Promise<CommonsIma
     if (!response.ok) throw new Error("참고 이미지를 불러오지 못했어요.");
     const payload = await response.json();
     if (payload.error) throw new Error("이미지 검색 서비스가 잠시 응답하지 않아요.");
-    return commonsImages(payload);
+    return commonsImages(payload, { protectedWork });
   })();
   if (cache.size >= 200) cache.delete(cache.keys().next().value!);
   cache.set(key, { until: Date.now() + 3600_000, images });
   try { return await images; } catch (error) { cache.delete(key); throw error; }
 }
 
-export async function searchCommonsImages(query: string) {
-  return requestImages({ generator: "search", gsrsearch: query.trim().slice(0, 180), gsrnamespace: "6", gsrlimit: "8" });
+const fileNamePattern = /^File:[^\r\n<>|]{1,235}$/;
+export const isCommonsFileName = (file: string) => fileNamePattern.test(file);
+
+export async function searchCommonsImages(query: string, options: { limit?: number; width?: number } = {}) {
+  return requestImages({ generator: "search", gsrsearch: query.trim().slice(0, 180), gsrnamespace: "6", gsrlimit: String(options.limit ?? 8) }, options.width);
 }
 export async function getCommonsImage(file: string) {
-  if (!/^File:[^\r\n<>|]{1,235}$/.test(file)) return null;
+  if (!isCommonsFileName(file)) return null;
   const images = await requestImages({ titles: file });
   return images[0] ?? null;
+}
+/** 여러 파일을 한 번에 불러옵니다(최대 50개). 이용 조건을 확인하지 못한 파일은 빠집니다. */
+export async function getCommonsImagesByFile(files: string[], width = 900) {
+  const valid = [...new Set(files.filter(isCommonsFileName))].sort().slice(0, 50);
+  if (!valid.length) return [];
+  return requestImages({ titles: valid.join("|") }, width);
+}
+/** 저작권이 남은 카탈로그 작품의 이미지를 불러옵니다(최대 50개). 카탈로그에 등록한 파일만 넘겨야 합니다. */
+export async function getProtectedWorkImages(files: string[], width = 900) {
+  const valid = [...new Set(files.filter(isCommonsFileName))].sort().slice(0, 50);
+  if (!valid.length) return [];
+  return requestImages({ titles: valid.join("|") }, width, true);
 }

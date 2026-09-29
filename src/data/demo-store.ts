@@ -1,9 +1,10 @@
-import type { Bookmark, TutorAction } from "@/types";
+import type { Bookmark, QuizMistake, TutorAction } from "@/types";
 
 type UsageRecord = { count: number; limit: number; completed: number };
 
 declare global {
   var __learncraftBookmarks: Bookmark[] | undefined;
+  var __learncraftQuizMistakes: Array<QuizMistake & { studentId: string }> | undefined;
   var __learncraftUsage: Map<string, UsageRecord> | undefined;
   var __learncraftDailyLimit: number | undefined;
 }
@@ -11,7 +12,10 @@ declare global {
 const bookmarkStore = globalThis.__learncraftBookmarks ?? [];
 const usageStore = globalThis.__learncraftUsage ?? new Map<string, UsageRecord>();
 
+const quizMistakeStore = globalThis.__learncraftQuizMistakes ?? [];
+
 globalThis.__learncraftBookmarks = bookmarkStore;
+globalThis.__learncraftQuizMistakes = quizMistakeStore;
 globalThis.__learncraftUsage = usageStore;
 globalThis.__learncraftDailyLimit ??= 20;
 
@@ -82,6 +86,39 @@ export function deleteBookmark(studentId: string, bookmarkId: string) {
   return true;
 }
 
+function publicQuizMistake(item: QuizMistake & { studentId: string }): QuizMistake {
+  const copy: Partial<typeof item> = { ...item };
+  delete copy.studentId;
+  return copy as QuizMistake;
+}
+
+export function listQuizMistakes(studentId: string) {
+  return quizMistakeStore
+    .filter((item) => item.studentId === studentId)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .map(publicQuizMistake);
+}
+
+export function saveQuizMistake(studentId: string, input: Omit<QuizMistake, "id" | "createdAt" | "updatedAt" | "resolvedAt"> & { resolved: boolean }) {
+  const now = new Date().toISOString();
+  const { resolved, ...fields } = input;
+  const existing = quizMistakeStore.find((item) => item.studentId === studentId && item.clientQuizId === input.clientQuizId);
+  if (existing) {
+    Object.assign(existing, fields, { updatedAt: now, resolvedAt: resolved ? existing.resolvedAt ?? now : null });
+    return publicQuizMistake(existing);
+  }
+  const item = { ...fields, studentId, id: crypto.randomUUID(), createdAt: now, updatedAt: now, resolvedAt: resolved ? now : null };
+  quizMistakeStore.push(item);
+  return publicQuizMistake(item);
+}
+
+export function deleteQuizMistake(studentId: string, id: string) {
+  const index = quizMistakeStore.findIndex((item) => item.id === id && item.studentId === studentId);
+  if (index < 0) return false;
+  quizMistakeStore.splice(index, 1);
+  return true;
+}
+
 export function makeDemoAnswer(action: TutorAction, question: string, unitTitle: string) {
   const prompt = question.trim() || `${unitTitle}의 핵심 내용을 알려 주세요.`;
   if (action === "EASIER") {
@@ -94,7 +131,15 @@ export function makeDemoAnswer(action: TutorAction, question: string, unitTitle:
     return `답과 함께 풀이의 길도 펼쳐 볼게요. 중간 과정이 보여야 다음 문제를 혼자 풀 수 있으니까요.\n\n1. 문제의 **주어진 정보**와 **구할 것**을 나눠요.\n2. ${unitTitle}에서 배운 핵심 원리를 골라요.\n3. 조건을 원리에 연결하고, 각 단계가 가능한 이유를 확인해요.\n4. 나온 결과를 원래 조건에 다시 넣어 검산해요.\n\n직전 질문 “${prompt.slice(0, 50)}”도 이 흐름을 따라가면 해결할 수 있어요.`;
   }
   if (action === "QUIZ") {
-    return `### 미니 퀴즈\n\n**${unitTitle}에서 가장 먼저 확인해야 할 것은 무엇일까요?**\n\nA. 답의 모양만 외운다  \nB. 문제의 조건과 적용할 개념을 연결한다  \nC. 가장 긴 선택지를 고른다  \nD. 계산부터 시작한다\n\n정답을 마음속으로 고른 뒤 **답 보기**를 눌러 이유까지 확인해 보세요.`;
+    const quiz = {
+      type: "choice",
+      choices: ["답의 모양만 외운다", "문제의 조건과 적용할 개념을 연결한다", "가장 긴 선택지를 고른다", "계산부터 시작한다"],
+      answer: "2",
+      hints: ["풀이를 시작하기 전에 문제가 무엇을 주고 무엇을 묻는지 떠올려 보세요.", "조건을 개념과 이어야 어떤 방법을 쓸지 정할 수 있어요."],
+      concepts: ["문제 조건 정리", "적용할 개념 고르기"],
+      explanation: "조건과 개념을 연결해야 풀이 방향을 정할 수 있어요.",
+    };
+    return `## 문제\n\n**${unitTitle} 문제를 풀 때 가장 먼저 확인해야 할 것은 무엇일까요?**\n\n\`\`\`learncraft-quiz\n${JSON.stringify(quiz)}\n\`\`\``;
   }
   return `이 질문은 **${unitTitle}**에서 무엇이 주어졌고 무엇을 찾아야 하는지 나누면 실마리가 보여요.\n\n“${prompt}”에서 이미 아는 정보와 아직 모르는 것을 먼저 갈라 보세요. 그다음 이 단원의 핵심 개념 중 둘을 이어 주는 것이 무엇인지 찾으면 돼요.\n\n먼저 **가장 중요한 조건 하나**를 짚어 볼까요? 그 조건이 풀이의 출발점이에요.`;
 }

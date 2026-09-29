@@ -20,7 +20,8 @@ async function main() {
   const teacher = makeUser("TEACHER");
   const actors = [student, otherStudent, admin, otherAdmin, teacher];
   const curriculumLocation = { unitId: "math-common-1", courseCode: "COMMON_MATH_1", courseTitle: "공통수학 1", subjectTitle: "수학", grade: 1, chapterTitle: "다항식", sectionTitle: "다항식의 연산", unitTitle: "다항식의 덧셈과 뺄셈" };
-  const input = { requestId: crypto.randomUUID(), category: "BUG" as const, title: "피드백 기능 자동검증", content: "등록, 권한 및 처리 상태를 검증하기 위한 임시 자료입니다.", curriculumLocation };
+  const input = { requestId: crypto.randomUUID(), category: "BUG" as const, title: "피드백 기능 자동검증", content: "등록, 권한 및 처리 상태를 검증하기 위한 임시 자료입니다.", curriculumLocation, toolLocation: null };
+  const toolLocation = { subject: "수학", tool: "도형·교과", tab: "미적분Ⅰ", path: "/teacher/math?tool=calculus" };
   const query = { page: 1, status: "ALL" as const };
   try {
     if (db) {
@@ -30,6 +31,8 @@ async function main() {
     assert.ok(createFeedbackSchema.safeParse(input).success);
     for (const invalid of [{ ...input, title: " " }, { ...input, content: "x".repeat(3001) }, { ...input, schoolId: schoolIds[1] }, { ...input, category: "UNKNOWN" }]) assert.equal(createFeedbackSchema.safeParse(invalid).success, false);
     assert.equal(updateFeedbackSchema.safeParse({ status: "UNKNOWN", reply: "", version: 1 }).success, false);
+    assert.ok(createFeedbackSchema.safeParse({ ...input, toolLocation: { ...toolLocation, tab: null } }).success);
+    for (const path of ["https://example.com/teacher", "/admin/feedback", "/teachers", "javascript:alert(1)"]) assert.equal(createFeedbackSchema.safeParse({ ...input, toolLocation: { ...toolLocation, path } }).success, false, `Tool path ${path} must be rejected`);
     const first = await createFeedback(student, input);
     assert.equal(first.status, "RECEIVED");
     assert.deepEqual(first.curriculumLocation, curriculumLocation);
@@ -56,9 +59,29 @@ async function main() {
     assert.equal(page2.items.length, 1); assert.equal(page2.hasMore, false);
     assert.equal(new Set([...page1.items, ...page2.items].map((item) => item.id)).size, 21);
 
-    const teacherFeedback = await createFeedback(teacher, { ...input, requestId: crypto.randomUUID() });
+    const teacherFeedback = await createFeedback(teacher, { ...input, curriculumLocation: null, toolLocation, requestId: crypto.randomUUID() });
+    assert.deepEqual(teacherFeedback.toolLocation, toolLocation);
     assert.equal((await listFeedback(teacher, query)).items.length, 1);
     assert.equal((await listFeedback(teacher, query)).items[0].id, teacherFeedback.id);
+    const all = await listFeedback(admin, query);
+    assert.equal(all.total, 22); assert.equal(all.counts.ALL, 22); assert.equal(all.counts.IN_PROGRESS, 1); assert.equal(all.counts.RECEIVED, 21);
+    assert.equal((await listFeedback(admin, { ...query, status: "IN_PROGRESS" })).counts.ALL, 22, "Counts must ignore the status filter");
+    const teachers = await listFeedback(admin, { ...query, role: "TEACHER" });
+    assert.equal(teachers.total, 1); assert.equal(teachers.items[0].authorRole, "TEACHER");
+    assert.deepEqual(teachers.items[0].toolLocation, toolLocation);
+    assert.equal((await listFeedback(admin, { ...query, source: "TEACHER_TOOLS" })).total, 1);
+    assert.equal((await listFeedback(admin, { ...query, source: "LEARNING" })).total, 21, "Rows with JSON null tool locations count as learning feedback");
+    assert.equal((await listFeedback(admin, { ...query, source: "LEARNING" })).items[0].toolLocation, null);
+    const byAuthor = await listFeedback(admin, { ...query, authorId: student.id });
+    assert.equal(byAuthor.total, 21); assert.ok(byAuthor.items.every((item) => item.authorId === student.id && item.authorRole === "STUDENT"));
+    assert.equal((await listFeedback(admin, { ...query, q: "페이지 검증 1" })).total, 11);
+    assert.equal((await listFeedback(admin, { ...query, q: student.externalId })).total, 21, "Search must match author login ids");
+    assert.equal((await listFeedback(admin, { ...query, q: "100%_" })).total, 0, "LIKE wildcards must be escaped");
+    assert.equal((await listFeedback(admin, { ...query, category: "QUESTION" })).total, 0);
+    assert.equal((await listFeedback(admin, { ...query, sort: "old" })).items[0].id, first.id);
+    assert.equal((await listFeedback(admin, { ...query, status: "IN_PROGRESS" })).items[0].handlerName, admin.name);
+    assert.equal((await listFeedback(student, { ...query, authorId: teacher.id })).total, 0, "Author filter must not widen learner visibility");
+
     const { findFeedback, deleteFeedback } = await import("../src/features/feedback/repository");
     assert.equal(await findFeedback(teacher, first.id), null);
     assert.equal(await findFeedback(student, teacherFeedback.id), null);
@@ -81,6 +104,7 @@ async function main() {
       const createBody = { ...input, requestId: crypto.randomUUID(), title: "HTTP 자동검증" };
       assert.equal((await request("/api/feedback", student, "POST", { ...createBody, studentId: otherStudent.id })).status, 400);
       assert.equal((await request("/api/feedback", admin, "POST", createBody)).status, 401);
+      assert.equal((await request("/api/feedback", student, "POST", { ...createBody, toolLocation })).status, 400, "Only teachers may report 교사 지원실 tools");
       const createdResponse = await request("/api/feedback", student, "POST", createBody);
       assert.equal(createdResponse.status, 201);
       const created = (await createdResponse.json()).item;
@@ -141,7 +165,7 @@ async function main() {
       console.log("이미지 검증 통과: 3장 제한·형식/용량 검사·WebP 변환·리사이즈·재시도·비공개 접근·파일 삭제");
       console.log("HTTP 검증 통과: 등록·중복 방지·관리자 처리·학생 답변 조회·401/403/404/409·학교/작성자 격리");
     }
-    console.log(`피드백 ${db ? "DB" : "데모"} 검증 통과: 저장·상태 전환·완료일·중복 방지·동시 수정·페이지 분할·권한 격리`);
+    console.log(`피드백 ${db ? "DB" : "데모"} 검증 통과: 저장·교사 지원실 위치·상태 전환·완료일·중복 방지·동시 수정·페이지 분할·권한 격리`);
   } finally {
     if (db) {
       const { deleteFeedback } = await import("../src/features/feedback/repository");

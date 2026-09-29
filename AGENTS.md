@@ -10,6 +10,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project workflow preferences
 
+- Keep agent command execution out of visible console windows on Windows. Use `exec_command` with `login: false` and `tty: false` for ordinary commands.
+- When starting background processes with PowerShell, use `Start-Process -WindowStyle Hidden` and redirect output to logs when needed. Do not launch visible `cmd /c start`, terminal windows, or interactive shells unless the user requests them.
+- These options control agent-launched commands; do not claim they suppress windows created by the Codex host unless that behavior has been verified.
+
 - When recommending a Git commit message, always include the work duration and the exact model configuration used in the commit body.
 - Write the duration as `작업 시간: ...`.
 - Write the full exposed model identifier and reasoning effort as `작업 모델: gpt-5.6-sol medium` rather than using a broad family name such as `Codex (GPT-5)`. Do not omit the reasoning effort or guess unavailable configuration values.

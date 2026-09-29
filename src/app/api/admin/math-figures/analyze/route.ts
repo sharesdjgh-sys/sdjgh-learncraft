@@ -1,7 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } from "ai";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { requireTeacherTools } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { aiMathFigureSpecSchema, MATH_FIGURE_SYSTEM_PROMPT, normalizeAiMathFigureSpec } from "@/lib/math-figure-lab";
 
@@ -23,8 +23,8 @@ const json = (data: unknown, status = 200) => Response.json(data, {
 });
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return json({ error: "관리자 권한이 필요합니다." }, 403);
+  const user = await requireTeacherTools();
+  if (!user) return json({ error: "교사 또는 관리자 권한이 필요합니다." }, 403);
 
   const form = await request.formData().catch(() => null);
   const image = form?.get("image");
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
             providerOptions: { google: { thinkingConfig: { thinkingLevel: "low", includeThoughts: false } } },
           });
           const output = result.output;
-          console.info("admin_math_figure_measurement_analysis", { adminId: admin.id, schoolId: admin.schoolId, model: modelId, attempt: attempt + 1, imageBytes: image.size, usage: result.usage });
+          console.info("admin_math_figure_measurement_analysis", { userId: user.id, role: user.role, schoolId: user.schoolId, model: modelId, attempt: attempt + 1, imageBytes: image.size, usage: result.usage });
           return json({ measurements: output.measurements, model: modelId, attempts: attempt + 1 });
         } catch (error) {
           lastMeasurementError = error;
@@ -112,8 +112,9 @@ export async function POST(request: Request) {
         }
         const normalizedSpec = normalizeAiMathFigureSpec(output);
         console.info("admin_math_figure_analysis", {
-          adminId: admin.id,
-          schoolId: admin.schoolId,
+          userId: user.id,
+          role: user.role,
+          schoolId: user.schoolId,
           model: modelId,
           attempt: attempt + 1,
           finishReason: result.finishReason,
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
           || NoOutputGeneratedError.isInstance(error)
           || (error instanceof Error && error.message.startsWith("EMPTY_OUTPUT:"));
         console.warn(`admin_math_figure_analysis_attempt_failed ${error instanceof Error ? `${error.name}: ${error.message}` : "UnknownError"}`, {
-          adminId: admin.id,
+          userId: user.id,
           model: modelId,
           attempt: attempt + 1,
           retryable,
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
       : "";
     const cause = error instanceof Error ? `${error.name}: ${error.message}${detail}` : "UnknownError";
     console.error(`admin_math_figure_analysis_failure ${cause}`, {
-      adminId: admin.id,
+      userId: user.id,
       code: request.signal.aborted ? "CANCELLED" : NoObjectGeneratedError.isInstance(nestedError) ? "INVALID_OUTPUT" : NoOutputGeneratedError.isInstance(nestedError) ? "EMPTY_OUTPUT" : "GENERATION_FAILED",
     });
     return json({ error: request.signal.aborted ? "요청이 취소되었습니다." : "AI가 완성된 도형 데이터를 반환하지 못했습니다. 잠시 후 다시 시도해 주세요." }, 502);

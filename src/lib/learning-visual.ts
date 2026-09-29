@@ -2,6 +2,7 @@ import { z } from "zod";
 import { illustrationInputSchema } from "./learning-illustration-brief";
 import { learningImageFailureCodes } from "./learning-image-failure";
 import { mermaidLabel } from "./mermaid-label";
+import { historyPeriods } from "./social-map/history";
 
 const text = z.string().trim().min(1).max(240);
 const short = z.string().trim().min(1).max(80);
@@ -24,7 +25,11 @@ const timeline = z.object({
 });
 const map = z.object({
   kind: z.literal("map"), ...base,
-  focus: z.enum(["world", "eastAsia", "europe", "africa", "americas", "oceania"]).default("world"),
+  focus: z.enum(["world", "korea", "eastAsia", "southAsia", "westAsia", "europe", "africa", "americas", "oceania"]).default("world"),
+  /** 시대 지도(교사용 지도 제작과 같은 역사 국경 자료)의 시기 id. 있으면 현대 국경 대신 옛 나라를 그립니다. */
+  era: z.enum(historyPeriods.map(period => period.id) as [string, ...string[]]).optional(),
+  /** 시대 지도에서 강조하고 화면을 맞출 옛 나라 이름(예: 고구려) */
+  regions: z.array(short).max(12).default([]),
   countries: z.array(z.string().regex(/^\d{3}$/)).max(30).default([]),
   markers: z.array(z.object({ at: coordinate, label: short })).max(12).default([]),
   routes: z.array(z.object({ from: coordinate, to: coordinate, label: short })).max(8).default([]),

@@ -1,6 +1,7 @@
 "use client";
 import { fillImageSlots, validImageUpdate } from "@/lib/image-slots";
 import { ImageRetryContext } from "@/components/tutor/image-retry-context";
+import { LearningQuizContext } from "@/components/ui/learning-quiz-context";
 
 import { learningTextContext } from "@/lib/inline-learning-image";
 import { detachInlineLearningImages } from "@/lib/bookmark-content";
@@ -25,6 +26,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronsDown,
   ChevronRight,
   CircleHelp,
   Copy,
@@ -61,7 +63,8 @@ import { browserRandomUUID } from "@/lib/browser-random-uuid";
 import { cn } from "@/lib/utils";
 import { expandLearningOutline, type LearningOutline } from "@/lib/learning-outline";
 import { makeAnswerPdfFileName } from "@/lib/tutor-pdf-file-name";
-import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage } from "@/types";
+import { PdfTooLargeError, preparePdfRequest } from "@/lib/pdf-payload-browser";
+import type { LearningLevel, LearningUnit, SubjectCode, TutorAction, TutorMessage, UserRole } from "@/types";
 
 const showMarkdownCopyButton = process.env.NODE_ENV === "development";
 
@@ -134,6 +137,8 @@ const subjectCatalog: SubjectCatalogItem[] = [
 
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const maxImageCount = 3;
+// 서버의 질문·대화 맥락 제한(/api/ai/tutor, 2400자)과 같게 둡니다.
+const maxQuestionLength = 2400;
 const maxSourceImageBytes = 15 * 1024 * 1024;
 const maxPreparedImageBytes = 4 * 1024 * 1024;
 const maxTotalImageBytes = 8 * 1024 * 1024;
@@ -562,6 +567,7 @@ type LearningWorkspaceProps = {
   studentId: string;
   studentName: string;
   schoolName: string;
+  role?: UserRole;
 };
 
 export function LearningWorkspace(props: Omit<LearningWorkspaceProps, "units">) {
@@ -591,7 +597,7 @@ export function LearningWorkspace(props: Omit<LearningWorkspaceProps, "units">) 
   if (units === null) {
     return (
       <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-        <StudentTopNavigation user={{ name: props.studentName, schoolName: props.schoolName }} />
+        <StudentTopNavigation user={{ name: props.studentName, schoolName: props.schoolName, role: props.role }} />
         <main className="min-h-0 flex-1 overflow-y-auto bg-surface px-4 pb-24 sm:px-7">
           <div className="mx-auto max-w-[72rem] py-5">
             <CurriculumLoadStatus error={error} onRetry={() => { setError(false); setAttempt((value) => value + 1); }} />
@@ -615,10 +621,10 @@ function CurriculumLoadStatus({ error, onRetry }: { error: boolean; onRetry: () 
   );
 }
 
-function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorkspaceProps, "studentName" | "schoolName">) {
+function EmptyLearningWorkspace({ studentName, schoolName, role }: Pick<LearningWorkspaceProps, "studentName" | "schoolName" | "role">) {
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-      <StudentTopNavigation user={{ name: studentName, schoolName }} />
+      <StudentTopNavigation user={{ name: studentName, schoolName, role }} />
       <main className="grid min-h-0 flex-1 place-items-center bg-surface px-5">
         <div className="max-w-md rounded-[18px] border border-line bg-surface p-7 text-center shadow-[var(--lift-2)]">
           <span className="mx-auto grid size-12 place-items-center rounded-[14px] bg-brand-soft text-brand"><AlertCircle size={23} /></span>
@@ -630,7 +636,7 @@ function EmptyLearningWorkspace({ studentName, schoolName }: Pick<LearningWorksp
   );
 }
 
-function LearningWorkspaceContent({ units, initialGrade, studentId, studentName, schoolName, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
+function LearningWorkspaceContent({ units, initialGrade, studentId, studentName, schoolName, role, initialPickerOpen }: LearningWorkspaceProps & { initialPickerOpen: boolean }) {
   const availableGrades = availableGradesFor(units);
   const requestedInitialGrade = supportedGrade(initialGrade);
   const normalizedInitialGrade = availableGrades.includes(requestedInitialGrade) ? requestedInitialGrade : availableGrades[0] ?? requestedInitialGrade;
@@ -659,6 +665,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   const [progressStage, setProgressStage] = useState<TutorProgressStage>("preparing");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [savingPdfMessageId, setSavingPdfMessageId] = useState<string | null>(null);
+  const [savingBookmarkMessageId, setSavingBookmarkMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(20);
   const [dailyLimit, setDailyLimit] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(initialPickerOpen);
@@ -676,6 +683,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   const imagePreparationRef = useRef(false);
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const streamingAnswerRef = useRef(false);
   const unitSessionsRef = useRef<Map<string, CachedUnitSession>>(new Map());
 
@@ -914,11 +922,25 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     if (autoScrollRef.current) {
       messageEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth", block: "end" });
     }
+    // 위로 올려 둔 채 답변이 길어지면 '맨 아래로' 버튼을 보여 줍니다.
+    const frame = window.requestAnimationFrame(updateJumpToLatest);
+    return () => window.cancelAnimationFrame(frame);
   }, [loading, messages]);
+
+  function updateJumpToLatest() {
+    const container = messageScrollRef.current;
+    setShowJumpToLatest(Boolean(container) && container!.scrollHeight - container!.scrollTop - container!.clientHeight > 300);
+  }
+
+  function jumpToLatest() {
+    autoScrollRef.current = true;
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
 
   function trackScrollPosition() {
     const container = messageScrollRef.current;
     if (!container) return;
+    updateJumpToLatest();
     if (streamingAnswerRef.current) {
       autoScrollRef.current = false;
       return;
@@ -1184,7 +1206,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     const recentMessages = baseMessages
       .filter((message) => message.content && message.completed)
       .slice(-6)
-      .map(({ role, content }) => ({ role, content: learningTextContext(content).slice(0, 3000) }));
+      .map(({ role, content }) => ({ role, content: learningTextContext(content).slice(0, role === "user" ? maxQuestionLength : 3000) }));
 
     streamingAnswerRef.current = true;
     autoScrollRef.current = false;
@@ -1281,7 +1303,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
   }
 
   async function bookmarkMessage(message: TutorMessage) {
-    if (!selectedUnit || !message.completed || savedIds.has(message.id)) return;
+    if (!selectedUnit || !message.completed || savedIds.has(message.id) || savingBookmarkMessageId) return;
+    setSavingBookmarkMessageId(message.id);
     try {
       const prepared = detachInlineLearningImages(message.content);
       const body = new FormData();
@@ -1303,6 +1326,8 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "북마크를 저장하지 못했어요.");
       window.setTimeout(() => setNotice(""), 3000);
+    } finally {
+      setSavingBookmarkMessageId(null);
     }
   }
 
@@ -1421,19 +1446,11 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
       captureElement.classList.remove("learncraft-pdf-staging");
       captureElement.classList.add("learncraft-pdf-native");
       captureElement.removeAttribute("aria-hidden");
-      const html = captureElement.outerHTML;
+      const request = await preparePdfRequest(captureElement, styles, makeAnswerPdfFileName(message.content, createdAt));
       captureElement.remove();
 
       const fileName = `${makeAnswerPdfFileName(message.content, createdAt)}.pdf`;
-      const response = await fetch("/api/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          html,
-          styles,
-          title: makeAnswerPdfFileName(message.content, createdAt),
-        }),
-      });
+      const response = await fetch("/api/pdf", { method: "POST", ...request });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error?.message ?? "PDF 서버가 파일을 만들지 못했어요.");
@@ -1443,7 +1460,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
       setNotice("PDF 파일을 저장했어요.");
     } catch (error) {
       console.error("[LearnCraft PDF 저장 실패]", error);
-      setNotice("PDF 파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      setNotice(error instanceof PdfTooLargeError
+        ? "그림이 많아 PDF 한 파일로 만들 수 없어요. 답변을 나누어 저장해 주세요."
+        : "PDF 파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       captureElement.remove();
       setSavingPdfMessageId(null);
@@ -1453,7 +1472,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
 
   return (
     <div className="app-enter flex h-dvh min-h-0 flex-col overflow-hidden">
-      <StudentTopNavigation user={{ name: studentName, schoolName }} />
+      <StudentTopNavigation user={{ name: studentName, schoolName, role }} />
       <div className="relative grid min-h-0 flex-1 grid-cols-1 min-[1024px]:grid-cols-[298px_minmax(0,1fr)]">
       <aside className="hidden min-h-0 flex-col border-r border-line bg-surface/55 min-[1024px]:flex">
         <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-5 [scrollbar-gutter:stable]">
@@ -1577,7 +1596,14 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                             signal.throwIfAborted();
                             setMessages(current => current.map(item => item.id === message.id ? { ...item, content: fillImageSlots(item.content, new Map([[slot.id, payload.markdown]])) } : item));
                           } }}>
-                            {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize} repairGeneratedFence>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            <LearningQuizContext.Provider value={message.completed ? {
+                              unitId: selectedUnit.id,
+                              messageId: message.id,
+                              markdown: message.content,
+                              onRequestSolution: index === messages.length - 1 && !loading ? () => void ask("REVEAL") : undefined,
+                            } : null}>
+                              {message.content ? <Markdown collapseHints streaming={!message.completed} textSize={messageTextSize} repairGeneratedFence>{message.content}</Markdown> : <Thinking stage={progressStage} />}
+                            </LearningQuizContext.Provider>
                           </ImageRetryContext.Provider>
                           {loading && index === messages.length - 1 && message.content && isIllustrationPending(progressStage) && !message.content.includes('"kind":"image-slot"') && !message.content.includes('"kind":"generated-image"') && <PendingIllustration stage={progressStage} />}
                           {message.completed && (
@@ -1605,9 +1631,9 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                                   {copiedMessageId === message.id ? <Check className="size-3.5 sm:size-4" /> : <Copy className="size-3.5 sm:size-4" />}
                                   <span>{copiedMessageId === message.id ? "복사됨" : "복사"}</span>
                                 </button>}
-                                <button onClick={() => void bookmarkMessage(message)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)}>
-                                  {savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
-                                  <span>{savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
+                                <button onClick={() => void bookmarkMessage(message)} disabled={savingBookmarkMessageId !== null || savedIds.has(message.id)} className={cn("flex min-h-9 cursor-pointer items-center gap-1 rounded-[9px] border px-2.5 text-[.74rem] font-semibold transition-all duration-300 hover:-translate-y-px disabled:cursor-wait disabled:opacity-55 sm:min-h-11 sm:gap-1.5 sm:rounded-[11px] sm:px-3.5 sm:text-[.82rem]", savedIds.has(message.id) ? "border-brand/25 bg-brand-soft text-brand-dark shadow-[var(--lift-1)]" : "border-line text-ink-3 hover:border-[var(--line-2)] hover:text-ink")} aria-label="답변을 학습 북마크에 저장" aria-pressed={savedIds.has(message.id)} aria-busy={savingBookmarkMessageId === message.id}>
+                                  {savingBookmarkMessageId === message.id ? <LoaderCircle className="size-3.5 animate-spin sm:size-4" /> : savedIds.has(message.id) ? <BookmarkCheck className="size-3.5 text-brand sm:size-4" /> : <Bookmark className="size-3.5 sm:size-4" />}
+                                  <span>{savingBookmarkMessageId === message.id ? "저장 중" : savedIds.has(message.id) ? "저장됨" : "북마크"}</span>
                                 </button>
                               </div>
                             </div>
@@ -1663,7 +1689,13 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
           </div>
         </div>
 
-        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="shrink-0 bg-surface pb-3 pt-2 sm:pb-5">
+        {!homeOpen && !courseOverviewOpen && detailsReady && <div className="relative shrink-0 bg-surface pb-3 pt-2 sm:pb-5">
+          {conversationOpen && messages.length > 0 && showJumpToLatest && (
+            <button type="button" onClick={jumpToLatest} aria-label={loading ? "작성 중인 답변으로 이동" : "대화 맨 아래로 이동"} title="맨 아래로" className="absolute bottom-full left-1/2 z-10 mb-2.5 grid size-11 -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-brand/20 bg-[linear-gradient(135deg,#ffffff_0%,#f0edff_48%,#e8e2ff_100%)] text-brand-dark shadow-[0_7px_18px_rgba(86,58,194,.18),inset_0_1px_0_rgba(255,255,255,.9)] transition-[translate,box-shadow,border-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-[0_11px_24px_rgba(86,58,194,.24),inset_0_1px_0_rgba(255,255,255,.95)] motion-reduce:hover:translate-y-0">
+              <ChevronsDown className="size-5" strokeWidth={2.4} aria-hidden="true" />
+              {loading && <span className="absolute right-0.5 top-0.5 size-2.5 rounded-full border-2 border-white bg-brand motion-safe:animate-pulse" aria-hidden="true" />}
+            </button>
+          )}
           <div className={cn("mx-auto w-full", conversationWidth, conversationPadding)}>
             {remaining <= 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#efd3d5] bg-[#fff4f4] p-4 text-center text-sm font-semibold text-danger"><AlertCircle size={18} /> 오늘의 AI 학습 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.</div>
@@ -1750,8 +1782,17 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                       event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, maxHeight)}px`;
                     }}
                     onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }}
+                    onPaste={(event) => {
+                      // maxLength는 붙여 넣은 글의 뒷부분을 말없이 버리므로 잘렸다는 것을 알려 줍니다.
+                      const target = event.currentTarget;
+                      const nextLength = target.value.length - (target.selectionEnd - target.selectionStart) + event.clipboardData.getData("text").length;
+                      if (nextLength > maxQuestionLength) {
+                        setNotice(`질문은 ${maxQuestionLength.toLocaleString()}자까지 쓸 수 있어 뒷부분이 잘렸어요. 긴 지문은 사진으로 올려 주세요.`);
+                        window.setTimeout(() => setNotice(""), 3500);
+                      }
+                    }}
                     rows={1}
-                    maxLength={1200}
+                    maxLength={maxQuestionLength}
                     placeholder={`${selectedUnit.title}에서 막힌 부분을 그대로 적어 보세요`}
                     className={cn("scrollbar-hidden col-span-3 row-start-1 max-h-[230px] min-h-9 w-full resize-none overflow-y-auto overscroll-contain border-0 bg-transparent px-2.5 pb-1.5 pt-2 leading-6 text-ink outline-none [-webkit-overflow-scrolling:touch] placeholder:text-[.78rem] placeholder:text-ink-5 sm:max-h-32 sm:min-h-11 sm:flex-1 sm:px-2.5 sm:py-2.5 sm:leading-7 sm:placeholder:text-[1rem]", messageInputTextSizeClasses[messageTextSize])}
                   />
@@ -1819,7 +1860,7 @@ function LearningWorkspaceContent({ units, initialGrade, studentId, studentName,
                         {remaining}/{dailyLimit}회
                       </span>
                     </span>
-                    <span className="figure shrink-0 border-l border-line pl-1.5 sm:pl-2">{input.length}/1200</span>
+                    <span className="figure shrink-0 border-l border-line pl-1.5 sm:pl-2">{input.length}/{maxQuestionLength}</span>
                   </div>
                 </div>
               </form>

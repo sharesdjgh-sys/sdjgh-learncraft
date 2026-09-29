@@ -56,6 +56,23 @@ for (const test of malformed) {
   }
 }
 
+// 학생 피드백(2026-09-25): 영어 확인 질문의 인용문 줄이 부등호로 읽혀 KaTeX 수식이 됐다.
+const quotedEnglish = "## 확인 질문\n다음 문장의 빈칸에 들어갈 가장 알맞은 표현을 골라보세요.\n\n> Goal-Line Technology was introduced not to replace the referees, but to (　　) them in making accurate decisions.\n> \n> ① ignore  \n> ② assist  \n> ③ criticize  \n\n## 확인 정답\n**② assist**";
+try {
+  const html = renderToStaticMarkup(<Markdown>{quotedEnglish}</Markdown>);
+  assert.doesNotMatch(html, /class="katex"/, "quoted English sentences must not become math");
+  assert.match(html, /<blockquote\b/, "quoted question must stay a blockquote");
+  assert(visibleText(html).includes("Goal-Line Technology was introduced not to replace the referees"), "quoted sentence keeps its spaces");
+  assert(visibleText(html).includes("② assist"));
+  const plainEnglish = renderToStaticMarkup(<Markdown>{"Choose A/B: the word that best fits the blank."}</Markdown>);
+  assert.doesNotMatch(plainEnglish, /class="katex"/, "English prose with a slash must not become math");
+  const quotedMath = renderToStaticMarkup(<Markdown>{"> x^2 + 1 = 5"}</Markdown>);
+  assert.match(quotedMath, /<blockquote\b[\s\S]*class="katex"/, "a real equation inside a blockquote is still repaired");
+  checked += 3;
+} catch (error) {
+  failures.push(error instanceof Error ? error.message : String(error));
+}
+
 const rawMermaid = '```mermaid\nflowchart TB\nRAW_NODE["RAW_LABEL"] --> OTHER_NODE\n```';
 try {
   const html = renderToStaticMarkup(<Markdown>{rawMermaid}</Markdown>);

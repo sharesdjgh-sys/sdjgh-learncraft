@@ -55,7 +55,7 @@ export const vocabularyExplanations = pgTable("vocabulary_explanations", {
   schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
   owner: uuid("owner").notNull(),
   leaseUntil: timestamp("lease_until", { withTimezone: true }).notNull(),
-  explanation: jsonb("explanation").$type<import("@/features/vocabulary/content").VocabularyExplanation>(),
+  explanation: jsonb("explanation").$type<import("@/features/vocabulary/content").VocabularyExplanation | import("@/features/vocabulary/etymology").KoreanEtymology | import("@/features/vocabulary/english-etymology").EnglishEtymology>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -100,6 +100,7 @@ export const feedbackStatus = pgEnum("feedback_status", ["RECEIVED", "IN_PROGRES
 export const feedback = pgTable("feedback", {
   images: jsonb("images").$type<import("@/features/feedback/model").StoredFeedbackImage[]>().default([]).notNull(),
   curriculumLocation: jsonb("curriculum_location").$type<import("@/features/feedback/model").FeedbackCurriculumLocation | null>().default(null),
+  toolLocation: jsonb("tool_location").$type<import("@/features/feedback/model").FeedbackToolLocation | null>().default(null),
   id: uuid("id").defaultRandom().primaryKey(),
   requestId: uuid("request_id").notNull(),
   schoolId: uuid("school_id").references(() => schools.id).notNull(),
@@ -452,6 +453,55 @@ export const bookmarks = pgTable(
     index("bookmarks_student_school_created_id_idx").on(table.studentId, table.schoolId, table.createdAt.desc(), table.id.desc()),
   ],
 );
+
+export const quizMistakes = pgTable(
+  "quiz_mistakes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id).notNull(),
+    studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    unitId: uuid("unit_id").references(() => units.id).notNull(),
+    clientQuizId: text("client_quiz_id").notNull(),
+    problemMarkdown: text("problem_markdown").notNull(),
+    studentAnswer: text("student_answer").notNull(),
+    correctAnswer: text("correct_answer").notNull(),
+    attempts: integer("attempts").default(1).notNull(),
+    hintsUsed: integer("hints_used").default(0).notNull(),
+    confusions: jsonb("confusions").$type<string[]>().default([]).notNull(),
+    note: text("note").default("").notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("quiz_mistakes_student_quiz_idx").on(table.studentId, table.clientQuizId),
+    index("quiz_mistakes_student_school_created_idx").on(table.studentId, table.schoolId, table.createdAt.desc()),
+  ],
+);
+
+export const learningReflections = pgTable("learning_reflections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id).notNull(),
+  studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  unitId: uuid("unit_id").references(() => units.id).notNull(),
+  learningDate: date("learning_date").notNull(),
+  minutes: integer("minutes").notNull(),
+  confidence: integer("confidence").notNull(),
+  learned: text("learned").notNull(),
+  difficulty: text("difficulty").default("").notNull(),
+  nextStep: text("next_step").notNull(),
+  ...timestamps,
+}, (table) => [uniqueIndex("learning_reflection_student_unit_date_idx").on(table.studentId, table.schoolId, table.unitId, table.learningDate)]);
+
+export const learningReports = pgTable("learning_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  schoolId: uuid("school_id").references(() => schools.id).notNull(),
+  studentId: uuid("student_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  reportDate: date("report_date").notNull(),
+  days: integer("days").notNull(),
+  report: jsonb("report").$type<import("@/features/learning-progress/model").LearningReport>(),
+  modelId: text("model_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("learning_report_student_date_period_idx").on(table.studentId, table.schoolId, table.reportDate, table.days)]);
 
 export const dailyUsage = pgTable(
   "daily_usage",
