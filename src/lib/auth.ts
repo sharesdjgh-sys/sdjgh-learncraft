@@ -141,16 +141,18 @@ export function getSampleStudentAccountPreviews() {
   return sampleStudentAccounts.map(({ loginId, user }) => ({ loginId, name: user.name }));
 }
 
-export async function createSession(user: SessionUser) {
+export async function createSession(user: SessionUser, options: { embedded?: boolean } = {}) {
   const token = await new SignJWT({ user })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("12h")
     .sign(secret);
+  const embeddedCookie = options.embedded === true && process.env.NODE_ENV === "production";
   (await cookies()).set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: embeddedCookie ? "none" : "lax",
+    partitioned: embeddedCookie,
     path: "/",
     maxAge: 60 * 60 * 12,
   });

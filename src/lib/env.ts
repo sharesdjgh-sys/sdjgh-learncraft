@@ -19,6 +19,8 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal("")),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   RATE_LIMIT_MODE: z.enum(["shadow", "enforce"]).default("shadow"),
+  SMART_CAMPUS_VERIFY_URL: z.string().url().default("https://platform.sdjgh-ai.kr/api/auth/verify"),
+  SMART_CAMPUS_SCHOOL_NAME: z.string().min(1).default("서대전여자고등학교"),
 });
 
 const parsed = envSchema.safeParse({
@@ -40,6 +42,8 @@ const parsed = envSchema.safeParse({
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   RATE_LIMIT_MODE: process.env.RATE_LIMIT_MODE,
+  SMART_CAMPUS_VERIFY_URL: process.env.SMART_CAMPUS_VERIFY_URL,
+  SMART_CAMPUS_SCHOOL_NAME: process.env.SMART_CAMPUS_SCHOOL_NAME,
 });
 
 if (!parsed.success) {

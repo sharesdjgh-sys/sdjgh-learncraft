@@ -9,6 +9,7 @@ import {
   isLocalAdminLoginAvailable,
 } from "@/lib/auth";
 import { LoginForm } from "./login-form";
+import { SmartCampusSso } from "@/components/auth/smart-campus-sso";
 
 export const metadata = { title: "로그인" };
 export const dynamic = "force-dynamic";
@@ -58,6 +59,8 @@ export default async function LoginPage() {
             <div className="mt-5">
               <LearningGuidance />
             </div>
+
+            <SmartCampusSso />
 
             <LoginForm
               sampleAccounts={getSampleStudentAccountPreviews()}
