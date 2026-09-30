@@ -549,6 +549,32 @@ export const usageEvents = pgTable(
   ],
 );
 
+// 교사 지원실 AI 도우미 대화 통계입니다. 질문·답변 내용은 저장하지 않고 횟수와 상태만 남깁니다.
+export const teacherAssistantEvents = pgTable(
+  "teacher_assistant_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    schoolId: uuid("school_id").references(() => schools.id).notNull(),
+    userId: uuid("user_id").references(() => users.id).notNull(),
+    subject: text("subject"),
+    tool: text("tool"),
+    // SUCCEEDED | FAILED | CANCELLED
+    status: text("status").notNull(),
+    // 교육과 무관해 정중히 사양한 질문인지
+    offTopic: boolean("off_topic").default(false).notNull(),
+    modelId: text("model_id").notNull(),
+    inputTokens: integer("input_tokens").default(0).notNull(),
+    outputTokens: integer("output_tokens").default(0).notNull(),
+    latencyMs: integer("latency_ms"),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("teacher_assistant_events_school_created_idx").on(table.schoolId, table.createdAt.desc()),
+    index("teacher_assistant_events_user_created_idx").on(table.userId, table.createdAt.desc()),
+  ],
+);
+
 export const pricingConfigs = pgTable("pricing_configs", {
     id: uuid("id").defaultRandom().primaryKey(),
     provider: text("provider").notNull(),

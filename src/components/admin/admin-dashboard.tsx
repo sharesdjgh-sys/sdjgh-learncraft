@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, Download, Gauge, GraduationCap, Info, LayoutDashboard, RotateCcw, School, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, Download, Gauge, GraduationCap, Info, LayoutDashboard, RotateCcw, School, Sparkles, UsersRound } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { actionLabels, dateRange, flagLabels, levelLabels, previousRange, summarizeGroups, summarizeSchoolUsage, summarizeUsers, type ActivityLevel, type SchoolUsageData, type UserFlag, type UserSummary } from "@/features/usage/school-insights";
 import { formatNumber, formatUsd } from "@/lib/utils";
 import styles from "./accounts.module.css";
 import d from "./dashboard.module.css";
+import { AssistantTab } from "./dashboard-assistant";
 import { initialView, PeopleTab, PersonDrawer, type PeopleView } from "./dashboard-people";
 import { Avatar, Card, Change, FlagBadge, ShareBars, Stat, cx, levelColors, percent, roleColors, roleName, seconds } from "./dashboard-ui";
 
-type Tab = "overview" | "STUDENT" | "TEACHER" | "patterns" | "system";
+type Tab = "overview" | "STUDENT" | "TEACHER" | "assistant" | "patterns" | "system";
 type Role = "STUDENT" | "TEACHER";
 type Summary = ReturnType<typeof summarizeSchoolUsage>;
 type Groups = ReturnType<typeof summarizeGroups>;
@@ -18,6 +19,7 @@ const tabs: { key: Tab; label: string; icon: typeof School; color: string; soft:
   { key: "overview", label: "개요", icon: LayoutDashboard, color: "#4a31bb", soft: "#efebff" },
   { key: "STUDENT", label: "학생", icon: UsersRound, color: "#245ac1", soft: "#e7efff" },
   { key: "TEACHER", label: "교사", icon: GraduationCap, color: "#087573", soft: "#e0f4f1" },
+  { key: "assistant", label: "AI 도우미", icon: Sparkles, color: "#5a3fd6", soft: "#eee9ff" },
   { key: "patterns", label: "이용 패턴", icon: BarChart3, color: "#6943b9", soft: "#eee7fb" },
   { key: "system", label: "시스템 상태", icon: Gauge, color: "#a0620f", soft: "#fff4df" },
 ];
@@ -151,7 +153,7 @@ export function AdminDashboard() {
           <button type="button" aria-pressed={custom || !!period.start} onClick={() => setCustom(true)}>직접 지정</button>
         </div>
         {(custom || period.start) && <div className={d.dates}><input aria-label="조회 시작일" type="date" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} />~<input aria-label="조회 종료일" type="date" value={draft.end} onChange={(event) => setDraft({ ...draft, end: event.target.value })} /><button type="button" className={cx(styles.secondary, d.small)} onClick={applyDates}>적용</button></div>}
-        <select aria-label="과목" className={d.subject} value={subject} onChange={(event) => setSubject(event.target.value)}><option value="ALL">전체 과목</option>{subjects.map((name) => <option key={name}>{name}</option>)}</select>
+        {tab !== "assistant" && <select aria-label="과목" className={d.subject} value={subject} onChange={(event) => setSubject(event.target.value)}><option value="ALL">전체 과목</option>{subjects.map((name) => <option key={name}>{name}</option>)}</select>}
         {data && range && <p className={d.range}><b>{data.start} ~ {data.end}</b> ({days}일) · 비교 {range.start} ~ {range.end}</p>}
         {dateError && <p role="alert" className={d.dateError}>{dateError}</p>}
       </div>
@@ -163,9 +165,10 @@ export function AdminDashboard() {
       {data?.available && metrics && previous && patternMetrics && <div aria-busy={loading}>
         {tab === "overview" && <Overview metrics={metrics} previous={previous} roster={roster} groups={groups} onSelect={setSelectedId} onPeople={openPeople} onTab={setTab} />}
         {(tab === "STUDENT" || tab === "TEACHER") && <PeopleTab key={tab} role={tab} roster={roster} view={views[tab]} onView={(next) => updateView(tab, next)} onSelect={setSelectedId} selectedId={selectedId} subject={subject} days={days} />}
+        {tab === "assistant" && <AssistantTab start={data.start} end={data.end} refresh={attempt} />}
         {tab === "patterns" && <Patterns metrics={patternMetrics} filter={pattern} onFilter={setPattern} />}
         {tab === "system" && <SystemStatus metrics={metrics} roster={roster} onSelect={setSelectedId} />}
-        <p className={d.note}><Info size={13} /><span>AI 직접 질문과 이미지 재시도 요청을 집계합니다. 이어 묻기, 페이지 열람, 체류 시간, 교사용 제작 도구와 관리자 활동은 포함하지 않으며 대화 원문은 조회하지 않습니다. 이용률은 현재 활성 계정 중 성공 요청이 있는 계정의 비율이고, 역할·학년은 현재 계정 정보 기준입니다. 오늘은 진행 중인 날짜입니다.</span></p>
+        {tab !== "assistant" && <p className={d.note}><Info size={13} /><span>AI 직접 질문과 이미지 재시도 요청을 집계합니다. 이어 묻기, 페이지 열람, 체류 시간, 교사용 제작 도구와 관리자 활동은 포함하지 않으며 대화 원문은 조회하지 않습니다. 이용률은 현재 활성 계정 중 성공 요청이 있는 계정의 비율이고, 역할·학년은 현재 계정 정보 기준입니다. 오늘은 진행 중인 날짜입니다.</span></p>}
       </div>}
       {data?.available && <PersonDrawer user={selected} data={data} subject={subject} days={days} onClose={() => setSelectedId(null)} />}
     </div>

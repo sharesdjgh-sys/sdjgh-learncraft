@@ -120,6 +120,13 @@
       "when": 1790567629577,
       "tag": "0016_feedback_tool_location",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790741854910,
+      "tag": "0017_far_shocker",
+      "breakpoints": true
     }
   ]
 }

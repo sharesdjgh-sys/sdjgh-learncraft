@@ -14,14 +14,14 @@ export function aiModelSlots(): AiModelSlot[] {
       key: "primary", role: "기본 텍스트 모델", provider: "Google Gemini", modelId: env.GEMINI_PRIMARY_MODEL_ID,
       envVar: primaryEnv, fromEnv: has(primaryEnv), status: geminiStatus,
       note: "AI 텍스트 기능이 모두 이 모델로 먼저 요청합니다.",
-      uses: ["학생 AI 튜터 답변", "정답 확인", "학습 리포트", "단어 풀이·어원", "영어 문제 만들기", "미술 작품 해설", "교육과정 자료 조사·생성", "수학 도형 분석·검토"],
+      uses: ["학생 AI 튜터 답변", "정답 확인", "학습 리포트", "단어 풀이·어원", "영어 문제 만들기", "미술 작품 해설", "교육과정 자료 조사·생성", "수학 도형 분석·검토", "교사 지원실 AI 도우미"],
     },
     {
       key: "fallback", role: "예비 텍스트 모델", provider: "Google Gemini", modelId: env.GEMINI_FALLBACK_MODEL_ID,
       envVar: "GEMINI_FALLBACK_MODEL_ID", fromEnv: has("GEMINI_FALLBACK_MODEL_ID"),
       status: env.GEMINI_FALLBACK_MODEL_ID === env.GEMINI_PRIMARY_MODEL_ID ? "sameAsPrimary" : geminiStatus,
       note: "기본 모델이 빈 응답을 주거나 연결에 실패하면 자동으로 바꿔 다시 요청합니다.",
-      uses: ["학생 AI 튜터 답변", "정답 확인", "영어 문제 만들기", "교육과정 자료 조사·생성", "수학 도형 분석·검토"],
+      uses: ["학생 AI 튜터 답변", "정답 확인", "영어 문제 만들기", "교육과정 자료 조사·생성", "수학 도형 분석·검토", "교사 지원실 AI 도우미"],
     },
     {
       key: "image", role: "학습 그림 모델", provider: "Google Gemini", modelId: env.GEMINI_IMAGE_MODEL_ID,
