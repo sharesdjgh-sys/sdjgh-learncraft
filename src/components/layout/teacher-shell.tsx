@@ -7,6 +7,7 @@ import colors from "@/components/teacher/teacher-colors.module.css";
 import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, Flower2, Lamp, GraduationCap, Languages, MapIcon, Music, Palette, ScrollText, Trophy } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { TeacherFeedbackButton } from "@/components/feedback/teacher-feedback-button";
+import { TeacherAssistant } from "@/components/teacher/teacher-assistant";
 import { clearLearningSessions } from "@/lib/learning-session-cache";
 import type { SessionUser } from "@/types";
 
@@ -58,6 +59,7 @@ export function TeacherShell({ user, children }: { user: SessionUser; children: 
       </>)}
     >
       <div className={colors.scope} data-subject={subject?.subject} style={colorStyle}>{children}</div>
+      <TeacherAssistant subject={subject?.subject} tool={subject?.label} />
     </ConsoleShell>
   );
 }

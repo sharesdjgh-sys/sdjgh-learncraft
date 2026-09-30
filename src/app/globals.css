@@ -420,6 +420,13 @@ button:active, a:active { transition-duration: 80ms; }
   html, body { background-color: var(--canvas); color: var(--ink); }
 }
 
+/* 교사 지원실 AI 도우미 플로팅 버튼: 눈에 거슬리지 않게 아주 천천히 떠다닙니다. */
+@keyframes assistant-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes assistant-tilt { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.assistant-fab { animation: assistant-float 4.2s ease-in-out infinite; }
+.assistant-fab > img { animation: assistant-tilt 4.2s ease-in-out infinite; }
+.assistant-fab:hover, .assistant-fab:hover > img, .assistant-fab:focus-visible, .assistant-fab:active { animation-play-state: paused; }
+
 @media (prefers-reduced-motion: reduce) {
   .illustration-drawing-line { animation: none !important; stroke-dashoffset: 0; }
   .illustration-drawing-pencil { animation: none !important; transform: translate(178px, 136px); }

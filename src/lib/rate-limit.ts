@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { env } from "@/lib/env";
 
-type RateLimitCategory = "login" | "tutor" | "image" | "check" | "teacherImage";
+type RateLimitCategory = "login" | "tutor" | "image" | "check" | "teacherImage" | "teacherAssistant";
 type Subject = { kind: "user" | "school" | "ip"; value: string; limit: number; windowSeconds: number };
 type RateLimitInput = { category: RateLimitCategory; userId?: string; schoolId?: string; ip?: string };
 
@@ -30,6 +30,11 @@ const policies: Record<RateLimitCategory, (input: RateLimitInput) => Subject[]> 
     schoolId && { kind: "school", value: schoolId, limit: 60, windowSeconds: 600 },
     schoolId && { kind: "school", value: schoolId, limit: 500, windowSeconds: 86_400 },
     ip && { kind: "ip", value: ip, limit: 60, windowSeconds: 600 },
+  ].filter((item): item is Subject => Boolean(item)),
+  // 교사 지원실 AI 도우미 대화: 하루 사용 횟수는 제한하지 않습니다. 실수로 연달아 보내는 요청만 막는 짧은 보호입니다.
+  teacherAssistant: ({ userId, ip }) => [
+    userId && { kind: "user", value: userId, limit: 20, windowSeconds: 60 },
+    ip && { kind: "ip", value: ip, limit: 300, windowSeconds: 60 },
   ].filter((item): item is Subject => Boolean(item)),
   // 교사 지원실의 GPT 수업 그림: 한 장에 비용이 커서 선생님마다 하루 사용량을 둡니다.
   teacherImage: ({ userId, schoolId, ip }) => [
