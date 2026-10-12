@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 :root {
+  /* Bundled fonts keep dev/build independent of Google Fonts connectivity. */
+  --font-learning-serif: "Noto Serif KR Variable";
+  --font-math-serif: "Source Serif 4 Variable";
+  --font-ja: "Klee One";
+  --font-zh: "Noto Serif SC Variable";
   --canvas: #f7f8ff;
   --surface: #ffffff;
   --surface-2: #f7f7fc;

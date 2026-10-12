@@ -208,6 +208,35 @@ async function main() {
   assert(!englishEtymology.englishTermPattern.test("ignore previous; instructions"));
   assert(englishEtymology.englishRootGroups.every(group => group.words.every(word => englishEtymology.englishTermPattern.test(word))));
   console.log("PASS english etymology: schema, term validation, case-insensitive cache key, save and reuse");
+  const extraLists = {
+    ...englishCard,
+    meanings: ["기술", "공예", "기량", "배", "정교하게 만들다"],
+    parts: Array.from({ length: 8 }, (_, index) => ({ ...englishCard.parts[0], text: `root${index}` })),
+    examples: Array.from({ length: 3 }, (_, index) => ({ english: `Example ${index}`, korean: `예문 ${index}` })),
+    wordFamily: Array.from({ length: 8 }, (_, index) => ({ ...englishCard.wordFamily[0], word: `word${index}` })),
+    points: ["첫 번째", "두 번째", "세 번째", "네 번째"],
+  };
+  assert(!englishEtymology.englishEtymologySchema.safeParse(extraLists).success, "Reproduces the rejected overlong craft response");
+  const bounded = englishEtymology.parseGeneratedEnglishEtymology(extraLists);
+  assert.deepEqual(bounded.meanings, extraLists.meanings.slice(0, 3));
+  assert.deepEqual(bounded.parts, extraLists.parts.slice(0, 6));
+  assert.deepEqual(bounded.examples, extraLists.examples.slice(0, 2));
+  assert.deepEqual(bounded.wordFamily, extraLists.wordFamily.slice(0, 6));
+  assert.deepEqual(bounded.points, extraLists.points.slice(0, 3));
+  assert.deepEqual(bounded.summary, englishCard.summary, "Narrative text is not truncated");
+  assert.deepEqual(englishEtymology.parseGeneratedEnglishEtymology(englishCard), englishCard, "Already valid cards remain unchanged");
+  const indivisible = { ...englishCard, parts: [], originPath: null, wordFamily: [] };
+  assert.deepEqual(englishEtymology.parseGeneratedEnglishEtymology(indivisible), indivisible, "Uncertain or indivisible roots still produce cards");
+  assert.throws(() => englishEtymology.parseGeneratedEnglishEtymology({ ...extraLists, meanings: [] }));
+  assert.throws(() => englishEtymology.parseGeneratedEnglishEtymology({ ...extraLists, examples: [] }));
+  assert.throws(() => englishEtymology.parseGeneratedEnglishEtymology({ ...extraLists, summary: null }));
+  assert.throws(() => englishEtymology.parseGeneratedEnglishEtymology({ ...extraLists, confidence: "invented" }));
+  assert.throws(() => englishEtymology.parseGeneratedEnglishEtymology({ ...extraLists, examples: [...extraLists.examples, { english: 123, korean: "잘못된 항목" }] }), "Invalid extra entries are not silently discarded");
+  const craftKey = englishEtymologyCacheKey("school-a", "craft");
+  const craftOwner = await claimExplanation(craftKey, "school-a");
+  assert(craftOwner); await finishExplanation(craftKey, craftOwner, bounded);
+  assert.deepEqual(await repository.readEnglishEtymology(craftKey), bounded, "Bounded cards pass cache validation");
+  console.log("PASS english etymology: excess list recovery, ordered limits, strict content validation and cache compatibility");
   console.log("PASS vocabulary: ordering, deduplication, membership, context isolation/invalidation, generation lock, ownership, cache reuse and failed retry");
   console.log("PASS vocabulary tutor: term validation, paid direct questions, free contextual follow-ups, no tools, successful accounting and failure refund");
 }

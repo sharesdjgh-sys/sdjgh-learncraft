@@ -5,7 +5,7 @@ import { requireTeacherTools } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { getSchoolLearningUnits } from "@/data/school-curriculum";
 import { unitVocabularyTerms, vocabularyTermKey } from "@/features/vocabulary/content";
-import { ENGLISH_ETYMOLOGY_GUIDE, englishEtymologyContext, englishEtymologySchema, englishTermPattern, normalizeEnglishTerm } from "@/features/vocabulary/english-etymology";
+import { ENGLISH_ETYMOLOGY_GUIDE, englishEtymologyContext, englishEtymologyGenerationSchema, parseGeneratedEnglishEtymology, englishTermPattern, normalizeEnglishTerm } from "@/features/vocabulary/english-etymology";
 import { claimExplanation, discardCached, englishEtymologyCacheKey, finishExplanation, readEnglishEtymology } from "@/features/vocabulary/repository";
 
 export const runtime = "nodejs";
@@ -74,11 +74,11 @@ export async function POST(request: Request) {
     const result = await generateText({
       model: google(env.GEMINI_PRIMARY_MODEL_ID), maxRetries: 1, maxOutputTokens: 4000,
       abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(50_000)]),
-      output: Output.object({ schema: englishEtymologySchema }),
+      output: Output.object({ schema: englishEtymologyGenerationSchema }),
       system: ENGLISH_ETYMOLOGY_GUIDE,
       prompt: englishEtymologyContext(term, unit),
     });
-    const etymology = englishEtymologySchema.parse(result.output);
+    const etymology = parseGeneratedEnglishEtymology(result.output);
     await finishExplanation(key, owner, etymology);
     console.info("english_etymology_generation", { userId: user.id, model: env.GEMINI_PRIMARY_MODEL_ID, usage: result.usage });
     return json({ status: "ready", etymology });

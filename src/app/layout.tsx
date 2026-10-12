@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Noto_Serif_KR, Source_Serif_4 } from "next/font/google";
 import localFont from "next/font/local";
 import { PwaProvider } from "@/components/pwa/pwa-provider";
 import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobilePortraitGuard } from "@/components/layout/mobile-portrait-guard";
 import "katex/dist/katex.min.css";
+import "@fontsource-variable/noto-serif-kr/wght.css";
+import "@fontsource-variable/source-serif-4/wght.css";
 import "./globals.css";
 
 const pretendard = localFont({
@@ -14,19 +15,6 @@ const pretendard = localFont({
   weight: "45 920",
   display: "swap",
   preload: true,
-});
-
-const learningSerif = Noto_Serif_KR({
-  variable: "--font-learning-serif",
-  weight: ["400", "500", "600", "700"],
-  preload: false,
-  display: "swap",
-});
-
-const mathSerif = Source_Serif_4({
-  variable: "--font-math-serif",
-  subsets: ["latin"],
-  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -76,7 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko" data-scroll-behavior="smooth" className={`${pretendard.variable} ${learningSerif.variable} ${mathSerif.variable}`}>
+    <html lang="ko" data-scroll-behavior="smooth" className={pretendard.variable}>
       <body><PwaProvider>{children}<PwaInstallAction promptOnly /><MobilePortraitGuard /></PwaProvider></body>
     </html>
   );

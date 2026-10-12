@@ -81,6 +81,10 @@
   },
   "dependencies": {
     "@ai-sdk/google": "latest",
+    "@fontsource-variable/noto-serif-kr": "5.3.1",
+    "@fontsource-variable/noto-serif-sc": "5.3.1",
+    "@fontsource-variable/source-serif-4": "5.3.1",
+    "@fontsource/klee-one": "5.3.1",
     "@neondatabase/serverless": "latest",
     "@sparticuz/chromium": "^152.0.0",
     "@vercel/blob": "^2.8.0",

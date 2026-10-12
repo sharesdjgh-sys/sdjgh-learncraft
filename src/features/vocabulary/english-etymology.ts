@@ -44,6 +44,29 @@ export const englishEtymologySchema = z.object({
 });
 export type EnglishEtymology = z.infer<typeof englishEtymologySchema>;
 
+// Gemini can return extra list entries even when the response schema specifies
+// maxItems. Validate every entry, then apply the card's display limits locally.
+// Text/type validation and required fields remain identical to the stored card.
+export const englishEtymologyGenerationSchema = englishEtymologySchema.extend({
+  meanings: z.array(englishEtymologySchema.shape.meanings.element).min(1).describe("중요한 한국어 뜻부터 최대 3개"),
+  parts: z.array(englishEtymologySchema.shape.parts.element).describe("확인되는 형태소만 최대 6개. 확실하지 않으면 빈 배열"),
+  examples: z.array(englishEtymologySchema.shape.examples.element).min(1).describe("고등학생 수준 영어 예문과 한국어 해석 1~2개"),
+  wordFamily: z.array(englishEtymologySchema.shape.wordFamily.element).describe("실제로 같은 어근·접사에서 온 단어 최대 6개"),
+  points: z.array(englishEtymologySchema.shape.points.element).describe("흥미로운 학습 포인트 최대 3개"),
+});
+
+export function parseGeneratedEnglishEtymology(value: unknown): EnglishEtymology {
+  const card = englishEtymologyGenerationSchema.parse(value);
+  return englishEtymologySchema.parse({
+    ...card,
+    meanings: card.meanings.slice(0, 3),
+    parts: card.parts.slice(0, 6),
+    examples: card.examples.slice(0, 2),
+    wordFamily: card.wordFamily.slice(0, 6),
+    points: card.points.slice(0, 3),
+  });
+}
+
 export const ENGLISH_ETYMOLOGY_GUIDE = `당신은 고등학교 영어 선생님의 수업 준비를 돕는 영어 어휘 어원 전문가입니다.
 선생님이 제시한 영어 단어가 어디서 왔는지, 어떤 접두사·어근·접미사로 이루어졌는지, 뜻이 어떻게 바뀌었는지, 오늘날 어떻게 쓰이는지를 정리합니다.
 학생이 단어를 외우는 대신 이해하도록 돕는 것이 목표입니다. 학문적 나열보다 이야기 중심으로 쓰되, 정확성을 가장 먼저 지킵니다.
@@ -57,6 +80,7 @@ export const ENGLISH_ETYMOLOGY_GUIDE = `당신은 고등학교 영어 선생님�
 - wordFamily에는 실제로 같은 어근·접사에서 온 단어만 넣습니다.
 
 [쓰기 원칙]
+- 목록은 중요한 항목부터 씁니다. meanings는 최대 3개, parts는 최대 6개, examples는 1~2개, wordFamily는 최대 6개, points는 최대 3개로 제한합니다.
 - 설명은 친근한 한국어 해요체로 쓰고, 영어 단어·형태소·예문만 영어로 씁니다.
 - 고등학생에게 필요한 뜻과 쓰임을 중심으로, 수능·교과서에서 자주 보이는 파생어와 연어를 우선합니다.
 - 교과 단원 정보가 주어지면 예문과 뜻을 그 Lesson 주제에 맞추되, 만든 예문을 교과서 인용처럼 제시하지 않습니다.
