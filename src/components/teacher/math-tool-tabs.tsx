@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Box, Dices, DraftingCompass, Sigma, Spline, SquareFunction, Variable } from "lucide-react";
+import { Box, ClipboardCheck, Dices, DraftingCompass, Sigma, Spline, SquareFunction, Variable } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // 과목마다 교사 지원실 메뉴가 하나이므로 수학 도구는 제목 아래 하위 탭으로 나눕니다. 도형 제작은 모든 수학 과목이 함께 씁니다.
 const tools = [
   { key: "figure", label: "도형 제작", icon: DraftingCompass, color: "#475569", soft: "#edf1f5" },
+  { key: "review", label: "문제 오류 검토", icon: ClipboardCheck, color: "#6750a4", soft: "#f0ebfa" },
   { key: "common1", label: "공통수학 1", icon: Variable, color: "#245ac1", soft: "#e7efff" },
   { key: "common2", label: "공통수학 2", icon: SquareFunction, color: "#08758c", soft: "#e2f3f8" },
   { key: "algebra", label: "대수", icon: Sigma, color: "#5947b5", soft: "#eeeafb" },
