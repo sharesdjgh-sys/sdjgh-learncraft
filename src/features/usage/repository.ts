@@ -63,6 +63,8 @@ const getModelPrice = unstable_cache(async (modelId: string) => {
 }, ["model-price-v1"], { revalidate: 3600, tags: ["model-pricing"] });
 
 export async function getStudentUsageCounter(user: SessionUser, usageDate = today()) {
+  // 관리자 테스트는 사용량을 차감하거나 통계에 저장하지 않습니다.
+  if (user.role === "ADMIN") return { count: 0, completed: 0, limit: 20, remaining: 20, date: usageDate };
   if (!db) {
     const usage = getDemoUsage(user.id);
     return {
@@ -97,7 +99,7 @@ export async function getStudentUsageCounter(user: SessionUser, usageDate = toda
 
 export async function getStudentUsage(user: SessionUser, usageDate = today(), includeCourseBreakdown = false) {
   const usage = await getStudentUsageCounter(user, usageDate);
-  if (!includeCourseBreakdown || !db) return { ...usage, byCourse: [] };
+  if (user.role === "ADMIN" || !includeCourseBreakdown || !db) return { ...usage, byCourse: [] };
   const courseUsageResult = await db.execute(sql`
       SELECT
         s.title AS subject_title,
@@ -140,6 +142,7 @@ export async function getStudentUsageInsights(user: SessionUser, days: UsagePeri
   const date = today();
   const dates = periodDates(date, days);
   const activities = async (): Promise<UsageActivity[]> => {
+    if (user.role === "ADMIN") return [];
     if (!db) {
       return [...demoActivity].filter(([key, activity]) => activity.studentId === user.id
         && activity.schoolId === user.schoolId && demoUsageEvents.get(key) === "SUCCEEDED")
@@ -173,6 +176,9 @@ export async function getStudentUsageInsights(user: SessionUser, days: UsagePeri
 }
 
 export async function reserveAiUsage(input: { user: SessionUser; requestId: string; unitId: string; action: TutorAction; modelId: string }) {
+  if (input.user.role === "ADMIN") {
+    return { ok: true as const, remaining: (await getStudentUsageCounter(input.user)).remaining, duplicate: false };
+  }
   if (!db) {
     const key = demoEventKey(input.user, input.requestId);
     if (demoUsageEvents.has(key)) {
@@ -230,6 +236,7 @@ export async function reserveAiUsage(input: { user: SessionUser; requestId: stri
 }
 
 export async function completeAiUsage(user: SessionUser, requestId: string) {
+  if (user.role === "ADMIN") return;
   if (!db) {
     const key = demoEventKey(user, requestId);
     if (demoUsageEvents.get(key) !== "RESERVED") return;
@@ -262,6 +269,7 @@ export async function completeAiUsageWithTokens(
   latencyMs: number,
   finishReason?: FinishReason,
 ) {
+  if (user.role === "ADMIN") return;
   if (!db) {
     const key = demoEventKey(user, requestId);
     if (demoUsageEvents.get(key) !== "RESERVED") return;
@@ -311,7 +319,7 @@ export async function switchAiUsageModel(
   requestId: string,
   modelId: string,
 ) {
-  if (!db) return;
+  if (user.role === "ADMIN" || !db) return;
   await db.update(usageEvents)
     .set({ modelId })
     .where(and(
@@ -327,6 +335,7 @@ export async function refundAiUsage(
   errorCode = "AI_PROVIDER_ERROR",
   cancelled = false,
 ) {
+  if (user.role === "ADMIN") return;
   const status = cancelled ? "CANCELLED" : "FAILED";
   if (!db) {
     const key = demoEventKey(user, requestId);

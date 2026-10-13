@@ -18,7 +18,7 @@ export const COMMON_SUBJECT = "공통";
 export function summarizeAssistant(data: AssistantUsageData) {
   const dates = dateRange(data.start, data.end);
   const daily = new Map(dates.map((date) => [date, { date, requests: 0, offTopic: 0 }]));
-  const teachers = new Map(data.teachers.map((teacher) => [teacher.id, teacher]));
+  const teachers = new Map(data.teachers.filter((teacher) => teacher.role === "TEACHER").map((teacher) => [teacher.id, teacher]));
   const subjects = new Map<string, { subject: string; requests: number; offTopic: number }>();
   const people = new Map<string, { id: string; name: string; role: string; active: boolean; requests: number; offTopic: number; tokens: number; days: Set<string>; lastAt: string }>();
   let total = 0, offTopic = 0, failed = 0, cancelled = 0, tokens = 0, latencyTotal = 0, latencyCount = 0;
@@ -48,7 +48,7 @@ export function summarizeAssistant(data: AssistantUsageData) {
   }
   const ranked = [...people.values()].map(({ days, ...person }) => ({ ...person, activeDays: days.size, offTopicRate: person.requests ? person.offTopic / person.requests * 100 : 0 }))
     .sort((a, b) => b.requests - a.requests || a.name.localeCompare(b.name, "ko") || a.id.localeCompare(b.id));
-  // 이용률은 교사 계정 기준입니다. 관리자가 쓴 기록은 합계와 순위에는 들어가지만 이용률에서는 뺍니다.
+  // 관리자 테스트 기록은 합계, 순위와 이용률 모두에서 제외합니다.
   const registered = data.teachers.filter((teacher) => teacher.role === "TEACHER" && teacher.active).length;
   return {
     total, offTopic, failed, cancelled, tokens,

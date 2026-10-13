@@ -26,12 +26,12 @@ async function main() {
     role = current;
     assert.equal(Boolean(await exported.requireAdmin()), role === "ADMIN");
     assert.equal(Boolean(await exported.requireStudent()), role === "STUDENT");
-    assert.equal(Boolean(await exported.requireLearner()), role === "STUDENT" || role === "TEACHER");
+    assert.equal(Boolean(await exported.requireLearner()), role === "STUDENT" || role === "TEACHER" || role === "ADMIN");
     assert.equal(Boolean(await exported.requireTeacherTools()), role === "TEACHER" || role === "ADMIN");
   }
   assert.equal(homeForRole("STUDENT"), "/learn");
   assert.equal(homeForRole("TEACHER"), "/learn");
-  assert.equal(homeForRole("ADMIN"), "/admin/dashboard");
+  assert.equal(homeForRole("ADMIN"), "/learn");
   console.log("Student / teacher / admin authorization and login destinations passed.");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

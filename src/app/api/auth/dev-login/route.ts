@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createLocalAdminSession } from "@/lib/auth";
+import { homeForRole } from "@/lib/roles";
 
 export async function POST() {
   if (!await createLocalAdminSession()) {
@@ -11,6 +12,6 @@ export async function POST() {
 
   return NextResponse.json({
     user: { name: "LearnCraft 관리자", role: "ADMIN" },
-    redirectTo: "/admin/dashboard",
+    redirectTo: homeForRole("ADMIN"),
   });
 }

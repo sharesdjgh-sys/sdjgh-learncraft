@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties } from "react";
 import colors from "@/components/teacher/teacher-colors.module.css";
-import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, Flower2, Lamp, GraduationCap, Languages, MapIcon, Music, Palette, ScrollText, Trophy } from "lucide-react";
+import { BookA, BookOpenText, BrainCircuit, DraftingCompass, FlaskConical, Flower2, Lamp, GraduationCap, Languages, MapIcon, Music, Palette, ScrollText, ShieldCheck, Trophy } from "lucide-react";
 import { ConsoleShell, type ConsoleLink } from "@/components/layout/console-shell";
 import { TeacherFeedbackButton } from "@/components/feedback/teacher-feedback-button";
 import { TeacherAssistant } from "@/components/teacher/teacher-assistant";
@@ -52,6 +52,12 @@ export function TeacherShell({ user, children }: { user: SessionUser; children: 
       actions={(<>
         {/* 관리자는 피드백을 받는 쪽이라 보내기 버튼은 선생님 계정에만 둡니다. */}
         {user.role === "TEACHER" && <TeacherFeedbackButton subject={subject?.subject} tool={subject?.label} colorStyle={colorStyle} />}
+        {user.role === "ADMIN" && (
+          <Link href="/admin/dashboard" className="flex min-h-10 items-center gap-1.5 rounded-[11px] px-2.5 text-[.78rem] font-bold text-ink-3 transition hover:bg-surface-2 hover:text-brand-dark" title="관리자 페이지" aria-label="관리자 페이지로 이동">
+            <ShieldCheck size={16} aria-hidden="true" />
+            <span className="hidden sm:inline lg:hidden xl:inline">관리자 페이지</span>
+          </Link>
+        )}
         <Link href="/learn" className="flex min-h-10 items-center gap-1.5 rounded-[11px] px-2.5 text-[.78rem] font-bold text-ink-3 transition hover:bg-surface-2 hover:text-brand-dark" title="학습 화면으로 돌아가기" aria-label="학습 화면으로 돌아가기">
           <BookOpenText size={16} aria-hidden="true" />
           <span className="hidden sm:inline lg:hidden xl:inline">학습 화면</span>

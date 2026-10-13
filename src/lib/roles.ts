@@ -1,7 +1,7 @@
 import type { UserRole } from "@/types";
 
 export function canUseLearning(role: UserRole) {
-  return role === "STUDENT" || role === "TEACHER";
+  return role === "STUDENT" || role === "TEACHER" || role === "ADMIN";
 }
 
 export function canUseTeacherTools(role: UserRole) {
@@ -9,5 +9,5 @@ export function canUseTeacherTools(role: UserRole) {
 }
 
 export function homeForRole(role: UserRole) {
-  return role === "ADMIN" ? "/admin/dashboard" : "/learn";
+  return canUseLearning(role) ? "/learn" : "/login";
 }

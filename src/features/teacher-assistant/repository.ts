@@ -2,10 +2,11 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { teacherAssistantEvents } from "@/db/schema";
+import type { UserRole } from "@/types";
 import type { AssistantTeacher, AssistantUsageRow } from "./insights";
 
 export type AssistantEventInput = {
-  schoolId: string; userId: string; subject: string | null; tool: string | null;
+  schoolId: string; userId: string; role: UserRole; subject: string | null; tool: string | null;
   status: "SUCCEEDED" | "FAILED" | "CANCELLED"; offTopic: boolean; modelId: string;
   inputTokens?: number; outputTokens?: number; latencyMs?: number; errorCode?: string;
 };
@@ -14,7 +15,7 @@ const rows = <T,>(result: unknown): T[] => (result as { rows?: T[] }).rows ?? []
 
 /** 대화 한 번의 결과를 통계에 남깁니다. 기록이 실패해도 선생님의 대화는 막지 않습니다. */
 export async function recordAssistantEvent(event: AssistantEventInput) {
-  if (!db) return;
+  if (event.role === "ADMIN" || !db) return;
   try {
     await db.insert(teacherAssistantEvents).values({
       schoolId: event.schoolId, userId: event.userId, subject: event.subject, tool: event.tool, status: event.status,
@@ -30,13 +31,14 @@ export async function recordAssistantEvent(event: AssistantEventInput) {
 export async function queryAssistantUsage(schoolId: string, start: string, end: string, timeZone: string) {
   if (!db) return { teachers: [] as AssistantTeacher[], rows: [] as AssistantUsageRow[] };
   const [teacherResult, rowResult] = await Promise.all([
-    db.execute(sql`SELECT id, name, role, active FROM users WHERE school_id = ${schoolId}::uuid AND role IN ('TEACHER', 'ADMIN')`),
+    db.execute(sql`SELECT id, name, role, active FROM users WHERE school_id = ${schoolId}::uuid AND role = 'TEACHER'`),
     db.execute(sql`SELECT e.user_id AS "userId", to_char(e.created_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS date,
       e.subject, e.tool, e.status, e.off_topic AS "offTopic", COUNT(*)::int AS requests,
       SUM(e.input_tokens)::float AS "inputTokens", SUM(e.output_tokens)::float AS "outputTokens",
       COALESCE(SUM(e.latency_ms), 0)::float AS "latencyTotal", COUNT(e.latency_ms)::int AS "latencyCount",
       to_char(MAX(e.created_at) AT TIME ZONE ${timeZone}, 'YYYY-MM-DD HH24:MI') AS "lastAt"
       FROM teacher_assistant_events e
+      JOIN users u ON u.id = e.user_id AND u.school_id = e.school_id AND u.role = 'TEACHER'
       WHERE e.school_id = ${schoolId}::uuid
         AND e.created_at >= (${start}::date::timestamp AT TIME ZONE ${timeZone})
         AND e.created_at < ((${end}::date + 1)::timestamp AT TIME ZONE ${timeZone})

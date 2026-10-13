@@ -55,21 +55,24 @@ const usage: AssistantUsageData = { available: true, start: "2026-09-28", end: "
     row({ requests: 4 }), row({ requests: 3, offTopic: true, lastAt: "2026-09-29 11:30" }),
     row({ userId: "t2", date: "2026-09-30", subject: null, tool: null, requests: 2, lastAt: "2026-09-30 09:00" }),
     row({ userId: "a1", subject: "국어", requests: 1 }),
+    row({ userId: "a1", status: "FAILED", requests: 10 }),
+    row({ userId: "a1", status: "CANCELLED", requests: 10 }),
     row({ status: "FAILED", requests: 1 }), row({ status: "CANCELLED", requests: 2 }),
     row({ userId: "unknown", requests: 9 }), row({ date: "2026-08-01", requests: 9 }),
   ] };
 const summary = summarizeAssistant(usage);
-assert.equal(summary.total, 10, "성공한 질문만 세고, 명단에 없는 사용자와 조회 기간 밖 기록은 뺍니다.");
+assert.equal(summary.total, 9, "성공한 교사 질문만 세고, 관리자와 명단에 없는 사용자, 조회 기간 밖 기록은 뺍니다.");
 assert.equal(summary.offTopic, 3);
-assert.equal(Math.round(summary.offTopicRate ?? 0), 30);
+assert.equal(Math.round(summary.offTopicRate ?? 0), 33);
 assert.equal(summary.failed, 1); assert.equal(summary.cancelled, 2);
-assert.equal(Math.round(summary.failureRate ?? 0), 9);
-assert.equal(summary.users, 3);
+assert.equal(Math.round(summary.failureRate ?? 0), 10);
+assert.equal(summary.users, 2);
+assert.equal(summary.tokens, 450, "관리자 테스트 토큰은 합계에서 제외합니다.");
 assert.equal(summary.registered, 3, "이용률의 모수는 교사 계정만 셉니다.");
 assert.equal(Math.round(summary.useRate ?? 0), 67, "관리자는 이용률에서 뺍니다.");
-assert.deepEqual(summary.subjects.map((item) => [item.subject, item.requests, item.offTopic]), [["수학", 7, 3], ["공통", 2, 0], ["국어", 1, 0]]);
-assert.deepEqual(summary.daily.map((day) => day.requests), [0, 8, 2]);
-assert.deepEqual(summary.people.map((person) => [person.id, person.requests, person.offTopic, person.activeDays, person.lastAt]), [["t1", 7, 3, 1, "2026-09-29 11:30"], ["t2", 2, 0, 1, "2026-09-30 09:00"], ["a1", 1, 0, 1, "2026-09-29 10:00"]]);
+assert.deepEqual(summary.subjects.map((item) => [item.subject, item.requests, item.offTopic]), [["수학", 7, 3], ["공통", 2, 0]]);
+assert.deepEqual(summary.daily.map((day) => day.requests), [0, 7, 2]);
+assert.deepEqual(summary.people.map((person) => [person.id, person.requests, person.offTopic, person.activeDays, person.lastAt]), [["t1", 7, 3, 1, "2026-09-29 11:30"], ["t2", 2, 0, 1, "2026-09-30 09:00"]]);
 assert.deepEqual(summary.watch.map((person) => person.id), ["t1"], "질문 5건 이상이고 범위 밖이 30% 이상이면 확인 대상입니다.");
 assert.equal(summarizeAssistant({ ...usage, rows: [] }).offTopicRate, null);
 console.log("Teacher assistant: request schema, prompt, off-topic filter and statistics passed.");

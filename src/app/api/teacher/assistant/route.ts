@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   const encoder = new TextEncoder();
   const record = (event: Pick<AssistantEventInput, "status" | "offTopic" | "modelId"> & Partial<AssistantEventInput>) =>
-    recordAssistantEvent({ schoolId: user.schoolId, userId: user.id, subject: page.subject, tool: page.tool, latencyMs: Date.now() - startedAt, ...event });
+    recordAssistantEvent({ schoolId: user.schoolId, userId: user.id, subject: page.subject, tool: page.tool, latencyMs: Date.now() - startedAt, ...event, role: user.role });
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
