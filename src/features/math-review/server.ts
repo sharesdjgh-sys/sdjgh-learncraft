@@ -1,6 +1,5 @@
 import "server-only";
 import sharp from "sharp";
-import { getDocumentProxy } from "unpdf";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output, type UserContent } from "ai";
 import type { z } from "zod";
@@ -14,7 +13,7 @@ export type ReviewMedia = SourceFile & { data: Uint8Array };
 export async function readReviewForm(request: Request) {
   const maxBytes = REVIEW_LIMITS.bytes + 256 * 1024;
   if (Number(request.headers.get("content-length")) > maxBytes) throw new ReviewInputError("요청이 너무 큽니다. 첨부 파일 합계를 4MB 이하로 줄여 주세요.");
-  if (!request.body) throw new ReviewInputError("문제 내용을 입력해 주세요.");
+  if (!request.body) throw new ReviewInputError("문제 사진을 올려 주세요.");
   const reader = request.body.getReader();
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let bytes = 0;
@@ -45,31 +44,16 @@ export async function readReviewMedia(entries: FormDataEntryValue[]): Promise<Re
   const error = uploadError(files);
   if (error) throw new ReviewInputError(error);
   const media: ReviewMedia[] = [];
-  let totalPages = 0;
   for (const file of files) {
     const data = new Uint8Array(await file.arrayBuffer());
-    let pages = 1;
-    if (file.type === "application/pdf") {
-      if (new TextDecoder().decode(data.slice(0, 5)) !== "%PDF-") throw new ReviewInputError("올바른 PDF 파일을 선택해 주세요.");
-      try {
-        // PDF.js may transfer its buffer; retain the original for the vision model.
-        const pdf = await getDocumentProxy(data.slice(), { maxImageSize: 24_000_000 });
-        try { pages = pdf.numPages; } finally { await pdf.loadingTask.destroy(); }
-      } catch {
-        throw new ReviewInputError("PDF를 읽을 수 없습니다. 암호나 손상 여부를 확인해 주세요.");
-      }
-    } else {
-      try {
-        const meta = await sharp(data, { limitInputPixels: 24_000_000 }).metadata();
-        const expected = { "image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp" }[file.type];
-        if (!expected || meta.format !== expected || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height) throw new Error("INVALID_IMAGE");
-      } catch {
-        throw new ReviewInputError("이미지를 읽을 수 없습니다. 2,400만 화소 이하의 정적인 PNG, JPG, WebP 파일을 선택해 주세요.");
-      }
+    try {
+      const meta = await sharp(data, { limitInputPixels: 24_000_000 }).metadata();
+      const expected = { "image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp" }[file.type];
+      if (!expected || meta.format !== expected || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height) throw new Error("INVALID_IMAGE");
+    } catch {
+      throw new ReviewInputError("이미지를 읽을 수 없습니다. 2,400만 화소 이하의 정적인 PNG, JPG, WebP 파일을 선택해 주세요.");
     }
-    totalPages += pages;
-    if (totalPages > REVIEW_LIMITS.pages) throw new ReviewInputError("첨부 자료는 합계 10페이지까지 검토할 수 있습니다. 시험지를 나눠서 올려 주세요.");
-    media.push({ name: file.name, type: file.type, size: file.size, pages, data });
+    media.push({ name: file.name, type: file.type, size: file.size, pages: 1, data });
   }
   return media;
 }

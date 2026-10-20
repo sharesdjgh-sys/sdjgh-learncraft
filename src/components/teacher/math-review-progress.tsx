@@ -12,7 +12,6 @@ export type ReviewProgressState = {
   total: number;
   completed: number;
   hasDiagram: boolean;
-  hasAnswer: boolean;
 };
 
 function duration(seconds: number) {
@@ -35,7 +34,7 @@ export function MathReviewProgress({ progress, onCancel }: { progress: ReviewPro
   const tasks = [
     ["조건의 모순·누락", "주어진 조건이 서로 양립하고 문제를 풀기에 충분한지"],
     ["독립 풀이·검산", "조건대로 풀었을 때 계산과 논리가 성립하는지"],
-    ["정답·선택지", progress.hasAnswer ? "정답의 유일성과 출제한 정답·해설이 일치하는지" : "정답을 확정할 수 있는지, 선택지에 오류가 없는지"],
+    ["정답·선택지", "정답을 확정할 수 있는지, 선택지에 오류가 없는지"],
     ...(progress.hasDiagram ? [["도형·그래프·표", "표시된 길이·각도·관계가 문장 조건과 일치하는지"]] : []),
   ];
   return <section aria-label="오류 검토 진행 상태" aria-busy="true" className="rounded-[18px] border border-brand/25 bg-surface p-5 shadow-[var(--lift-1)] sm:p-7">

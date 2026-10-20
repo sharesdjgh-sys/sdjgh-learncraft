@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Copy, ScanText } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Copy, Minus, ScanText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InlineMarkdown, Markdown } from "@/components/ui/markdown";
 import { checkLabels, reviewVerdict, verdictLabels, type ReviewOutput } from "@/features/math-review/model";
@@ -14,6 +14,12 @@ const verdictStyles = {
   clear: "bg-[var(--ok-page)] text-ok",
 };
 const statusLabels = { pass: "확인", fail: "오류", uncertain: "확인 필요", not_applicable: "해당 없음" };
+const checkStyles = {
+  pass: { card: "border-[#CDE6DA] border-l-[#75B99A] bg-[#F0F8F4]", heading: "text-[#285E48]", badge: "bg-[#DDEFE5] text-[#285E48]", icon: CheckCircle2 },
+  fail: { card: "border-[#F0CED1] border-l-[#D98E96] bg-[#FDF1F2]", heading: "text-[#8B3E48]", badge: "bg-[#F8DDE1] text-[#8B3E48]", icon: AlertTriangle },
+  uncertain: { card: "border-[#EEDDB6] border-l-[#D5AE61] bg-[#FFFAEE]", heading: "text-[#795719]", badge: "bg-[#F7EBCB] text-[#795719]", icon: CircleHelp },
+  not_applicable: { card: "border-[#DCE2EA] border-l-[#A8B4C5] bg-[#F3F5F8]", heading: "text-[#526174]", badge: "bg-[#E4E9F0] text-[#526174]", icon: Minus },
+};
 const sizes = [{ label: "보통", value: "text-base/[1.8]" }, { label: "크게", value: "text-lg/[1.8]" }, { label: "더 크게", value: "text-xl/[1.8]" }];
 type ResultTab = "issues" | "solution" | "checks";
 
@@ -26,7 +32,7 @@ function ReportText({ children }: { children: string }) {
 }
 
 export function MathReviewResult({ label, review, onCopy, onEdit }: { label: string; review: ReviewOutput; onCopy: () => void; onEdit: () => void }) {
-  const [size, setSize] = useState("text-lg/[1.8]");
+  const [size, setSize] = useState(sizes[0].value);
   const [tab, setTab] = useState<ResultTab>(review.issues.length ? "issues" : "solution");
   const id = useId();
   const verdict = reviewVerdict(review);
@@ -112,23 +118,30 @@ export function MathReviewResult({ label, review, onCopy, onEdit }: { label: str
             <ol className="mt-5 space-y-6">{review.solution.map((step, index) => <li key={index} className="flex gap-4"><span className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-surface-2 text-xs font-bold text-ink-3">{index + 1}</span><div className="min-w-0 flex-1"><ReportText>{step.replace(/^\s*\d+[.)]\s+/, "")}</ReportText></div></li>)}</ol>
             <dl className="mt-8 space-y-6 border-t border-line pt-6">
               <div className="grid gap-2 sm:grid-cols-[104px_minmax(0,1fr)] sm:gap-5"><dt className="text-sm font-bold text-ink-3">검산</dt><dd className="min-w-0"><ReportText>{review.verification}</ReportText></dd></div>
-              <div className="grid gap-2 sm:grid-cols-[104px_minmax(0,1fr)] sm:gap-5"><dt className="text-sm font-bold text-ink-3">정답·해설 대조</dt><dd className="min-w-0"><ReportText>{review.answerComparison.detail}</ReportText></dd></div>
+              {review.answerComparison.status !== "not_provided" && <div className="grid gap-2 sm:grid-cols-[104px_minmax(0,1fr)] sm:gap-5"><dt className="text-sm font-bold text-ink-3">정답·해설 대조</dt><dd className="min-w-0"><ReportText>{review.answerComparison.detail}</ReportText></dd></div>}
             </dl>
           </section>}
           {tab === "checks" && <section aria-label="항목별 검토 근거">
-            <h4 className="text-base font-bold">검토 항목별 판단과 근거</h4>
-            <p className="mt-1 text-sm text-ink-3">오류가 있거나 확인이 필요한 항목은 펼쳐 표시합니다.</p>
-            <div className="mt-5 divide-y divide-line">{Object.entries(checkLabels).map(([key, name]) => {
+            <div className="rounded-xl border border-[#F3D1D3] bg-[linear-gradient(120deg,#FADADB_0%,#FDF0F1_65%,#FFFFFF_100%)] px-4 py-4 sm:px-5">
+              <h4 className="text-base font-bold text-[#794447]">검토 항목별 판단과 근거</h4>
+              <p className="mt-1 text-sm leading-6 text-[#795D62]">오류가 있거나 확인이 필요한 항목은 펼쳐 표시합니다.</p>
+            </div>
+            <div className="mt-4 space-y-3">{Object.entries(checkLabels).map(([key, name]) => {
               const check = review.checks[key as keyof typeof checkLabels];
-              return <details key={key} className="group py-4" open={check.status === "fail" || check.status === "uncertain"}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden"><span className="flex items-center gap-2"><ChevronDown size={16} className="shrink-0 text-ink-4 transition-transform group-open:rotate-180" />{name}</span><span className={cn("shrink-0 rounded-md px-2 py-1 text-xs font-bold", check.status === "fail" ? verdictStyles.error : check.status === "uncertain" ? verdictStyles.uncertain : "bg-surface-2 text-ink-3")}>{statusLabels[check.status]}</span></summary>
-                <div className="mt-4 pl-6"><ReportText>{check.detail}</ReportText></div>
+              const style = checkStyles[check.status];
+              const StatusIcon = style.icon;
+              return <details key={key} className={cn("group overflow-hidden rounded-xl border border-l-4", style.card)} open={check.status === "fail" || check.status === "uncertain"}>
+                <summary className={cn("flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-4 font-semibold transition-colors hover:bg-white/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand sm:px-5 [&::-webkit-details-marker]:hidden", style.heading)}>
+                  <span className="flex min-w-0 flex-1 items-center gap-2"><StatusIcon size={18} className="shrink-0" aria-hidden="true" /><span>{name}</span></span>
+                  <span className="flex items-center gap-2"><span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold", style.badge)}>{statusLabels[check.status]}</span><ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" /></span>
+                </summary>
+                <div className="mx-3 mb-3 rounded-lg border border-white/80 bg-white/75 p-4 sm:mx-4 sm:mb-4 sm:p-5"><p className={cn("mb-2 text-xs font-bold", style.heading)}>판단 근거</p><ReportText>{check.detail}</ReportText></div>
               </details>;
             })}</div>
           </section>}
         </div>
       </div>
     </div>
-    <footer className="border-t border-line bg-surface-2/50 px-5 py-4 text-xs leading-6 text-ink-3 sm:px-10">확인한 인식문을 기준으로 한 AI 검토입니다. 오류를 놓칠 수 있으므로 출제 전 판단 근거와 원문을 최종 확인해 주세요.</footer>
+    <footer className="flex items-start gap-2 border-t border-line px-5 py-4 text-sm font-bold leading-7 text-danger sm:px-10"><AlertTriangle size={18} className="mt-1 shrink-0" aria-hidden="true" /><p>AI는 틀릴 수 있습니다. 검토 결과의 풀이 과정과 검산을 반드시 살펴보고, AI가 문제를 올바르게 풀었는지 확인해 주세요. 출제 전 판단 근거와 원문도 최종 확인해 주세요.</p></footer>
   </section>;
 }

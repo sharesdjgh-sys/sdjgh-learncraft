@@ -16,10 +16,10 @@ export async function POST(request: Request) {
     const form = await readReviewForm(request);
     const raw = form.get("input");
     const input = mathReviewRequestSchema.safeParse(typeof raw === "string" ? JSON.parse(raw) : null);
-    if (!input.success) return json({ error: "문제와 과목을 확인해 주세요. 원문 인식 확인을 완료해야 검토할 수 있습니다." }, 400);
+    if (!input.success) return json({ error: "문제 내용을 확인해 주세요. 원문 인식 확인을 완료해야 검토할 수 있습니다." }, 400);
     const payload = input.data;
     const media = await readReviewMedia(form.getAll("files"));
-    if (payload.action === "recognize" && !payload.text && !media.length) return json({ error: "문제를 입력하거나 이미지·PDF를 첨부해 주세요." }, 400);
+    if (payload.action === "recognize" && !media.length) return json({ error: "문제 사진을 올리거나 캡처한 이미지를 붙여넣어 주세요." }, 400);
     if (payload.action === "review" && invalidSources(payload.question, media)) return json({ error: "문항의 원본 파일 또는 페이지가 없습니다. 원문을 다시 인식해 주세요." }, 400);
     if (!isGeminiConfigured) return json({ error: "AI 검토를 사용할 수 없습니다. 관리자에게 AI 설정을 확인해 달라고 요청해 주세요." }, 503);
     const limit = await checkRequestRateLimit({ category: "teacherAssistant", userId: user.id, schoolId: user.schoolId, ip: requestIp(request) });
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (payload.action === "recognize") {
       const result = await generateMathReview({
         schema: recognitionSchema, system: RECOGNITION_PROMPT,
-        task: "다음 자료를 전사하세요. 문제를 풀거나 고치지 마세요.\n" + JSON.stringify({ settings: payload.settings, text: payload.text }),
+        task: "첨부한 문제 사진을 전사하세요. 문제를 풀거나 고치지 마세요.",
         media, signal: request.signal, recognition: true,
       });
       const recognition = result.output;
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
           question.uncertainties.push("AI가 지정한 원본 위치 중 일부가 유효하지 않습니다. 원본의 문항·페이지를 직접 확인해 주세요.");
           recognition.coverage = "partial";
         }
-        if (media.length && !question.sources.length && !payload.text) {
+        if (media.length && !question.sources.length) {
           question.uncertainties.push("원본 파일의 위치를 확정하지 못했습니다. 첨부 자료와 문항을 대조해 주세요.");
           recognition.coverage = "partial";
         }
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     const result = await generateMathReview({
       schema: reviewOutputSchema, system: REVIEW_PROMPT,
-      task: "교사가 확인한 최종 인식문과 도형 조건입니다. 이 내용을 기준으로 해당 문항 하나만 검토하세요.\n" + JSON.stringify(payload),
+      task: "교사가 확인한 최종 인식문과 사진에서 자동 인식한 도형 참고 정보입니다. 최종 인식문을 기준으로 해당 문항 하나만 검토하고, 자동 인식한 도형 정보는 첨부 원본과 대조하세요.\n" + JSON.stringify(payload),
       media, signal: request.signal, recognition: false,
     });
     const review = normalizeReview(result.output, payload);
