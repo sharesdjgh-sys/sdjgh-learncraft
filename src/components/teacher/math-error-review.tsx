@@ -165,6 +165,34 @@ export function MathErrorReview({ tabs }: { tabs?: ReactNode }) {
     {source && <SourcePreview key={source.url} source={source} />}
   </details>;
 
+  const questionList = <section className={cn(panel, "overflow-hidden p-0")} aria-label="문항 목록">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface-2/60 px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-2">
+        <FileSearch size={17} className="shrink-0 text-brand" aria-hidden="true" />
+        <h2 className="text-sm font-extrabold">{view === "result" ? "문항별 검토 현황" : "인식된 문항"}</h2>
+        <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs font-bold tabular-nums text-ink-3">{drafts.length}개</span>
+      </div>
+      {(view === "recognition" || pending.length > 0) && <Button size="sm" disabled={!!busy || !pending.length} onClick={() => reviewItems(pending)}>확인한 미검토 문항 {pending.length}개 검토</Button>}
+    </div>
+    <div className="p-4 sm:p-5">
+      {view === "result" && notice && <p role="status" className="mb-3 text-sm font-semibold leading-6 text-ink-2">{notice}</p>}
+      <div className="flex flex-wrap gap-2 text-xs font-semibold leading-5 tabular-nums" aria-label="문항 검토 진행 현황">
+        <span className="rounded-md bg-[#E3F1FA] px-2.5 py-1 text-[#245C86]">원문 확인 {confirmedCount}/{drafts.length}</span>
+        <span className="rounded-md bg-[var(--ok-page)] px-2.5 py-1 text-ok">검토 완료 {reviewed.length}/{drafts.length}</span>
+        <span className="rounded-md bg-[var(--danger-page)] px-2.5 py-1 text-danger">오류 발견 {reviewed.filter(item => reviewVerdict(item.review!) === "error").length}</span>
+        <span className="rounded-md bg-[var(--warn-page)] px-2.5 py-1 text-warn">확인 필요 {reviewed.filter(item => reviewVerdict(item.review!) === "uncertain").length}</span>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">{drafts.map(item => {
+        const verdict = item.review ? reviewVerdict(item.review) : null;
+        return <button key={item.id} type="button" disabled={!!busy} onClick={() => chooseDraft(item)} aria-pressed={active?.id === item.id} className={cn("flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60", active?.id === item.id ? "border-brand/40 bg-brand-page text-brand-dark ring-1 ring-brand/15" : "border-line bg-surface text-ink-2 hover:bg-surface-2")}>
+          <span className="min-w-0 break-words font-bold">{item.label}</span>
+          <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", verdict === "error" || item.error ? "bg-[var(--danger-page)] text-danger" : verdict === "uncertain" ? "bg-[var(--warn-page)] text-warn" : verdict === "clear" ? "bg-[var(--ok-page)] text-ok" : "bg-surface-2 text-ink-3")}>{verdict ? verdictLabels[verdict] : item.error ? "검토 실패 · 재시도 가능" : item.confirmed ? "원문 확인 완료" : "원문 확인 전"}</span>
+        </button>;
+      })}</div>
+      {view === "recognition" && <p className="mt-3 text-xs leading-6 text-ink-4">결과는 위 목록의 문항에만 해당합니다. 시험지 전체 문항이 포함되었는지 확인해 주세요.</p>}
+    </div>
+  </section>;
+
   return <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
     <ScienceHeader area={MATH_AREA} subject="문제 오류 검토" title="문제 오류 검토"
       description="원문을 정확히 읽었는지 먼저 확인하고, 조건·풀이·정답·도형의 오류를 검토합니다." tabs={tabs} />
@@ -233,7 +261,7 @@ export function MathErrorReview({ tabs }: { tabs?: ReactNode }) {
       </aside>
     </section>}>
     {error && <p role="alert" className="rounded-xl bg-[var(--danger-page)] p-4 text-sm text-danger">{error}</p>}
-    {notice && <p role="status" className="rounded-xl bg-brand-page p-4 text-sm text-brand-dark">{notice}</p>}
+    {notice && (view !== "result" || !recognition || recognizing) && <p role="status" className="rounded-xl bg-brand-page p-4 text-sm text-brand-dark">{notice}</p>}
     {busy?.kind === "review" && <MathReviewProgress progress={busy} onCancel={() => controller.current?.abort()} />}
 
     {(recognizing || !recognition) && <section aria-label="원문 인식 상태" aria-busy={recognizing} className="grid min-h-[520px] place-items-center rounded-[18px] border border-line bg-surface p-6 shadow-[var(--lift-1)]">
@@ -254,17 +282,7 @@ export function MathErrorReview({ tabs }: { tabs?: ReactNode }) {
 
     {recognition && !recognizing && <>
       {(recognition.coverage === "partial" || recognition.notes.length > 0) && <div className="rounded-xl border border-warn/25 bg-[var(--warn-page)] p-4 text-sm leading-7"><strong>자료 전체의 인식 범위를 확인해 주세요</strong><p>문항 수와 공통 조건이 원본과 일치하는지 확인하세요. 빠진 문항은 선명하게 캡처하거나 사진을 나누어 다시 인식해 주세요.</p><ul className="mt-2 list-disc pl-5">{recognition.notes.map((note, i) => <li key={i}>{note}</li>)}</ul></div>}
-      <section className={view === "result" ? "space-y-3 px-1" : panel} aria-label="문항 목록">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-sm font-extrabold">{view === "result" ? "문항별 결과" : "인식된 문항"} {drafts.length}개</h2><p className="mt-1 text-xs leading-6 text-ink-4"><span className="whitespace-nowrap font-semibold text-[#245C86]">원문 확인 {confirmedCount}/{drafts.length}</span>{" · "}<span className="whitespace-nowrap font-semibold text-ok">검토 완료 {reviewed.length}/{drafts.length}</span>{" · "}<span className="whitespace-nowrap font-semibold text-danger">오류 발견 {reviewed.filter(item => reviewVerdict(item.review!) === "error").length}</span>{" · "}<span className="whitespace-nowrap font-semibold text-warn">확인 필요 {reviewed.filter(item => reviewVerdict(item.review!) === "uncertain").length}</span></p></div>
-          <div className="flex flex-wrap gap-2">
-            {(view === "recognition" || pending.length > 0) && <Button size="sm" disabled={!!busy || !pending.length} onClick={() => reviewItems(pending)}>확인한 미검토 문항 {pending.length}개 검토</Button>}</div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">{drafts.map(item => <button key={item.id} type="button" disabled={!!busy} onClick={() => chooseDraft(item)} aria-pressed={active?.id === item.id} className={cn("rounded-xl border px-3 py-2 text-left text-sm", active?.id === item.id ? "border-brand/40 bg-brand-soft text-brand-dark" : "border-line bg-surface-2")}>
-          <span className="font-bold">{item.label}</span><span className="ml-2 text-xs">{item.review ? verdictLabels[reviewVerdict(item.review)] : item.error ? "검토 실패 · 재시도 가능" : item.confirmed ? "원문 확인 완료" : "원문 확인 전"}</span>
-        </button>)}</div>
-        {view === "recognition" && <p className="mt-3 text-xs text-ink-4">결과는 위 목록의 문항에만 해당합니다. 시험지 전체 문항이 포함되었는지 확인해 주세요.</p>}
-      </section>
+      {view === "recognition" && questionList}
 
       {active && <div className="grid items-start gap-4">
         <section className="min-w-0 space-y-4" aria-label="원문 확인과 검토">
@@ -303,8 +321,8 @@ export function MathErrorReview({ tabs }: { tabs?: ReactNode }) {
             <p className="mt-2 text-xs leading-6 text-ink-4">내용을 수정하면 확인 상태와 이전 검토 결과가 해제됩니다.</p>
           </div> : busy?.kind === "review" ? null : active.review ? <MathReviewResult key={active.id} label={active.label} review={active.review} onCopy={() => copyResult(active)} onEdit={() => setView("recognition")} /> : <div className={panel}><p role={active.error ? "alert" : "status"} className={cn("text-sm leading-7", active.error ? "text-danger" : "text-ink-3")}>{active.error || (busy ? "확인한 원문을 기준으로 조건과 풀이를 검토하고 있습니다." : active.confirmed ? "이 문항의 검토 결과가 아직 없습니다. 아래 버튼으로 검토를 시작할 수 있습니다." : "원문 인식을 확인한 뒤 오류 검토를 요청해 주세요.")}</p>{active.confirmed ? <Button className="mt-3" disabled={!!busy} onClick={() => reviewItems([active])}>{active.error ? "이 문항 다시 검토" : "이 문항 검토하기"}</Button> : <Button className="mt-3" variant="secondary" onClick={() => setView("recognition")}>인식문 확인·수정</Button>}</div>}
         </section>
-        {view === "result" && sourceComparison}
       </div>}
+      {view === "result" && <>{questionList}{active && sourceComparison}</>}
     </>}
     </ToolLayout>
   </div>;
