@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accountCredentials, users } from "@/db/schema";
+import { accountCredentials, smartCampusUserBindings, users } from "@/db/schema";
 import { invalidateAccountStatusCache, requireAdmin } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { hashPassword } from "@/lib/password";
@@ -24,6 +24,7 @@ export async function registerAccounts(request: Request, role: AccountRole) {
     return fail(row + issue.message, 400, "VALIDATION_ERROR");
   }
   const { accounts, updateExisting } = parsed.data;
+  const allowUpdateExisting = role === "TEACHER" && updateExisting;
   const loginIds = accounts.map((account) => account.loginId);
   const reserved = [env.AUTH_ADMIN_ID, "lifeprof", admin.externalId].filter(Boolean).map((id) => id!.trim().toLocaleLowerCase("en-US"));
   if (loginIds.some((id) => reserved.includes(id))) return fail("관리자 아이디는 등록하거나 갱신할 수 없습니다.", 409, "DUPLICATE_LOGIN_ID");
@@ -33,7 +34,24 @@ export async function registerAccounts(request: Request, role: AccountRole) {
   if (existing.some((account) => account.role !== role || account.schoolId !== admin.schoolId)) {
     return fail("다른 권한 또는 학교에서 사용 중인 아이디가 포함되어 있습니다. 다른 아이디를 사용해 주세요.", 409, "DUPLICATE_LOGIN_ID");
   }
-  if (existing.length && !updateExisting) return fail("이미 등록된 학번 또는 아이디가 있습니다. CSV의 ‘기존 계정 정보·비밀번호 갱신’을 선택하거나 다른 아이디를 사용해 주세요.", 409, "DUPLICATE_LOGIN_ID");
+  // 학생 학번은 다음 학년도에 다른 사람이 다시 쓴다. 같은 학번만으로 기존 PK와
+  // 비밀번호를 갱신하면 그 PK에 붙은 학습 기록의 소유자가 바뀔 수 있다.
+  if (existing.length && !allowUpdateExisting) return fail(role === "STUDENT"
+    ? "이미 등록된 학번이 있습니다. 기존 학생 계정은 학번만으로 갱신할 수 없습니다."
+    : "이미 등록된 아이디가 있습니다. CSV의 ‘기존 계정 정보·비밀번호 갱신’을 선택하거나 다른 아이디를 사용해 주세요.",
+    409, "DUPLICATE_LOGIN_ID");
+  if (existing.length && allowUpdateExisting) {
+    try {
+      const bound = await db.select({ userId: smartCampusUserBindings.userId })
+        .from(smartCampusUserBindings)
+        .where(and(eq(smartCampusUserBindings.schoolId, admin.schoolId),
+          inArray(smartCampusUserBindings.userId, existing.map((account) => account.id))))
+        .limit(1);
+      if (bound.length) return fail("통합 로그인에 연결된 교사 계정은 이 CSV에서 갱신할 수 없습니다.", 409, "BOUND_ACCOUNT");
+    } catch {
+      return fail("계정 연결 상태를 확인할 수 없어 갱신을 중단했습니다.", 503);
+    }
+  }
   const byId = new Map(existing.map((account) => [account.loginId.toLocaleLowerCase("en-US"), account]));
   const hashes = new Array<string>(accounts.length);
   let cursor = 0;
@@ -48,7 +66,7 @@ export async function registerAccounts(request: Request, role: AccountRole) {
   try {
     const insert = db.insert(users).values(records);
     await db.batch([
-      updateExisting ? insert.onConflictDoUpdate({
+      allowUpdateExisting ? insert.onConflictDoUpdate({
         target: [users.schoolId, users.externalId],
         set: { name: sql`excluded.name`, officialGrade: sql`excluded.official_grade`, updatedAt: new Date() },
         setWhere: eq(users.role, role),

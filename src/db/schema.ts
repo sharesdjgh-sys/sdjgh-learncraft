@@ -1,12 +1,14 @@
 import {
   boolean,
   date,
+  foreignKey,
   integer,
   index,
   jsonb,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -82,8 +84,30 @@ export const users = pgTable(
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [uniqueIndex("users_school_external_idx").on(table.schoolId, table.externalId)],
+  (table) => [
+    uniqueIndex("users_school_external_idx").on(table.schoolId, table.externalId),
+    uniqueIndex("users_school_id_id_unique").on(table.schoolId, table.id),
+  ],
 );
+
+// 중앙 B열 ID와 행 등록 세대는 기존 학습 계정에 명시적으로 연결한다.
+// 5자리 학번으로 과거 학습 기록을 자동 연결하면 다른 입학연도 학생의 기록에 접근할 수 있다.
+export const smartCampusUserBindings = pgTable("smart_campus_user_bindings", {
+  schoolId: uuid("school_id").references(() => schools.id, { onDelete: "cascade" }).notNull(),
+  platformUserId: text("platform_user_id").notNull(),
+  registrationId: uuid("registration_id").notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.schoolId, table.platformUserId] }),
+  uniqueIndex("smart_campus_bindings_school_registration_idx").on(table.schoolId, table.registrationId),
+  uniqueIndex("smart_campus_bindings_user_idx").on(table.userId),
+  foreignKey({
+    columns: [table.schoolId, table.userId],
+    foreignColumns: [users.schoolId, users.id],
+    name: "smart_campus_bindings_same_school_fk",
+  }).onDelete("cascade"),
+]);
 
 export const accountCredentials = pgTable("account_credentials", {
   userId: uuid("user_id")

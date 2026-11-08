@@ -28,9 +28,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const identity = await verifySmartCampusToken(parsed.data.token);
+    const { user: identity, sessionToken } = await verifySmartCampusToken(parsed.data.token);
     const user = await resolveSmartCampusUser(identity);
-    await createSession(user, { embedded: true });
+    await createSession(user, { embedded: true,
+      sso: { platformUserId: identity.userId, platformRole: identity.role,
+        platformUid: identity.uid,
+        ...(identity.registrationId ? { platformRegistrationId: identity.registrationId } : {}),
+        verificationToken: sessionToken } });
     return NextResponse.json({ user: { name: user.name, role: user.role }, redirectTo: homeForRole(user.role) });
   } catch (error) {
     if (error instanceof SmartCampusSsoError) {
