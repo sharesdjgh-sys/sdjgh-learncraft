@@ -7,8 +7,9 @@ import {
   primarySmartCampusExternalId,
   smartCampusExternalIdCandidates,
 } from "../src/lib/smart-campus-identity";
-import { matchesCurrentSmartCampusSessionBinding, matchesSmartCampusBinding,
+import { matchesCurrentSmartCampusSessionBinding, matchesSmartCampusBinding, resolveLinkedRole,
   selectLegacySmartCampusAccount } from "../src/lib/smart-campus-binding";
+import { hasPossibleOwnerOverlap, planLearnCraftAutoProvision } from "../src/lib/smart-campus-provisioning";
 import { nativeAccountAllowed } from "../src/lib/smart-campus-native-policy";
 import { verifyCurrentSmartCampusSession, verifyPlatformCredential } from "../src/lib/smart-campus-proof";
 
@@ -57,6 +58,43 @@ assert.equal(matchesCurrentSmartCampusSessionBinding({ ...currentBinding,
 assert.equal(matchesCurrentSmartCampusSessionBinding(currentBinding,
   { ...expectedSession, role: "ADMIN" }), false);
 
+// 교직원 앱 역할 유지: 중앙 학생은 STUDENT, 중앙 교직원은 앱 TEACHER/ADMIN을 그대로 둔다.
+assert.equal(resolveLinkedRole("ADMIN", "TEACHER"), "ADMIN");
+assert.equal(resolveLinkedRole("TEACHER", "ADMIN"), "TEACHER");
+assert.equal(resolveLinkedRole("ADMIN", "STUDENT"), "STUDENT");
+assert.equal(resolveLinkedRole("STUDENT", "TEACHER"), "TEACHER");
+// 앱 ADMIN 계정이 중앙 '교사'에 연결돼 있어도 기존 세션은 매 요청 폐기되지 않는다.
+const staffBinding = { ...currentBinding, role: "ADMIN" };
+const staffSession = { ...expectedSession, role: "ADMIN", platformRole: "교사" };
+assert.equal(matchesCurrentSmartCampusSessionBinding(staffBinding, staffSession), true);
+// 중앙에서 학생으로 바뀌면 ADMIN 세션은 더 쓸 수 없다(다음 로그인에서 STUDENT로 맞춘다).
+assert.equal(matchesCurrentSmartCampusSessionBinding(staffBinding, { ...staffSession, platformRole: "학생" }), false);
+// 앱 역할과 세션 역할이 다르면(역할 변경 후 옛 쿠키) 거부한다.
+assert.equal(matchesCurrentSmartCampusSessionBinding({ ...staffBinding, role: "TEACHER" }, staffSession), false);
+
+// 안전한 자동 생성 계획: 계획기 create와 같은 외부 ID를 쓰고 특수 형식 학생은 만들지 않는다.
+const registration = "77777777-7777-4777-8777-777777777777";
+const freshman = planLearnCraftAutoProvision({ userId: "27-10101", uid: "27-10101", name: "가상 신입생",
+  registrationId: registration }, "STUDENT");
+assert.equal(freshman.kind, "create");
+if (freshman.kind === "create") {
+  assert.equal(freshman.account.externalId, "27-10101");
+  assert.equal(freshman.account.officialGrade, 1);
+  assert.deepEqual([...freshman.keys].sort(), ["10101", "27-10101"]);
+  // 같은 5자리 계정이 연결 없이 남아 있으면 이 사람의 옛 계정일 수 있어 만들지 않는다.
+  assert.equal(hasPossibleOwnerOverlap(freshman, [{ id: "a", externalId: "10101", bound: false }]), true);
+  // 이미 다른 중앙 계정에 연결된 계정은 겹침이 아니다.
+  assert.equal(hasPossibleOwnerOverlap(freshman, [{ id: "a", externalId: "10101", bound: true }]), false);
+}
+assert.equal(planLearnCraftAutoProvision({ userId: "special-id", uid: "90101", name: "가상 특수",
+  registrationId: registration }, "STUDENT").kind, "review");
+assert.equal(planLearnCraftAutoProvision({ userId: "27-10101", uid: "26-10101", name: "가상 다른 기수",
+  registrationId: registration }, "STUDENT").kind, "review");
+const newTeacher = planLearnCraftAutoProvision({ userId: "teacher-b", uid: "T-007", name: "가상 교사",
+  registrationId: registration }, "TEACHER");
+assert.equal(newTeacher.kind === "create" && newTeacher.account.externalId, `sc-${registration}`);
+assert.equal(newTeacher.kind === "create" && newTeacher.account.officialGrade, null);
+
 // 같은 중앙 식별자가 앱 계정 둘을 가리키거나 앱 역할이 다르면 옛 SSO에서도 거부한다.
 const legacyTeacher = { id: "fictional-teacher", externalId: "teacher-code", role: "TEACHER" };
 const legacyAdmin = { id: "fictional-admin", externalId: "admin-code", role: "ADMIN" };
@@ -93,7 +131,13 @@ async function main() {
   assert.match(auth, /smartCampusUserBindings/);
   assert.match(resolver, /identity\.registrationId/);
   assert.match(resolver, /officialGrade = role === "STUDENT" \? inferOfficialGrade\(identity\.uid\) : null/);
-  assert.match(resolver, /set\(\{ name: identity\.name, role, officialGrade, lastLoginAt: now, updatedAt: now \}\)/);
+  assert.match(resolver, /const linkedRole = resolveLinkedRole\(binding\.role, role\)/);
+  assert.match(resolver, /set\(\{ name: identity\.name, role: linkedRole, officialGrade, lastLoginAt: now,/);
+  assert.match(resolver, /BINDING_REVIEW_REQUIRED/);
+  assert.match(resolver, /REGISTRATION_CHANGED/);
+  assert.match(route, /smart_campus_sso_denied/);
+  // 화면은 401(중앙 검증 실패)에만 sso:expired를 보낸다. 연결 문제(403)는 재로그인을 유도하지 않는다.
+  assert.match(bridge, /if \(response\.status === 401\) window\.parent\.postMessage\(\{ type: "sso:expired" \}/);
   assert.match(migration, /UNIQUE INDEX "smart_campus_bindings_user_idx"/);
   assert.match(guard, /15_000/);
 

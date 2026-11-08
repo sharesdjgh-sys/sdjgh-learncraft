@@ -1,5 +1,16 @@
 import { mapSmartCampusRole } from "./smart-campus-identity";
 
+/**
+ * 연결된 앱 계정의 역할. 중앙 학생은 항상 STUDENT로 맞춘다.
+ * 중앙 교직원은 앱 계정이 이미 TEACHER/ADMIN이면 앱 역할을 그대로 둔다
+ * (예: 중앙 '교사'로 등록된 사람의 LearnCraft ADMIN 권한을 낮추지 않는다).
+ */
+export function resolveLinkedRole(appRole: string, centralRole: string): string {
+  if (centralRole === "STUDENT") return "STUDENT";
+  if (appRole === "TEACHER" || appRole === "ADMIN") return appRole;
+  return centralRole;
+}
+
 /** 검토된 중앙 계정과 LearnCraft 기존 계정의 정확한 연결만 허용한다. */
 export function matchesSmartCampusBinding(
   binding: {
@@ -23,11 +34,13 @@ export function matchesCurrentSmartCampusSessionBinding(
     userId: string; role: string; platformRole: string },
 ): boolean {
   const currentRole = mapSmartCampusRole(expected.platformRole);
-  return Boolean(binding?.active && currentRole && expected.role === currentRole &&
+  // 세션 역할은 연결된 앱 계정의 현재 역할과 같고, 그 역할이 중앙 역할에서 허용되는 값이어야 한다.
+  return Boolean(binding?.active && currentRole && binding.role === expected.role &&
+    resolveLinkedRole(binding.role, currentRole) === expected.role &&
     binding.schoolId === expected.schoolId &&
     binding.platformUserId === expected.platformUserId &&
     binding.registrationId === expected.registrationId &&
-    binding.userId === expected.userId && binding.role === currentRole);
+    binding.userId === expected.userId);
 }
 
 /** 구형 SSO의 식별자 후보가 여럿일 때 기존 기록 계정을 임의 선택하지 않는다. */

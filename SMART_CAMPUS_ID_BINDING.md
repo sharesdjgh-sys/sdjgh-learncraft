@@ -69,3 +69,14 @@ $env:CAMPUS_ROSTER_PRIVATE_DIR = '<작업공간>\sdjgh_ai_platfom\server\secrets
 기존 5자리 외부 ID와 겹쳐도, 다른 사람이라는 개별 확인 또는 기존 계정 퇴역 결정의 비공개 근거와 제외할 앱 PK 전체 목록을 제공하면 새 계정을 계획할 수 있다. 기존 PK와 기록은 그대로 둔다. 입학연도와 결합한 새 외부 ID 자체가 이미 존재하면 생성은 계속 차단한다. 합성 계획 시험 7/7과 TypeScript 검사가 통과했다.
 
 운영 중앙 명부의 학생 B열 ID는 `연도-5자리 번호` 형식이다. 신규 사용자 계획의 입학연도 추출이 예전 가상 이메일 모양만 받아 실제 명부에 적용할 수 없었으므로, 전체 B열 형식과 합성 시험 입력을 고쳤다. 중앙 명부의 활성 학생 434행 중 이 B열 형식은 403행이며 E열 학번과 일반 학년 형식까지 통과하는 행은 397행이다. 이는 개별 신원 판정이나 신규 생성 결정 수가 아니다. 수정 후 계획·거래 합성 시험 각 6/6과 TypeScript 검사가 통과했고, 운영 DB에는 쓰지 않았다.
+
+## 2026-11-09 본 전환 재시도 후보 (B/C 실패 보완)
+
+11월 8일 B/C 운영 전환에서 LearnCraft도 교사 24·관리자 1이 바인딩 없이 잠기는 구조였다(운영 적용 래퍼가 명부를 결정 행만 남겨 계획기의 전 행 결정 검사를 무력화). 이 후보는 B/C 후보(`ad7b25f`)를 조직 저장소 `main`(`e19d91f`, B/C 되돌림) 위에 다시 얹고 PyRun·타자연습 재시도 후보와 같은 원칙을 더했다. 운영 DB·배포에는 적용하지 않았다.
+
+- **커버리지 불변식·명부 지문·명시적 거부**: 계획 결과에 `coverage`를 더하고 `deny` 결정을 받는다. `applyLearnCraftProvisioning()`은 결정 파일이 기록한 전체 명부 지문(`expectedRosterFingerprint`, C열 제외 A:J·행 순서·등록 UUID의 SHA-256)과 다르면 DB 연결 전에 중단하고, 결정 없는 활성 계정이 있으면 `provisioning_coverage_incomplete`로 롤백한다.
+- **안전한 자동 생성**(`src/lib/smart-campus-provisioning.ts`, `resolveSmartCampusUser()`): 등록 UUID가 있는 중앙 계정에 바인딩이 없으면, 같은 외부 ID 후보(5자리 학번·uid·B ID·새 외부 ID)를 쓰는 **연결 없는** 기존 계정이 없을 때만 새 계정과 바인딩을 한 SQL 문장으로 만든다. 외부 ID는 계획기와 같다(일반 학생 `입학연도-5자리`, 교직원 `sc-<등록 UUID>`). 특수 형식 학생은 만들지 않는다. 기존 PK에는 자동으로 붙이지 않는다. `SMART_CAMPUS_AUTO_PROVISION=false`로 끈다.
+- **실패 이유 구분**: 예전 `REGISTRATION_BINDING_REQUIRED` 하나로 묶였던 경우를 `BINDING_REVIEW_REQUIRED`(연결 없음 + 겹침)·`REGISTRATION_CHANGED`(같은 중앙 ID가 예전 등록 세대로 연결)·`ACCOUNT_DISABLED`로 나눴다. 응답 메시지는 연결 확인 안내와 안내 코드를 보여 주고, 서버 로그에 `smart_campus_sso_denied`와 코드가 남는다. 화면은 기존대로 401(중앙 검증 실패)에만 `sso:expired`를 보낸다.
+- **교직원 앱 역할 유지**: 연결된 앱 계정이 TEACHER/ADMIN이면 중앙 교직원 역할로 덮어쓰지 않는다(중앙 학생은 STUDENT). 세션 재확인(`matchesCurrentSmartCampusSessionBinding`)도 같은 규칙으로 바꿔, 앱 ADMIN + 중앙 교사 세션이 매 요청 폐기되던 문제를 막았다.
+
+검증: `tsc --noEmit`, 변경 파일 ESLint(`--max-warnings 0`), SSO 관련 검증 스크립트 7개(`verify-smart-campus-sso`·`-provisioning-plan`·`-provisioning-transaction` 9/9·`-binding-audit`·`verify-account-reuse-guard`·`verify-sso-stream-revocation`·`verify-roles`) 통과. 자동 생성 SQL은 플랫폼 저장소 `scratch/account-security-goal-20261027/verify-learncraft-auto-provision-pglite-20261109.mts`로 PGlite(Postgres 16.4)에서 drizzle 실제 쿼리 빌더를 거쳐 7개 시나리오를 통과했다. `verify-account-lifecycle`은 실행 중인 서버·DB가 필요해 오프라인에서 실행하지 않았다. Neon 분기 거래·실계정 로그인은 미검증이다.

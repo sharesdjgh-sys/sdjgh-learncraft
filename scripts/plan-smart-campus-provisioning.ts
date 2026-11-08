@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Binding, LocalUser, RosterSnapshot } from "./audit-smart-campus-bindings";
 import { mapSmartCampusRole, smartCampusExternalIdCandidates } from "../src/lib/smart-campus-identity";
 
@@ -8,8 +9,10 @@ const STUDENT_NUMBER = /^(?:\d{2,4}-)?(\d{5})$/;
 const COHORT_ACCOUNT = /^(\d{2})-\d{5}$/;
 const normalizeId = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase("en-US");
 
+// deny: 앱을 열 수 있는 활성 계정이지만 사람이 검토해 이 앱 연결을 명시적으로 거부한 경우.
+// 결정이 없는 활성 계정과 구분해 커버리지 불변식에 포함한다.
 type Decision = { platformUserId: string; registrationId: string;
-  kind: "existing" | "create" | "hold"; localUserId?: string;
+  kind: "existing" | "create" | "hold" | "deny"; localUserId?: string;
   excludedLocalUserIds?: string[]; distinctPersonEvidenceRef?: string;
   retiredAccountEvidenceRef?: string;
   specialStudentEvidenceRef?: string;
@@ -17,6 +20,20 @@ type Decision = { platformUserId: string; registrationId: string;
 type Action = { kind: "existing" | "create"; platformUserId: string;
   registrationId: string; localUserId?: string; externalId?: string;
   name?: string; role: string; officialGrade?: number };
+
+// 계획에 넘긴 명부가 걸러지지 않은 전체 명부인지 확인하기 위한 지문(PyRun과 같은 방식).
+// C열(비밀번호)은 비우고 나머지 A:J·행 순서·등록 UUID를 고정한다.
+export function rosterFingerprint(snapshot: RosterSnapshot) {
+  if (!Array.isArray(snapshot?.headers) || !Array.isArray(snapshot?.rows) ||
+      !Array.isArray(snapshot?.registrationIds)) throw Error("invalid_provisioning_input");
+  const canonical = {
+    headers: snapshot.headers.map(value => String(value ?? "")),
+    rows: snapshot.rows.map(row => Array.from({ length: 10 }, (_, column) =>
+      column === 2 ? "" : String(row?.[column] ?? ""))),
+    registrationIds: snapshot.registrationIds.map(value => String(value ?? "")),
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").toUpperCase();
+}
 
 function countBy(values: string[]) {
   const counts = new Map<string, number>();
@@ -55,7 +72,7 @@ export function planLearnCraftProvisioning(snapshot: RosterSnapshot, schoolId: s
   const boundByUser = new Set(bindings.map(binding => binding.user_id));
   const usedUsers = new Set<string>();
   const actions: Action[] = [];
-  const counts = { active: active.length, existing: 0, create: 0, hold: 0,
+  const counts = { active: active.length, existing: 0, create: 0, hold: 0, deny: 0,
     missingDecision: 0, invalidDecision: 0, collision: 0, existingBinding: 0 };
   const activeIds = new Set(active.map(item => item.row[1]));
   const extraneousDecisions = decisions.filter(decision => !activeIds.has(decision?.platformUserId)).length;
@@ -71,7 +88,7 @@ export function planLearnCraftProvisioning(snapshot: RosterSnapshot, schoolId: s
         registrations.get(String(registrationId)) !== 1) { counts.invalidDecision++; continue; }
     const decision = group[0];
     if (decision.registrationId !== registrationId ||
-        !["existing", "create", "hold"].includes(decision.kind)) {
+        !["existing", "create", "hold", "deny"].includes(decision.kind)) {
       counts.invalidDecision++; continue;
     }
     if (decision.kind === "hold") { counts.hold++; continue; }
@@ -81,6 +98,12 @@ export function planLearnCraftProvisioning(snapshot: RosterSnapshot, schoolId: s
       counts.invalidDecision++; continue;
     }
     const prior = boundByPlatform.get(platformUserId);
+    if (decision.kind === "deny") {
+      // 이미 연결된 계정을 거부 결정으로 덮지 않는다. 연결 해제는 별도 절차다.
+      if (prior) counts.collision++;
+      else counts.deny++;
+      continue;
+    }
     if (prior) {
       const boundUser = usersById.get(prior.user_id);
       if (decision.kind === "existing" && prior.registration_id === registrationId &&
@@ -153,15 +176,18 @@ export function planLearnCraftProvisioning(snapshot: RosterSnapshot, schoolId: s
     actions.push({ kind: "create", platformUserId, registrationId: String(registrationId),
       externalId, name: row[3] as string, role, officialGrade: grade });
   }
-  return { mode: "plan-only" as const, applied: false as const, counts,
+  // 커버리지 불변식: 앱을 열 수 있는 활성 계정 수 = existing + create + deny(+이미 같은 연결).
+  const decided = counts.existing + counts.create + counts.deny + counts.existingBinding;
+  const coverage = { active: active.length, decided, complete: decided === active.length };
+  return { mode: "plan-only" as const, applied: false as const, counts, coverage,
     extraneousDecisions, actions, structurallyReady: counts.missingDecision === 0 &&
       counts.invalidDecision === 0 && counts.collision === 0 && counts.hold === 0 &&
-      extraneousDecisions === 0 };
+      extraneousDecisions === 0 && coverage.complete };
 }
 
 export function publicProvisioningSummary(plan: ReturnType<typeof planLearnCraftProvisioning>) {
   // actions에는 학생 식별자가 있으므로 로그·채팅에는 집계만 사용한다.
-  return { mode: plan.mode, applied: false, counts: plan.counts,
+  return { mode: plan.mode, applied: false, counts: plan.counts, coverage: plan.coverage,
     extraneousDecisions: plan.extraneousDecisions,
     structurallyReady: plan.structurallyReady,
     note: "구조 검증은 동일인 확인이나 운영 승인과 다릅니다." };

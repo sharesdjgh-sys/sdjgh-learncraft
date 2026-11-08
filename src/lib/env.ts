@@ -23,6 +23,8 @@ const envSchema = z.object({
   SMART_CAMPUS_SCHOOL_NAME: z.string().min(1).default("서대전여자고등학교"),
   SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING: z.enum(["true", "false"]).default("false"),
   LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY: z.enum(["true", "false"]).default("false"),
+  // 연결 없는 중앙 계정의 안전한 자동 생성(겹칠 수 있는 연결 없는 기존 계정이 없을 때만). 끄려면 false.
+  SMART_CAMPUS_AUTO_PROVISION: z.enum(["true", "false"]).default("true"),
 });
 
 const parsed = envSchema.safeParse({
@@ -48,6 +50,7 @@ const parsed = envSchema.safeParse({
   SMART_CAMPUS_SCHOOL_NAME: process.env.SMART_CAMPUS_SCHOOL_NAME,
   SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING: process.env.SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING,
   LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY: process.env.LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY,
+  SMART_CAMPUS_AUTO_PROVISION: process.env.SMART_CAMPUS_AUTO_PROVISION,
 });
 
 if (!parsed.success) {

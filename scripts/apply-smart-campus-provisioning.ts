@@ -1,4 +1,4 @@
-import { planLearnCraftProvisioning, publicProvisioningSummary } from
+import { planLearnCraftProvisioning, publicProvisioningSummary, rosterFingerprint } from
   "./plan-smart-campus-provisioning";
 import type { Binding, LocalUser, RosterSnapshot } from "./audit-smart-campus-bindings";
 
@@ -35,14 +35,22 @@ function sameDatabaseRows<T extends object>(reviewed: T[], current: T[], keys: (
 
 export async function applyLearnCraftProvisioning(pool: QueryPool, input: {
   schoolId: string; schoolName: string; snapshot: RosterSnapshot;
+  // 결정 파일이 기록한 "전체" 명부 지문. 명부를 결정 행만 남기도록 거르면 지문이 달라진다.
+  expectedRosterFingerprint: string;
   decisions: Parameters<typeof planLearnCraftProvisioning>[3];
   reviewedLocalUsers: LocalUser[]; reviewedBindings: Binding[];
   loadLatestRoster: () => Promise<RosterSnapshot>;
 }) {
   if (typeof pool?.connect !== "function" || !SCHOOL_ID.test(input.schoolId) || !input.schoolName?.trim() ||
       !Array.isArray(input.reviewedLocalUsers) || !Array.isArray(input.reviewedBindings) ||
-      typeof input.loadLatestRoster !== "function") {
+      typeof input.loadLatestRoster !== "function" ||
+      typeof input.expectedRosterFingerprint !== "string" ||
+      !/^[0-9A-F]{64}$/.test(input.expectedRosterFingerprint)) {
     throw Error("invalid_provisioning_input");
+  }
+  // DB 연결 전에 먼저 거른 명부를 거부한다(11월 8일 실패의 직접 원인).
+  if (rosterFingerprint(input.snapshot) !== input.expectedRosterFingerprint) {
+    throw Error("roster_fingerprint_mismatch");
   }
   // 풀의 개별 query()는 연결을 보장하지 않는다. BEGIN부터 종료까지
   // 같은 연결에서 실행하고, 오류가 나도 연결을 반드시 반환한다.
@@ -58,7 +66,10 @@ export async function applyLearnCraftProvisioning(pool: QueryPool, input: {
     [input.schoolId, input.schoolName]);
     if (school.rows.length !== 1) throw Error("school_not_unique_or_active");
     const latestRoster = await input.loadLatestRoster();
-    if (!sameRosterIdentity(input.snapshot, latestRoster)) throw Error("roster_snapshot_stale");
+    if (!sameRosterIdentity(input.snapshot, latestRoster) ||
+        rosterFingerprint(latestRoster) !== input.expectedRosterFingerprint) {
+      throw Error("roster_snapshot_stale");
+    }
     const userRows = await client.query(`SELECT id::text, school_id::text, external_id,
       name, role::text, active FROM public.users WHERE school_id = $1::uuid FOR UPDATE`,
     [input.schoolId]);
@@ -74,6 +85,8 @@ export async function applyLearnCraftProvisioning(pool: QueryPool, input: {
     }
     const plan = planLearnCraftProvisioning(input.snapshot, input.schoolId,
       userRows.rows as LocalUser[], input.decisions, bindingRows.rows as Binding[]);
+    // 결정이 없는 활성 계정이 있으면 전환 뒤 잠긴다. 다른 구조 오류와 구분해 알린다.
+    if (plan.counts.missingDecision > 0) throw Error("provisioning_coverage_incomplete");
     if (!plan.structurallyReady) throw Error("provisioning_plan_not_ready");
 
     let createdUsers = 0;

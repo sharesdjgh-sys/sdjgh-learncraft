@@ -11,6 +11,9 @@ import {
 } from "@/lib/smart-campus-sso";
 
 const inputSchema = z.object({ token: z.string().min(20).max(8_192) });
+// 다시 로그인해도 해결되지 않는 계정 연결 문제(화면은 401에만 sso:expired를 보낸다).
+const linkProblemCodes = new Set(["BINDING_REVIEW_REQUIRED", "REGISTRATION_CHANGED",
+  "REGISTRATION_BINDING_REQUIRED", "ACCOUNT_LINK_AMBIGUOUS", "ACCOUNT_ROLE_MISMATCH"]);
 
 export async function POST(request: Request) {
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
@@ -38,11 +41,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ user: { name: user.name, role: user.role }, redirectTo: homeForRole(user.role) });
   } catch (error) {
     if (error instanceof SmartCampusSsoError) {
+      // 운영 로그에서 중앙 검증 실패·연결 없음·등록 세대 변경 등을 구분한다(개인 값 없음).
+      console.warn("smart_campus_sso_denied", { code: error.code, status: error.status });
       const message = error.status === 401
         ? "스마트 캠퍼스 로그인이 만료됐어요. 다시 로그인해 주세요."
-        : error.status === 403
-          ? "LearnCraft를 이용할 수 없는 계정이에요. 학교 관리자에게 문의해 주세요."
-          : "계정 연결 서비스를 잠시 이용할 수 없어요.";
+        : linkProblemCodes.has(error.code)
+          ? `스마트 캠퍼스 계정과 LearnCraft 계정의 연결 확인이 필요해요. 선생님(관리자)께 알려 주세요. (안내 코드: ${error.code})`
+          : error.status === 403
+            ? "LearnCraft를 이용할 수 없는 계정이에요. 학교 관리자에게 문의해 주세요."
+            : "계정 연결 서비스를 잠시 이용할 수 없어요.";
       return NextResponse.json({ error: { code: error.code, message } }, { status: error.status });
     }
     console.error("smart_campus_sso_failure", { code: error instanceof Error ? error.name : "UNKNOWN" });
