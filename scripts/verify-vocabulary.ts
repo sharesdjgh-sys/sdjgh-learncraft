@@ -17,7 +17,7 @@ function loadModule(path: string, modules: Record<string, unknown>) {
   const exports: Record<string, unknown> = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
     exports, require: (name: string) => { assert(name in modules, name); return modules[name]; },
-    Request, Response, URL, AbortSignal, Date, ReadableStream, TextEncoder, TextDecoder, console: { info() {}, error() {} },
+    Request, Response, URL, AbortController, AbortSignal, Date, ReadableStream, TextEncoder, TextDecoder, console: { info() {}, error() {} },
   });
   return exports;
 }
@@ -142,7 +142,9 @@ async function main() {
   let reserved = 0, completed = 0, refunded = 0, failQuestion = false;
   Object.assign(modules, {
     zod: { z }, "next/server": { NextResponse: Response },
-    "@/lib/auth": { requireLearner: async () => ({ schoolId: "route-school", id: "student" }) },
+    "@/lib/auth": { requireLearner: async () => ({ schoolId: "route-school", id: "student" }),
+      captureSmartCampusStreamVerifier: async () => null },
+    "@/lib/sso-stream-revocation": { guardSmartCampusStream: (source: ReadableStream) => source },
     "@/lib/rate-limit": { checkRequestRateLimit: async () => ({ allowed: true }), requestIp: () => "test" },
     "@/features/tutor/learning-image-storage": { learningImageStorageAvailable: () => false, saveLearningImage: async () => undefined },
     "@/lib/env": { env: { GEMINI_PRIMARY_MODEL_ID: "test", GEMINI_FALLBACK_MODEL_ID: "", GEMINI_IMAGE_ENABLED: "true" }, isGeminiConfigured: true },

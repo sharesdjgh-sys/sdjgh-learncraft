@@ -127,6 +127,20 @@
       "when": 1790741854910,
       "tag": "0017_far_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793033968269,
+      "tag": "0018_violet_puff_adder",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793045651406,
+      "tag": "0019_tearful_midnight",
+      "breakpoints": true
     }
   ]
 }

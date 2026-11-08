@@ -79,16 +79,16 @@ async function main() {
       assert.equal((await request("/api/auth/login", null, "POST", { loginId: input.loginId, password: input.initialPassword })).status, 401);
       const updatedPassword = input.initialPassword + "2";
       const updated = await request(path, adminCookie, "POST", { accounts: [{ ...input, initialPassword: updatedPassword }], updateExisting: true });
-      assert.equal(updated.status, 200, await updated.clone().text());
+      assert.equal(updated.status, path === "/api/admin/accounts" ? 409 : 200, await updated.clone().text());
       const [saved] = await db.select().from(users).where(eq(users.id, account.id));
-      assert.equal(saved.active, false, "CSV update must preserve inactive status and identity");
+      assert.equal(saved.active, false, "CSV must preserve inactive status and identity");
       assert.equal((await request(path, adminCookie, "PATCH", { id: account.id, active: true })).status, 200);
-      await login(input.loginId, updatedPassword);
+      await login(input.loginId, path === "/api/admin/accounts" ? input.initialPassword : updatedPassword);
     }
     const duplicateBatch = await request("/api/admin/teachers", adminCookie, "POST", { accounts: [{ ...teacherInput, loginId: `${teacherLogin}new` }, teacherInput] });
     assert.equal(duplicateBatch.status, 409);
     assert.equal((await db.select().from(users).where(eq(users.externalId, `${teacherLogin}new`))).length, 0, "Failed batch must not partially register accounts");
-    console.log("Live account lifecycle passed: registration, CSV, login, admin isolation, cross-school protection, session revocation, inactive CSV updates, reactivation, batch rollback.");
+    console.log("Live account lifecycle passed: registration, CSV, login, admin isolation, cross-school protection, session revocation, student CSV overwrite refusal, teacher inactive CSV updates, reactivation, batch rollback.");
   } finally {
     const testUsers = await db.select({ id: users.id }).from(users).where(inArray(users.schoolId, schoolIds));
     if (testUsers.length) {
