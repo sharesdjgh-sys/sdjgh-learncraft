@@ -21,8 +21,6 @@ const envSchema = z.object({
   RATE_LIMIT_MODE: z.enum(["shadow", "enforce"]).default("shadow"),
   SMART_CAMPUS_VERIFY_URL: z.string().url().default("https://platform.sdjgh-ai.kr/api/auth/verify"),
   SMART_CAMPUS_SCHOOL_NAME: z.string().min(1).default("서대전여자고등학교"),
-  SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING: z.enum(["true", "false"]).default("false"),
-  LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY: z.enum(["true", "false"]).default("false"),
 });
 
 const parsed = envSchema.safeParse({
@@ -46,8 +44,6 @@ const parsed = envSchema.safeParse({
   RATE_LIMIT_MODE: process.env.RATE_LIMIT_MODE,
   SMART_CAMPUS_VERIFY_URL: process.env.SMART_CAMPUS_VERIFY_URL,
   SMART_CAMPUS_SCHOOL_NAME: process.env.SMART_CAMPUS_SCHOOL_NAME,
-  SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING: process.env.SMART_CAMPUS_REQUIRE_REGISTRATION_BINDING,
-  LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY: process.env.LEARNCRAFT_BOUND_ACCOUNTS_SSO_ONLY,
 });
 
 if (!parsed.success) {

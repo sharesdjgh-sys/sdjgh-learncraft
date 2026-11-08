@@ -1,9 +1,8 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
-import { captureSmartCampusStreamVerifier, requireTeacherTools } from "@/lib/auth";
+import { requireTeacherTools } from "@/lib/auth";
 import { env, isGeminiConfigured } from "@/lib/env";
 import { checkRequestRateLimit, requestIp } from "@/lib/rate-limit";
-import { guardSmartCampusStream } from "@/lib/sso-stream-revocation";
 import { ASSISTANT_SYSTEM_PROMPT, assistantRequestSchema, buildAssistantMessages, createOffTopicFilter } from "@/features/teacher-assistant/model";
 import { recordAssistantEvent, type AssistantEventInput } from "@/features/teacher-assistant/repository";
 
@@ -16,7 +15,6 @@ const json = (data: unknown, status = 200) => Response.json(data, { status, head
 export async function POST(request: Request) {
   const user = await requireTeacherTools();
   if (!user) return json({ error: "교사 또는 관리자 로그인이 필요합니다." }, 403);
-  const verifySso = await captureSmartCampusStreamVerifier(user);
   const parsed = assistantRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "질문 형식을 확인해 주세요." }, 400);
   const limit = await checkRequestRateLimit({ category: "teacherAssistant", userId: user.id, schoolId: user.schoolId, ip: requestIp(request) });
@@ -29,9 +27,6 @@ export async function POST(request: Request) {
   const modelIds = [...new Set([env.GEMINI_PRIMARY_MODEL_ID, env.GEMINI_FALLBACK_MODEL_ID].filter(Boolean))];
   const startedAt = Date.now();
   const encoder = new TextEncoder();
-  const streamAbort = new AbortController();
-  const activeSignal = AbortSignal.any([request.signal, streamAbort.signal]);
-  let revoked = false;
   const record = (event: Pick<AssistantEventInput, "status" | "offTopic" | "modelId"> & Partial<AssistantEventInput>) =>
     recordAssistantEvent({ schoolId: user.schoolId, userId: user.id, subject: page.subject, tool: page.tool, latencyMs: Date.now() - startedAt, ...event, role: user.role });
 
@@ -43,22 +38,17 @@ export async function POST(request: Request) {
       for (const [attempt, id] of modelIds.entries()) {
         modelId = id;
         const filter = createOffTopicFilter();
-        const send = (text: string) => {
-          activeSignal.throwIfAborted();
-          if (text) { emitted = true; controller.enqueue(encoder.encode(text)); }
-        };
+        const send = (text: string) => { if (text) { emitted = true; controller.enqueue(encoder.encode(text)); } };
         try {
-          activeSignal.throwIfAborted();
           const result = streamText({
             model: google(id),
             system: ASSISTANT_SYSTEM_PROMPT,
             messages,
             maxOutputTokens: 3000,
-            abortSignal: activeSignal,
+            abortSignal: request.signal,
             providerOptions: { google: { thinkingConfig: { thinkingLevel: "low", includeThoughts: false } } },
           });
           for await (const part of result.fullStream) {
-            activeSignal.throwIfAborted();
             if (part.type === "text-delta") send(filter.push(part.text));
             else if (part.type === "error") throw part.error;
           }
@@ -68,26 +58,21 @@ export async function POST(request: Request) {
           const usage = await Promise.resolve(result.usage).catch(() => undefined);
           console.info("teacher_assistant", { userId: user.id, schoolId: user.schoolId, model: id, attempts: attempt + 1, subject: page.subject, offTopic, elapsedMs: Date.now() - startedAt, usage });
           await record({ status: "SUCCEEDED", offTopic, modelId: id, inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0 });
-          if (!activeSignal.aborted) controller.close();
+          controller.close();
           return;
         } catch (error) {
           const last = attempt === modelIds.length - 1;
-          const cancelled = activeSignal.aborted;
+          const cancelled = request.signal.aborted;
           console.warn(`teacher_assistant_attempt_failed ${error instanceof Error ? `${error.name}: ${error.message}` : "UnknownError"}`, { userId: user.id, model: id, attempt: attempt + 1, emitted });
           // 이미 글이 나간 뒤에는 다른 모델로 바꾸면 답이 섞이므로 그대로 끝냅니다.
           if (emitted || cancelled || last) {
-            await record({ status: cancelled ? "CANCELLED" : "FAILED", offTopic: filter.offTopic, modelId, errorCode: revoked ? "ACCOUNT_REVOKED" : cancelled ? "CLIENT_ABORTED" : emitted ? "STREAM_INTERRUPTED" : error instanceof Error && error.message === "EMPTY_RESPONSE" ? "EMPTY_RESPONSE" : "AI_PROVIDER_ERROR" });
-            // 바깥 스트림이 이미 닫혔을 수 있으므로 이중 오류는 무시한다.
-            try { controller.error(error); } catch { /* 종료됨 */ }
+            await record({ status: cancelled ? "CANCELLED" : "FAILED", offTopic: filter.offTopic, modelId, errorCode: cancelled ? "CLIENT_ABORTED" : emitted ? "STREAM_INTERRUPTED" : error instanceof Error && error.message === "EMPTY_RESPONSE" ? "EMPTY_RESPONSE" : "AI_PROVIDER_ERROR" });
+            controller.error(error);
             return;
           }
         }
       }
     },
-    cancel() { streamAbort.abort(); },
   });
-  const guarded = guardSmartCampusStream(stream, verifySso,
-    () => { revoked = true; streamAbort.abort(); },
-    () => streamAbort.abort(), 3_000, 120_000);
-  return new Response(guarded, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }

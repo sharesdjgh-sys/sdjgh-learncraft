@@ -5,7 +5,6 @@ export type SmartCampusUser = {
   uid: string;
   name: string;
   role: string;
-  registrationId?: string;
 };
 
 const roleMap: Record<string, UserRole> = {

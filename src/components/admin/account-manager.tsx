@@ -111,8 +111,7 @@ export function AccountManager({ role, onRoleChange }: { role: AccountRole; onRo
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message ?? "계정을 등록하지 못했습니다.");
-      setSuccess(single ? `${data.account.name} ${label} 계정을 등록했습니다. ${idLabel}: ${data.account.loginId}`
-        : teacher ? `신규 ${data.created}명, 기존 ${data.updated}명 처리를 완료했습니다.` : `신규 학생 ${data.created}명을 등록했습니다.`);
+      setSuccess(single ? `${data.account.name} ${label} 계정을 등록했습니다. ${idLabel}: ${data.account.loginId}` : `신규 ${data.created}명, 기존 ${data.updated}명 처리를 완료했습니다.`);
       if (single) { setName(""); setLoginId(""); setPassword(""); }
       else { setCsv([]); setFileName(""); setUpdateExisting(false); if (fileInput.current) fileInput.current.value = ""; }
       registrationDialog.current?.close();
@@ -278,8 +277,7 @@ export function AccountManager({ role, onRoleChange }: { role: AccountRole; onRo
               <div className="flex items-center justify-between text-xs"><strong>등록 전 확인</strong><span className="text-slate-400">총 {csv.length}명</span></div>
               <div className={styles.preview}><table><thead><tr><th>{idLabel}</th><th>이름</th><th>비밀번호</th></tr></thead><tbody>{csv.slice(0, 8).map((account) => <tr key={account.loginId}><td>{account.loginId}</td><td>{account.name}</td><td className="text-slate-300">••••••</td></tr>)}</tbody></table></div>
               {csv.length > 8 && <p className={`${styles.hint} text-right`}>외 {csv.length - 8}명</p>}
-              {teacher ? <label className={styles.update}><input type="checkbox" checked={updateExisting} disabled={busy} onChange={(e) => setUpdateExisting(e.target.checked)} /><span>기존 계정 정보·비밀번호 갱신<span className={`${styles.hint} block`}>같은 아이디의 이름과 비밀번호를 변경합니다. 통합 로그인 연결 계정이 포함되면 파일 전체를 거부하며 비활성 상태는 유지합니다.</span></span></label>
-                : <p className={styles.hint}>기존 학번이 하나라도 포함되면 파일 전체를 등록하지 않습니다. 같은 학번을 다른 학생이 다시 사용할 수 있어 기존 계정을 자동 갱신하지 않습니다.</p>}
+              <label className={styles.update}><input type="checkbox" checked={updateExisting} disabled={busy} onChange={(e) => setUpdateExisting(e.target.checked)} /><span>기존 계정 정보·비밀번호 갱신<span className={`${styles.hint} block`}>같은 {idLabel}의 이름과 비밀번호{!teacher && "·공식 학년"}를 변경합니다. 비활성 상태는 그대로 유지됩니다.</span></span></label>
             </> : <p className={styles.hint}>파일 열 순서: {idLabel}, 이름, 초기비밀번호<br />{teacher && "아이디가 비어 있으면 성함을 아이디로 사용합니다."}</p>}
           </>}
           {error && <p role="alert" className={`${styles.alert} mt-5`}>{error}</p>}

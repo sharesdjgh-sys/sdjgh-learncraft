@@ -4,7 +4,6 @@ import localFont from "next/font/local";
 import { PwaProvider } from "@/components/pwa/pwa-provider";
 import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
 import { MobilePortraitGuard } from "@/components/layout/mobile-portrait-guard";
-import { SsoSessionGuard } from "@/components/auth/sso-session-guard";
 import "katex/dist/katex.min.css";
 import "@fontsource-variable/noto-serif-kr/wght.css";
 import "@fontsource-variable/source-serif-4/wght.css";
@@ -66,7 +65,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={pretendard.variable}>
-      <body><PwaProvider>{children}<SsoSessionGuard /><PwaInstallAction promptOnly /><MobilePortraitGuard /></PwaProvider></body>
+      <body><PwaProvider>{children}<PwaInstallAction promptOnly /><MobilePortraitGuard /></PwaProvider></body>
     </html>
   );
 }
